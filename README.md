@@ -6,6 +6,13 @@ activation, spatial previews that reflect each window's compositor geometry,
 and dragging windows between workspaces.
 ![Mirador Preview](preview.png)
 
+## What's new in version 2
+
+Mirador now preserves the approximate compositor position and size of every
+window inside its workspace card. Tiled layouts remain recognizable at a
+glance, while floating windows appear at their actual relative position and
+can overlap tiled windows naturally.
+
 ## Demo
 
 
