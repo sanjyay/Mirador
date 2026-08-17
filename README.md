@@ -13,14 +13,14 @@ window inside its workspace card. Tiled layouts remain recognizable at a
 glance, while floating windows appear at their actual relative position and
 can overlap tiled windows naturally.
 
-Terminal, OMACut, OMAWrite, and OMACalc arranged in tiled spatial previews:
+Mirador's fullscreen workspace overview:
 
-![Mirador version 2 showing Terminal, OMACut, OMAWrite, and OMACalc in tiled layouts](screenshots/mirador-v2-spatial-layouts.png)
+![Mirador version 2 fullscreen workspace overview](screenshots/mirador-v2-workspace-overview.png)
 
-Floating windows retain their compositor position and stack over tiled
-windows, as shown by OMACalc floating above OMAWrite:
+Window previews retain their compositor position, size, and stacking within
+each workspace card:
 
-![Mirador version 2 showing OMACalc floating over OMAWrite](screenshots/mirador-v2-floating-window.png)
+![Mirador version 2 showing spatial window previews](screenshots/mirador-v2-spatial-previews.png)
 
 ## Demo
 
