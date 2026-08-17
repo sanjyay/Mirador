@@ -2,7 +2,8 @@
 
 An external Omarchy Shell plugin that presents a fullscreen overview of
 workspaces and their windows. It supports keyboard navigation, window
-activation, and dragging windows between workspaces.
+activation, spatial previews that reflect each window's compositor geometry,
+and dragging windows between workspaces.
 ![Mirador Preview](preview.png)
 
 ## Demo

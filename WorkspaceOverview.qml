@@ -135,6 +135,9 @@ Item {
   }
 
   function open(payloadJson) {
+    Hyprland.refreshMonitors()
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
@@ -283,6 +286,22 @@ Item {
     target: root.draggedToplevel
     ignoreUnknownSignals: true
     function onDestroyed() { root.draggedToplevel = null }
+  }
+
+  Connections {
+    target: Hyprland
+
+    function onRawEvent(event) {
+      if (!root.opened || !event || !event.name) return
+      var name = String(event.name)
+      if (name.indexOf("monitor") !== -1 || name.indexOf("moveworkspace") === 0) {
+        Hyprland.refreshMonitors()
+        Hyprland.refreshWorkspaces()
+      }
+      if (name.indexOf("window") !== -1 || name === "fullscreen"
+          || name === "changefloatingmode" || name.indexOf("workspace") !== -1)
+        Hyprland.refreshToplevels()
+    }
   }
 
   onCardCountChanged: {

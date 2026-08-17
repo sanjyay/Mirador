@@ -1,7 +1,9 @@
 import QtQuick
+import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
+import "WindowGeometry.js" as WindowGeometry
 
 BorderSurface {
   id: root
@@ -16,10 +18,12 @@ BorderSurface {
   readonly property var toplevelModel: workspace ? workspace.toplevels : []
   readonly property int windowCount: workspace ? workspace.toplevels.values.length : 0
   readonly property bool occupied: windowCount > 0
-  readonly property int previewColumns: windowCount === 2 ? 2 : Math.max(1, Math.ceil(Math.sqrt(windowCount)))
-  readonly property int previewRows: Math.max(1, Math.ceil(windowCount / previewColumns))
-  readonly property real headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
-  readonly property real previewSpacing: Style.spacing.sm
+
+  readonly property real frameMargin: Style.spacing.sm
+  readonly property real previewSpacing: Math.max(1, Style.spacing.xs || 2)
+  readonly property var workspaceMonitor: (workspace && workspace.monitor)
+    ? workspace.monitor : Hyprland.focusedMonitor
+
   readonly property int draggedSourceWorkspaceId: draggedToplevel && draggedToplevel.workspace
     ? Number(draggedToplevel.workspace.id) : -1
   readonly property bool validDropTarget: draggedToplevel !== null
@@ -27,13 +31,41 @@ BorderSurface {
     && workspaceId > 0 && workspaceId <= 10
     && draggedSourceWorkspaceId !== workspaceId
   readonly property bool dropHovered: validDropTarget && dropArea.containsDrag
-  readonly property var normalBorderSpec: keyboardSelected
-    ? Border.withWidth(Border.controlSpec("focus", Color.menu.text, Color.accent), Math.max(Style.space(2), Style.focusBorderWidth))
-    : (focused
-      ? Border.hyprlandActiveSpec(Color.accent, Math.max(1, Style.normalBorderWidth))
-      : (occupied
-        ? Border.surfaceSpec("menu", "border", Color.menu.border, Math.max(1, Style.normalBorderWidth))
-        : Border.flat(Util.alpha(Color.menu.border, 0.28), Math.max(1, Style.normalBorderWidth))))
+
+  // ── Border widths ─────────────────────────────────────────────────────────
+  // All states share the same 1-px physical width. The hierarchy is expressed
+  // entirely through colour opacity, which is easier to reason about.
+  // (Drop states keep a slightly thicker ring to clearly communicate drag.)
+  readonly property int activeBorderWidth: Math.max(Style.space(2), Style.focusBorderWidth)
+  readonly property int normalBorderWidth: Math.max(1, Style.normalBorderWidth)
+
+  // ── Border spec ────────────────────────────────────────────────────────────
+  // Priority (highest first):
+  //   dropHovered          → thick accent ring  (drag target confirmed)
+  //   validDropTarget      → thinner accent ring (drag affordance)
+  //   focused              → accent ring         ← WINS over keyboardSelected
+  //   focused+kbSelected   → accent ring (same)  ← no separate treatment needed
+  //   keyboardSelected     → dim accent ring     (navigator cursor)
+  //   occupied/inactive    → nearly invisible    (does not compete)
+  //   empty/inactive       → fully invisible     (pure canvas)
+  readonly property var cardBorderSpec: {
+    if (dropHovered)
+      return Border.withWidth(
+        Border.flat(Color.accent, activeBorderWidth), activeBorderWidth)
+    if (validDropTarget)
+      return Border.withWidth(
+        Border.flat(Util.alpha(Color.accent, 0.55), normalBorderWidth), normalBorderWidth)
+    if (focused)
+      // Accent at full opacity — the strongest signal in the overview.
+      return Border.flat(Color.accent, activeBorderWidth)
+    if (keyboardSelected)
+      // Keyboard cursor: same accent colour but appreciably dimmer so that
+      // the active workspace always reads as stronger.
+      return Border.flat(Util.alpha(Color.accent, 0.45), normalBorderWidth)
+    // Inactive (occupied or empty): border fades to near-invisible so active
+    // card is the only one whose frame the eye perceives.
+    return Border.flat(Util.alpha(Color.menu.border, 0.12), normalBorderWidth)
+  }
 
   signal workspaceActivated()
   signal windowActivated(var toplevel)
@@ -41,15 +73,26 @@ BorderSurface {
   signal windowDragFinished(var toplevel)
   signal windowDropped(var toplevel)
 
+  function screenForMonitor(monitor) {
+    if (!monitor) return null
+    var screens = Quickshell.screens || []
+    for (var i = 0; i < screens.length; i++) {
+      if (screens[i] && screens[i].name === monitor.name) return screens[i]
+    }
+    return null
+  }
+
   radius: Style.cornerRadius
-  color: occupied ? Color.menu.background : Util.alpha(Color.menu.background, 0.72)
-  borderSpec: dropHovered
-    ? Border.withWidth(Border.controlSpec("focus", Color.menu.text, Color.accent), Math.max(Style.space(2), Style.focusBorderWidth))
-    : (validDropTarget
-      ? Border.withWidth(Border.controlSpec("hover-cursor", Color.menu.text, Color.accent), Math.max(1, Style.hoverBorderWidth))
-      : normalBorderSpec)
+  // Keep backgrounds consistent — the border is the primary indicator.
+  // Active workspace is fully opaque; others are slightly translucent.
+  // Avoid a brightly filled background so the border does the work.
+  color: occupied || focused
+    ? Color.menu.background
+    : Util.alpha(Color.menu.background, 0.72)
+  borderSpec: cardBorderSpec
   clip: true
 
+  // Full-card click — sits below all interactive children.
   MouseArea {
     anchors.fill: parent
     z: 1
@@ -57,71 +100,74 @@ BorderSurface {
     onClicked: root.workspaceActivated()
   }
 
+  // Drag/keyboard fill overlay — provides a surface-level tint during drag
+  // and keyboard navigation. Focused workspace does NOT get an extra fill;
+  // the accent border alone is the active indicator.
   Rectangle {
     anchors.fill: parent
     z: 2
     color: root.dropHovered
       ? Style.selectedFillFor(Color.menu.text, Color.accent)
       : (root.validDropTarget || root.keyboardSelected
-        ? Style.hoverFillFor(Color.menu.text, Color.accent) : "transparent")
+        ? Style.hoverFillFor(Color.menu.text, Color.accent)
+        : "transparent")
 
     Behavior on color {
-      ColorAnimation { duration: 60 }
+      ColorAnimation { duration: 80 }
     }
   }
 
-  Text {
-    id: workspaceLabel
-    visible: !root.addWorkspace
-    anchors.top: parent.top
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.leftMargin: Style.spacing.md
-    anchors.rightMargin: Style.spacing.md
-    height: root.headerHeight
-    text: root.workspaceId === 10 ? "Workspace 0" : "Workspace " + root.workspaceId
-    color: root.focused ? Color.accent : Color.menu.text
-    opacity: root.occupied || root.focused ? 1 : 0.58
-    font.family: Style.font.menuFamily
-    font.pixelSize: Style.font.title
-    font.bold: root.focused
-    elide: Text.ElideRight
-    verticalAlignment: Text.AlignVCenter
-  }
-
-  Text {
-    visible: !root.occupied && !root.addWorkspace
-    anchors.centerIn: previewArea
-    text: "Empty"
-    color: Color.menu.text
-    opacity: 0.42
-    font.family: Style.font.menuFamily
-    font.pixelSize: Style.font.body
-  }
-
+  // ── Preview area ───────────────────────────────────────────────────────────
   Item {
     id: previewArea
     visible: !root.addWorkspace
     z: 5
-    anchors.top: workspaceLabel.bottom
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottom: parent.bottom
-    anchors.margins: Style.spacing.md
+    anchors.fill: parent
+    anchors.margins: root.frameMargin
 
-    Grid {
+    // Empty hint: barely-visible centred dot.
+    Text {
+      visible: !root.occupied
+      anchors.centerIn: parent
+      text: "·"
+      color: Color.menu.text
+      opacity: root.focused ? 0.50 : 0.22
+      font.family: Style.font.menuFamily
+      font.pixelSize: Style.font.displayLarge
+      verticalAlignment: Text.AlignVCenter
+      horizontalAlignment: Text.AlignHCenter
+    }
+
+    Item {
+      id: spatialPreview
       anchors.fill: parent
-      columns: root.previewColumns
-      spacing: root.previewSpacing
 
       Repeater {
         model: root.toplevelModel
 
         WindowPreview {
           required property var modelData
+          required property int index
 
-          width: Math.max(1, (previewArea.width - root.previewSpacing * (root.previewColumns - 1)) / root.previewColumns)
-          height: Math.max(1, (previewArea.height - root.previewSpacing * (root.previewRows - 1)) / root.previewRows)
+          readonly property var previewGeometry: WindowGeometry.previewGeometry(
+            modelData ? modelData.lastIpcObject : null,
+            modelData && modelData.monitor ? modelData.monitor : root.workspaceMonitor,
+            root.screenForMonitor(modelData && modelData.monitor
+              ? modelData.monitor : root.workspaceMonitor),
+            spatialPreview.width,
+            spatialPreview.height,
+            Math.min(spatialPreview.width, Math.max(Style.space(56), spatialPreview.width * 0.15)),
+            Math.min(spatialPreview.height, Math.max(Style.space(40), spatialPreview.height * 0.20)))
+          readonly property var displayGeometry: previewGeometry.valid
+            ? previewGeometry
+            : WindowGeometry.fallbackGeometry(index, root.windowCount,
+              spatialPreview.width, spatialPreview.height, root.previewSpacing)
+
+          x: displayGeometry.x
+          y: displayGeometry.y
+          width: Math.max(1, displayGeometry.width)
+          height: Math.max(1, displayGeometry.height)
+          z: index + 1
           toplevel: modelData
           onActivated: root.windowActivated(modelData)
           onDragStarted: root.windowDragStarted(modelData)
@@ -129,8 +175,51 @@ BorderSurface {
         }
       }
     }
+
+    // ── Workspace number badge ─────────────────────────────────────────────
+    // Small pill in the top-left. The number is always large and bold enough
+    // to read at a glance. Active state: accent-filled pill with bright digit.
+    // Inactive: dark translucent pill with readable digit.
+    Rectangle {
+      id: badge
+      z: 30
+      anchors.top: parent.top
+      anchors.left: parent.left
+      anchors.topMargin: Style.spacing.xs
+      anchors.leftMargin: Style.spacing.xs
+      width: badgeLabel.implicitWidth + Style.spacing.md * 2
+      height: badgeLabel.implicitHeight + Style.spacing.xs * 2
+      radius: height / 2
+      color: root.focused
+        ? Color.accent
+        : (root.keyboardSelected
+          ? Util.alpha(Color.menu.text, 0.18)
+          : Util.alpha(Color.menu.background, 0.72))
+
+      Behavior on color {
+        ColorAnimation { duration: 80 }
+      }
+
+      Text {
+        id: badgeLabel
+        anchors.centerIn: parent
+        text: root.workspaceId === 10 ? "0" : String(root.workspaceId)
+        font.family: Style.font.menuFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+        // On the accent pill use the overview scrim background as contrast;
+        // otherwise use menu.text at varying opacity.
+        color: root.focused ? Color.menu.scrim : Color.menu.text
+        opacity: root.focused ? 1.0 : (root.occupied || root.keyboardSelected ? 0.90 : 0.55)
+
+        Behavior on opacity {
+          NumberAnimation { duration: 80 }
+        }
+      }
+    }
   }
 
+  // ── Add-workspace card ─────────────────────────────────────────────────────
   Text {
     visible: root.addWorkspace
     anchors.centerIn: parent
