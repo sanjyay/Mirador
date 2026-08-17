@@ -16,6 +16,30 @@ Item {
   property var draggedToplevel: null
   property int selectedCardIndex: -1
 
+  // ── Bar geometry ────────────────────────────────────────────────────────────
+  // `shell.bar` is the live Bar plugin instance injected by the shell loader.
+  // It exposes `position` ("top"/"bottom"/"left"/"right"), `barSize` (pixels),
+  // and `barHidden` (bool). We read these reactively — any change automatically
+  // re-evaluates the derived usable-area properties below.
+  //
+  // Fallback: if the bar object is not yet available, all insets stay 0 and the
+  // overview uses its normal outer margin across the full panel.
+  readonly property var activeBar: shell ? shell.bar : null
+  readonly property string barPosition: (activeBar && !activeBar.barHidden)
+    ? String(activeBar.position || "top")
+    : ""
+  readonly property int barPixels: (activeBar && !activeBar.barHidden && activeBar.barSize > 0)
+    ? activeBar.barSize
+    : 0
+
+  // Inset for each edge in logical pixels, derived entirely from the bar's own
+  // exported geometry — no hardcoded heights, no heuristics.
+  readonly property int barInsetTop:    barPosition === "top"    ? barPixels : 0
+  readonly property int barInsetBottom: barPosition === "bottom" ? barPixels : 0
+  readonly property int barInsetLeft:   barPosition === "left"   ? barPixels : 0
+  readonly property int barInsetRight:  barPosition === "right"  ? barPixels : 0
+
+  // ── Layout calculation ──────────────────────────────────────────────────────
   readonly property var workspaceModel: root.workspaceIds()
   readonly property int workspaceCount: workspaceModel.length
   readonly property int nextWorkspaceId: root.nextWorkspaceAfter(workspaceModel)
@@ -26,19 +50,33 @@ Item {
   }
   readonly property int cardCount: overviewCardModel.length
   readonly property real cardAspectRatio: 1.55
+
+  // Mirador's own outer margin, applied on top of the bar inset so there is
+  // always a small breathing gap between cards and the bar (or monitor edge).
   readonly property real outerMargin: Math.max(Style.gapsOut, Style.spacing.panelPadding)
   readonly property real gridSpacing: Style.spacing.lg
-  readonly property real availableWidth: Math.max(1, panel.width - outerMargin * 2)
-  readonly property real availableHeight: Math.max(1, panel.height - outerMargin * 2)
+
+  // Usable panel area after subtracting bar-reserved edges.
+  // panel.width/height equals the full monitor dimensions because the panel
+  // anchors all four edges, so subtracting bar insets + outerMargin on each
+  // side gives the actual content rectangle.
+  readonly property real usableX:      barInsetLeft   + outerMargin
+  readonly property real usableY:      barInsetTop    + outerMargin
+  readonly property real usableWidth:  Math.max(1, panel.width
+    - barInsetLeft - barInsetRight - outerMargin * 2)
+  readonly property real usableHeight: Math.max(1, panel.height
+    - barInsetTop - barInsetBottom - outerMargin * 2)
+
   readonly property int columns: Math.max(1, Math.min(cardCount,
-    Math.ceil(Math.sqrt(cardCount * availableWidth / availableHeight / cardAspectRatio))))
+    Math.ceil(Math.sqrt(cardCount * usableWidth / usableHeight / cardAspectRatio))))
   readonly property int rows: Math.max(1, Math.ceil(cardCount / columns))
   readonly property real cardWidth: Math.max(1, Math.min(
     Style.space(520),
-    (availableWidth - gridSpacing * (columns - 1)) / columns,
-    ((availableHeight - gridSpacing * (rows - 1)) / rows) * cardAspectRatio))
+    (usableWidth  - gridSpacing * (columns - 1)) / columns,
+    ((usableHeight - gridSpacing * (rows    - 1)) / rows) * cardAspectRatio))
   readonly property real cardHeight: Math.max(1, cardWidth / cardAspectRatio)
 
+  // ── Workspace helpers ───────────────────────────────────────────────────────
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
     for (var i = 0; i < values.length; i++) {
@@ -213,6 +251,7 @@ Item {
     if (root.draggedToplevel === toplevel) root.draggedToplevel = null
   }
 
+  // ── Panel window ────────────────────────────────────────────────────────────
   PanelWindow {
     id: panel
 
@@ -242,10 +281,15 @@ Item {
       onActivateRequested: root.activateSelectedCard()
       onCloseRequested: root.dismiss()
 
+      // The grid is positioned inside the usable area (bar inset + outerMargin)
+      // rather than centred in the full panel, so cards never overlap the bar.
       Grid {
         id: workspaceGrid
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
+
+        // Centre the grid within the usable rect rather than the full panel.
+        x: root.usableX + (root.usableWidth  - (root.cardWidth  * root.columns + root.gridSpacing * (root.columns - 1))) / 2
+        y: root.usableY + (root.usableHeight - (root.cardHeight * root.rows    + root.gridSpacing * (root.rows    - 1))) / 2
+
         columns: root.columns
         spacing: root.gridSpacing
 
