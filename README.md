@@ -40,7 +40,8 @@ and dragging windows between workspaces.
 ## Demo
 
 
-https://github.com/user-attachments/assets/9b103f22-26b8-4e23-a17b-73527a0806c3
+https://github.com/user-attachments/assets/7f153d9d-7b67-4ad9-8147-c6a8ccb662f2
+
 
 
 
