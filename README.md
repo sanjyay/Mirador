@@ -42,7 +42,7 @@ Add the keyboard binding to `~/.config/hypr/bindings.lua`:
 o.bind(
   "SHIFT + TAB",
   "Workspace overview",
-  "omarchy-shell shell summon mirador '{}'"
+  "omarchy-shell shell toggle mirador '{}'"
 )
 ```
 
@@ -83,7 +83,7 @@ Edit the key combination in the first argument of `o.bind` in
 o.bind(
   "SUPER + TAB",
   "Workspace overview",
-  "omarchy-shell shell summon mirador '{}'"
+  "omarchy-shell shell toggle mirador '{}'"
 )
 ```
 
@@ -95,7 +95,7 @@ hl.unbind("SUPER + TAB")
 o.bind(
   "SUPER + TAB",
   "Workspace overview",
-  "omarchy-shell shell summon mirador '{}'"
+  "omarchy-shell shell toggle mirador '{}'"
 )
 ```
 
