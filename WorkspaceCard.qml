@@ -19,8 +19,11 @@ BorderSurface {
   readonly property int windowCount: workspace ? workspace.toplevels.values.length : 0
   readonly property bool occupied: windowCount > 0
 
-  readonly property real frameMargin: Style.spacing.sm
+  readonly property real previewInset: Math.max(2,
+    Math.min(4, Number(Style.spacing.xs) || 2))
   readonly property real previewSpacing: Math.max(1, Style.spacing.xs || 2)
+  readonly property var previewCanvasGeometry: WindowGeometry.insetGeometry(
+    width, height, previewInset)
   readonly property var workspaceMonitor: (workspace && workspace.monitor)
     ? workspace.monitor : Hyprland.focusedMonitor
 
@@ -122,8 +125,10 @@ BorderSurface {
     id: previewArea
     visible: !root.addWorkspace
     z: 5
-    anchors.fill: parent
-    anchors.margins: root.frameMargin
+    x: root.previewCanvasGeometry.x
+    y: root.previewCanvasGeometry.y
+    width: root.previewCanvasGeometry.width
+    height: root.previewCanvasGeometry.height
 
     // Empty hint: barely-visible centred dot.
     Text {
@@ -177,7 +182,8 @@ BorderSurface {
     }
 
     // ── Workspace number badge ─────────────────────────────────────────────
-    // Small pill in the top-left. The number is always large and bold enough
+    // Small overlay in the top-left. It consumes no preview geometry. The
+    // number is always large and bold enough
     // to read at a glance. Active state: accent-filled pill with bright digit.
     // Inactive: dark translucent pill with readable digit.
     Rectangle {

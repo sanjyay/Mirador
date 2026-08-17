@@ -1,5 +1,5 @@
-import QtQuick
-import QtTest
+import QtQuick 2.15
+import QtTest 1.3
 import "../WindowGeometry.js" as WindowGeometry
 
 TestCase {
@@ -129,5 +129,77 @@ TestCase {
     verify(fallback.height > 0)
     verify(fallback.x >= 0 && fallback.x + fallback.width <= 320)
     verify(fallback.y >= 0 && fallback.y + fallback.height <= 180)
+  }
+
+  function test_previewCanvasUsesNearlyEntireCard() {
+    var canvas = WindowGeometry.insetGeometry(520, 335, 4)
+    compare(canvas.x, 4)
+    compare(canvas.y, 4)
+    compare(canvas.width, 512)
+    compare(canvas.height, 327)
+    verify(canvas.width * canvas.height / (520 * 335) > 0.96)
+  }
+
+  function test_previewCanvasHandlesTinyCards() {
+    var canvas = WindowGeometry.insetGeometry(3, 2, 4)
+    compare(canvas.width, 1)
+    compare(canvas.height, 1)
+    verify(canvas.x >= 0)
+    verify(canvas.y >= 0)
+  }
+
+  function verifyCenteredGrid(count, width, height, spacing) {
+    var result = WindowGeometry.overviewGridGeometry(
+      count, width, height, 1.55, 520, spacing)
+    compare(result.columns * result.rows >= count, true)
+    verify(result.gridWidth <= width + 0.001)
+    verify(result.gridHeight <= height + 0.001)
+    fuzzyCompare(result.x * 2 + result.gridWidth, width)
+    fuzzyCompare(result.y * 2 + result.gridHeight, height)
+  }
+
+  function test_sixCardsRemainCentered() {
+    var result = WindowGeometry.overviewGridGeometry(6, 1880, 1000, 1.55, 520, 16)
+    compare(result.columns, 3)
+    compare(result.rows, 2)
+    verifyCenteredGrid(6, 1880, 1000, 16)
+  }
+
+  function test_allWorkspaceCountsRemainCentered() {
+    var sizes = [[1880, 1000], [1000, 1880], [3440, 1340], [320, 240]]
+    for (var count = 1; count <= 10; count++) {
+      for (var i = 0; i < sizes.length; i++)
+        verifyCenteredGrid(count, sizes[i][0], sizes[i][1], 16)
+    }
+  }
+
+  function test_barInsetsPreserveUsableAreaCenter() {
+    var panelWidth = 1920
+    var panelHeight = 1080
+    var outerMargin = 12
+    var topBar = 43
+    var usableWidth = panelWidth - outerMargin * 2
+    var usableHeight = panelHeight - topBar - outerMargin * 2
+    var result = WindowGeometry.overviewGridGeometry(
+      6, usableWidth, usableHeight, 1.55, 520, 16)
+
+    fuzzyCompare(outerMargin + result.x + result.gridWidth / 2,
+      outerMargin + usableWidth / 2)
+    fuzzyCompare(topBar + outerMargin + result.y + result.gridHeight / 2,
+      topBar + outerMargin + usableHeight / 2)
+  }
+
+  function test_emptyAndInvalidInputsStayFinite() {
+    var empty = WindowGeometry.overviewGridGeometry(0, 1920, 1080, 1.55, 520, 16)
+    compare(empty.columns, 0)
+    compare(empty.rows, 0)
+    fuzzyCompare(empty.x, 960)
+    fuzzyCompare(empty.y, 540)
+
+    var constrained = WindowGeometry.overviewGridGeometry(10, NaN, -1, 0, -1, -5)
+    verify(isFinite(constrained.x))
+    verify(isFinite(constrained.y))
+    verify(isFinite(constrained.cardWidth))
+    verify(isFinite(constrained.cardHeight))
   }
 }

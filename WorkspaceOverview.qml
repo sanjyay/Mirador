@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "WindowGeometry.js" as WindowGeometry
 
 Item {
   id: root
@@ -67,14 +68,13 @@ Item {
   readonly property real usableHeight: Math.max(1, panel.height
     - barInsetTop - barInsetBottom - outerMargin * 2)
 
-  readonly property int columns: Math.max(1, Math.min(cardCount,
-    Math.ceil(Math.sqrt(cardCount * usableWidth / usableHeight / cardAspectRatio))))
-  readonly property int rows: Math.max(1, Math.ceil(cardCount / columns))
-  readonly property real cardWidth: Math.max(1, Math.min(
-    Style.space(520),
-    (usableWidth  - gridSpacing * (columns - 1)) / columns,
-    ((usableHeight - gridSpacing * (rows    - 1)) / rows) * cardAspectRatio))
-  readonly property real cardHeight: Math.max(1, cardWidth / cardAspectRatio)
+  readonly property var gridGeometry: WindowGeometry.overviewGridGeometry(
+    cardCount, usableWidth, usableHeight, cardAspectRatio,
+    Style.space(520), gridSpacing)
+  readonly property int columns: Math.max(1, gridGeometry.columns)
+  readonly property int rows: Math.max(1, gridGeometry.rows)
+  readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
+  readonly property real cardHeight: Math.max(1, gridGeometry.cardHeight)
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
   function workspaceById(id) {
@@ -266,7 +266,7 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: Color.menu.scrim
+      color: "transparent"
     }
 
     MouseArea {
@@ -286,9 +286,10 @@ Item {
       Grid {
         id: workspaceGrid
 
-        // Centre the grid within the usable rect rather than the full panel.
-        x: root.usableX + (root.usableWidth  - (root.cardWidth  * root.columns + root.gridSpacing * (root.columns - 1))) / 2
-        y: root.usableY + (root.usableHeight - (root.cardHeight * root.rows    + root.gridSpacing * (root.rows    - 1))) / 2
+        // The geometry helper fits every card, then returns exact centered
+        // offsets for any count, screen aspect ratio, scale, and bar edge.
+        x: root.usableX + root.gridGeometry.x
+        y: root.usableY + root.gridGeometry.y
 
         columns: root.columns
         spacing: root.gridSpacing

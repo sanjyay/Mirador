@@ -4,7 +4,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
-BorderSurface {
+Rectangle {
   id: root
 
   required property var toplevel
@@ -23,26 +23,34 @@ BorderSurface {
     if (!desktopEntry || !desktopEntry.icon) return ""
     return Quickshell.iconPath(desktopEntry.icon, true)
   }
-  readonly property real titleHeight: Math.min(height * 0.3,
-    Math.max(Style.space(28), Style.font.bodySmall + Style.spacing.controlPaddingY * 2))
+  readonly property real pillHorizontalPadding: Math.max(Style.spacing.sm,
+    Style.spacing.controlPaddingX)
+  readonly property real pillVerticalPadding: Math.max(2,
+    Math.min(Style.spacing.xs, Style.spacing.controlPaddingY))
+  readonly property real pillEdgeInset: Math.max(2, Style.spacing.xs)
+  readonly property real pillIconSize: Math.min(Style.font.icon,
+    Style.font.bodySmall * 1.25)
+  readonly property real naturalPillHeight: Math.max(
+    titleMetrics.height, iconSource !== "" ? pillIconSize : 0)
+    + pillVerticalPadding * 2
+  readonly property bool showTitlePill: width >= Style.space(72)
+    && height >= naturalPillHeight * 1.8
 
   signal activated()
   signal dragStarted(var toplevel)
   signal dragFinished(var toplevel)
 
+  TextMetrics {
+    id: titleMetrics
+    text: root.title
+    font.family: Style.font.menuFamily
+    font.pixelSize: Style.font.bodySmall
+  }
+
   radius: Style.cornerRadius
-  color: previewHover.hovered || dragging
-    ? Style.hoverFillFor(Color.menu.text, Color.accent)
-    : Util.alpha(Color.background, 0.52)
-  borderSpec: previewHover.hovered
-    ? Border.controlSpec("hover-cursor", Color.menu.text, Color.accent)
-    : Border.flat(Util.alpha(Color.menu.border, 0.32), Math.max(1, Style.normalBorderWidth))
+  color: Util.alpha(Color.background, 0.52)
   clip: true
   opacity: dragging ? 0.58 : 1
-
-  Behavior on color {
-    ColorAnimation { duration: 60 }
-  }
 
   Behavior on opacity {
     NumberAnimation { duration: 60 }
@@ -50,10 +58,7 @@ BorderSurface {
 
   Item {
     id: imageArea
-    anchors.top: parent.top
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottom: titleBar.top
+    anchors.fill: parent
     clip: true
 
     ScreencopyView {
@@ -86,25 +91,49 @@ BorderSurface {
     }
   }
 
+  // Interaction chrome is temporary: there is no permanent inner frame
+  // competing with the workspace card's outer border.
   Rectangle {
-    id: titleBar
-    anchors.left: parent.left
-    anchors.right: parent.right
+    anchors.fill: parent
+    z: 5
+    color: "transparent"
+    border.width: previewHover.hovered || root.dragging
+      ? Math.max(1, Style.normalBorderWidth) : 0
+    border.color: root.dragging ? Color.accent : Util.alpha(Color.menu.text, 0.58)
+    radius: root.radius
+  }
+
+  // Compact, content-driven metadata floats over the screencopy and never
+  // changes imageArea or spatial geometry. Plain visual children do not
+  // intercept the root's tap/drag handlers.
+  Rectangle {
+    id: titlePill
+    visible: root.showTitlePill
+    z: 10
+    anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
-    height: root.titleHeight
-    color: Util.alpha(Color.menu.background, 0.92)
+    anchors.bottomMargin: root.pillEdgeInset
+    width: Math.min(
+      titleMetrics.width + root.pillHorizontalPadding * 2
+        + (root.iconSource !== "" ? root.pillIconSize + Style.spacing.xs : 0),
+      Math.max(1, root.width * 0.72),
+      Math.max(1, root.width - root.pillEdgeInset * 2))
+    height: root.naturalPillHeight
+    radius: height / 2
+    color: Util.alpha(Color.menu.background, 0.86)
 
     Row {
+      id: titleContent
       anchors.fill: parent
-      anchors.leftMargin: Style.spacing.md
-      anchors.rightMargin: Style.spacing.md
-      spacing: Style.spacing.sm
+      anchors.leftMargin: root.pillHorizontalPadding
+      anchors.rightMargin: root.pillHorizontalPadding
+      spacing: Style.spacing.xs
 
       Image {
         id: appIcon
         visible: source !== ""
         anchors.verticalCenter: parent.verticalCenter
-        width: visible ? Style.font.icon : 0
+        width: visible ? root.pillIconSize : 0
         height: width
         source: root.iconSource
         fillMode: Image.PreserveAspectFit
@@ -114,12 +143,14 @@ BorderSurface {
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
-        width: parent.width - (appIcon.visible ? appIcon.width + parent.spacing : 0)
+        width: Math.max(1, parent.width
+          - (appIcon.visible ? appIcon.width + parent.spacing : 0))
         text: root.title
         color: Color.menu.text
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.bodySmall
         elide: Text.ElideRight
+        maximumLineCount: 1
         verticalAlignment: Text.AlignVCenter
       }
     }

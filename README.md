@@ -8,19 +8,28 @@ and dragging windows between workspaces.
 
 ## What's new in version 2
 
-Mirador now preserves the approximate compositor position and size of every
-window inside its workspace card. Tiled layouts remain recognizable at a
-glance, while floating windows appear at their actual relative position and
-can overlap tiled windows naturally.
+<details>
+<summary><b>Click to expand Version 2.0 Changelog</b></summary>
 
-Mirador's fullscreen workspace overview:
+### 🚀 Key Changes in Version 2.0
 
+* **Spatial Window Previews**: Window previews now preserve their approximate compositor position, size, and stacking order inside each workspace card. Tiled layouts remain recognizable at a glance, and floating windows overlap tiled windows naturally.
+* **Preview-First Card Design**: Replaced bulky header text with a compact numeric badge pill in the corner, maximizing preview surface area.
+* **Focused Workspace Indicator**: The active workspace is framed with a bright accent border, while inactive cards use dim, subtle outlines to keep visual focus clear.
+* **Bar Reserved Area Awareness**: Dynamically detects the Omarchy Bar's position (top, bottom, left, right), size, and visibility (`shell.bar`), positioning cards within the safe usable area so they never overlap the bar.
+* **Event-Driven Reactivity**: Listens directly to Hyprland compositor events (`window*`, `workspace*`, `fullscreen`, `changefloatingmode`, `monitor*`) for instant, lag-free UI synchronization without polling.
+* **Clean Compositor Blur**: Uses native layer-shell blur (`omarchy-workspace-overview`) with a neutral transparent backdrop for maximum clarity.
+* **Automated Unit Tests**: Added a test suite (`tests/tst_windowgeometry.qml`) covering tiling layouts, floating windows, multi-monitor scaling, clamping, and fallback geometry.
+
+---
+
+#### Fullscreen Workspace Overview
 ![Mirador version 2 fullscreen workspace overview](screenshots/mirador-v2-workspace-overview.png)
 
-Window previews retain their compositor position, size, and stacking within
-each workspace card:
-
+#### Spatial Window Previews
 ![Mirador version 2 showing spatial window previews](screenshots/mirador-v2-spatial-previews.png)
+
+</details>
 
 ## Demo
 
