@@ -9,17 +9,22 @@ and dragging windows between workspaces.
 ## What's new in version 2
 
 <details>
-<summary><b>Click to expand Version 2.0 Changelog</b></summary>
+<summary><b>Version 2 — click to reveal all changes</b></summary>
 
 ### 🚀 Key Changes in Version 2.0
 
 * **Spatial Window Previews**: Window previews now preserve their approximate compositor position, size, and stacking order inside each workspace card. Tiled layouts remain recognizable at a glance, and floating windows overlap tiled windows naturally.
-* **Preview-First Card Design**: Replaced bulky header text with a compact numeric badge pill in the corner, maximizing preview surface area.
+* **Edge-to-Edge Preview-First Cards**: Window previews now use more than 97% of a default workspace card. Redundant inner frames, wide gutters, reserved header space, and full-width title footers are gone.
+* **Overlay Workspace Numbers**: Compact numeric badge pills sit above the preview in the top-left without consuming preview width or height.
+* **Floating Window Titles**: Compact, translucent title pills float over the bottom of each preview, size to their content, and elide long titles without changing spatial geometry or interaction hitboxes.
 * **Focused Workspace Indicator**: The active workspace is framed with a bright accent border, while inactive cards use dim, subtle outlines to keep visual focus clear.
 * **Bar Reserved Area Awareness**: Dynamically detects the Omarchy Bar's position (top, bottom, left, right), size, and visibility (`shell.bar`), positioning cards within the safe usable area so they never overlap the bar.
+* **Always-Centered Adaptive Grid**: Evaluates valid row and column arrangements so the complete workspace grid stays centered on landscape, portrait, ultrawide, scaled, and constrained displays—including six-card layouts.
 * **Event-Driven Reactivity**: Listens directly to Hyprland compositor events (`window*`, `workspace*`, `fullscreen`, `changefloatingmode`, `monitor*`) for instant, lag-free UI synchronization without polling.
 * **Clean Compositor Blur**: Uses native layer-shell blur (`omarchy-workspace-overview`) with a neutral transparent backdrop for maximum clarity.
-* **Automated Unit Tests**: Added a test suite (`tests/tst_windowgeometry.qml`) covering tiling layouts, floating windows, multi-monitor scaling, clamping, and fallback geometry.
+* **Preserved Interaction Model**: Workspace/window clicks, keyboard navigation, active and selected workspace styling, and drag-and-drop movement continue to use the real spatial preview geometry.
+* **Reliable Overlay Lifecycle**: Mirador remains loaded as a lightweight shell overlay so repeated open/close cycles map instantly and compositor blur activates only while it is visible.
+* **Expanded Automated Tests**: The test suite covers tiling, floating windows, multi-monitor scaling, clamping, fallback geometry, tiny cards, 1–10 workspace layouts, bar insets, and exact grid centering.
 
 ---
 
