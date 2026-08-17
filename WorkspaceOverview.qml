@@ -309,6 +309,7 @@ Item {
             workspaceId: modelData
             workspace: isAddCard ? null : root.workspaceById(modelData)
             addWorkspace: isAddCard
+            livePreviews: root.opened && panel.visible && !isAddCard
             draggedToplevel: root.draggedToplevel
             keyboardSelected: index === root.selectedCardIndex
             focused: !isAddCard && Hyprland.focusedWorkspace !== null

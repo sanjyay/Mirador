@@ -36,6 +36,8 @@ Rectangle {
   readonly property bool showTitlePill: width >= Style.space(72)
     && height >= naturalPillHeight * 1.8
 
+  property bool liveCaptureEnabled: false
+
   signal activated()
   signal dragStarted(var toplevel)
   signal dragFinished(var toplevel)
@@ -65,7 +67,7 @@ Rectangle {
       id: preview
       anchors.centerIn: parent
       captureSource: root.waylandToplevel
-      live: false
+      live: root.liveCaptureEnabled
       paintCursor: false
       width: {
         if (!hasContent || sourceSize.width <= 0 || sourceSize.height <= 0) return parent.width

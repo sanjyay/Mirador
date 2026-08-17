@@ -14,6 +14,7 @@ BorderSurface {
   property bool addWorkspace: false
   property bool keyboardSelected: false
   property var draggedToplevel: null
+  property bool livePreviews: false
 
   readonly property var toplevelModel: workspace ? workspace.toplevels : []
   readonly property int windowCount: workspace ? workspace.toplevels.values.length : 0
@@ -174,6 +175,7 @@ BorderSurface {
           height: Math.max(1, displayGeometry.height)
           z: index + 1
           toplevel: modelData
+          liveCaptureEnabled: root.livePreviews && root.visible && previewArea.visible
           onActivated: root.windowActivated(modelData)
           onDragStarted: root.windowDragStarted(modelData)
           onDragFinished: root.windowDragFinished(modelData)
