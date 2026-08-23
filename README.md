@@ -22,9 +22,9 @@ and dragging windows between workspaces.
 * **Bar Reserved Area Awareness**: Dynamically detects the Omarchy Bar's position (top, bottom, left, right), size, and visibility (`shell.bar`), positioning cards within the safe usable area so they never overlap the bar.
 * **Always-Centered Adaptive Grid**: Evaluates valid row and column arrangements so the complete workspace grid stays centered on landscape, portrait, ultrawide, scaled, and constrained displays—including six-card layouts.
 * **Event-Driven Reactivity**: Listens directly to Hyprland compositor events (`window*`, `workspace*`, `fullscreen`, `changefloatingmode`, `monitor*`) for instant, lag-free UI synchronization without polling.
-* **Clean Compositor Blur**: Uses native layer-shell blur (`omarchy-workspace-overview`) with a neutral transparent backdrop for maximum clarity.
+* **Optional Compositor Blur**: Exposes a transparent layer-shell surface under `omarchy-workspace-overview`, which Hyprland can blur when configured by the user.
 * **Preserved Interaction Model**: Workspace/window clicks, keyboard navigation, active and selected workspace styling, and drag-and-drop movement continue to use the real spatial preview geometry.
-* **Reliable Overlay Lifecycle**: Mirador remains loaded as a lightweight shell overlay so repeated open/close cycles map instantly and compositor blur activates only while it is visible.
+* **Reliable Overlay Lifecycle**: Mirador remains loaded as a lightweight shell overlay so repeated open/close cycles map instantly.
 * **Expanded Automated Tests**: The test suite covers tiling, floating windows, multi-monitor scaling, clamping, fallback geometry, tiny cards, 1–10 workspace layouts, bar insets, and exact grid centering.
 
 ---
@@ -62,6 +62,42 @@ mkdir -p ~/.config/omarchy/plugins
 git clone https://github.com/sanjyay/Mirador.git \
   ~/.config/omarchy/plugins/mirador
 omarchy-shell shell rescanPlugins
+```
+
+## Optional background blur
+
+Mirador provides a transparent LayerShell surface with the namespace
+`omarchy-workspace-overview`. Background blur is performed by Hyprland, not by
+Mirador itself, and is not enabled automatically when the plugin is installed.
+
+Current Omarchy installations may have Hyprland's global blur engine disabled.
+To enable Mirador blur, add the following to a user-owned Hyprland Lua config,
+such as `~/.config/hypr/looknfeel.lua`:
+
+```lua
+hl.config({
+  decoration = {
+    blur = {
+      enabled = true,
+    },
+  },
+})
+
+hl.layer_rule({
+  name = "mirador-blur",
+  match = { namespace = "^omarchy-workspace-overview$" },
+  blur = true,
+})
+```
+
+Mirador does not modify Hyprland configuration automatically. Do not add this
+override to vendor-managed Omarchy files. Enabling the global blur engine makes
+Hyprland's blur functionality available system-wide, while the anchored layer
+rule matches only Mirador. Apply and validate the user override with:
+
+```bash
+hyprctl reload
+hyprctl configerrors
 ```
 
 ## Launching the overview
