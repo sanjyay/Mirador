@@ -148,6 +148,7 @@ Rectangle {
         width: Math.max(1, parent.width
           - (appIcon.visible ? appIcon.width + parent.spacing : 0))
         text: root.title
+        textFormat: Text.PlainText
         color: Color.menu.text
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.bodySmall
