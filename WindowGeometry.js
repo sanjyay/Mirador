@@ -129,36 +129,142 @@ function clientGeometry(ipcObject) {
   return { x: x, y: y, width: width, height: height }
 }
 
-// Intersect the real client with its monitor, normalize the intersection, and
-// scale it into the card. Minimum sizing expands around the original center;
-// overlap is deliberately allowed so the spatial arrangement remains intact.
+// Extract monitor reserved insets [left, top, right, bottom]
+function monitorReservedInsets(monitor) {
+  if (!monitor) return { left: 0, top: 0, right: 0, bottom: 0 }
+  var res = monitor.reserved || (monitor.lastIpcObject ? monitor.lastIpcObject.reserved : null)
+  if (res && typeof res.length === "number") {
+    return {
+      left: Math.max(0, finiteNumber(res[0]) || 0),
+      top: Math.max(0, finiteNumber(res[1]) || 0),
+      right: Math.max(0, finiteNumber(res[2]) || 0),
+      bottom: Math.max(0, finiteNumber(res[3]) || 0)
+    }
+  }
+  if (res) {
+    return {
+      left: Math.max(0, finiteNumber(res.left) || 0),
+      top: Math.max(0, finiteNumber(res.top) || 0),
+      right: Math.max(0, finiteNumber(res.right) || 0),
+      bottom: Math.max(0, finiteNumber(res.bottom) || 0)
+    }
+  }
+  return { left: 0, top: 0, right: 0, bottom: 0 }
+}
+
+// Logical monitor extent minus reserved margins (e.g. status bar).
+function usableMonitorGeometry(monitor, screen) {
+  var logical = logicalMonitorGeometry(monitor, screen)
+  if (!logical) return null
+
+  var reserved = monitorReservedInsets(monitor)
+  var x = logical.x + reserved.left
+  var y = logical.y + reserved.top
+  var width = Math.max(1, logical.width - reserved.left - reserved.right)
+  var height = Math.max(1, logical.height - reserved.top - reserved.bottom)
+
+  return {
+    x: x,
+    y: y,
+    width: width,
+    height: height,
+    logicalWidth: logical.width,
+    logicalHeight: logical.height,
+    reserved: reserved
+  }
+}
+
+// Compute the shared uniform scale and centering offsets for a workspace.
+function workspaceTransform(monitor, screen, areaWidth, areaHeight) {
+  var usable = usableMonitorGeometry(monitor, screen)
+  var targetWidth = finiteNumber(areaWidth)
+  var targetHeight = finiteNumber(areaHeight)
+  if (!usable || !isFinite(targetWidth) || !isFinite(targetHeight)
+      || targetWidth <= 0 || targetHeight <= 0)
+    return null
+
+  var scale = Math.min(targetWidth / usable.width, targetHeight / usable.height)
+  if (!isFinite(scale) || scale <= 0) return null
+
+  var renderedWidth = usable.width * scale
+  var renderedHeight = usable.height * scale
+  var offsetX = (targetWidth - renderedWidth) / 2
+  var offsetY = (targetHeight - renderedHeight) / 2
+
+  return {
+    scale: scale,
+    originX: usable.x,
+    originY: usable.y,
+    usableWidth: usable.width,
+    usableHeight: usable.height,
+    renderedWidth: renderedWidth,
+    renderedHeight: renderedHeight,
+    offsetX: offsetX,
+    offsetY: offsetY,
+    canvasWidth: targetWidth,
+    canvasHeight: targetHeight
+  }
+}
+
+// Project a client into the shared preview canvas using uniform aspect-ratio
+// scaling and the monitor's usable workspace coordinates. Minimum sizing expands
+// around the window center without altering the global transform.
 function previewGeometry(ipcObject, monitor, screen, areaWidth, areaHeight,
                          minimumWidth, minimumHeight) {
   var client = clientGeometry(ipcObject)
-  var output = logicalMonitorGeometry(monitor, screen)
-  var targetWidth = finiteNumber(areaWidth)
-  var targetHeight = finiteNumber(areaHeight)
-  if (!client || !output || !isFinite(targetWidth) || !isFinite(targetHeight)
-      || targetWidth <= 0 || targetHeight <= 0)
+  var transform = workspaceTransform(monitor, screen, areaWidth, areaHeight)
+  if (!client || !transform)
     return { valid: false, x: 0, y: 0, width: 0, height: 0 }
 
-  var left = clamp(client.x - output.x, 0, output.width)
-  var top = clamp(client.y - output.y, 0, output.height)
-  var right = clamp(client.x + client.width - output.x, 0, output.width)
-  var bottom = clamp(client.y + client.height - output.y, 0, output.height)
+  var clientLeft = client.x
+  var clientTop = client.y
+  var clientRight = client.x + client.width
+  var clientBottom = client.y + client.height
+
+  var workspaceLeft = transform.originX
+  var workspaceTop = transform.originY
+  var workspaceRight = transform.originX + transform.usableWidth
+  var workspaceBottom = transform.originY + transform.usableHeight
+
+  var left = clamp(clientLeft, workspaceLeft, workspaceRight)
+  var top = clamp(clientTop, workspaceTop, workspaceBottom)
+  var right = clamp(clientRight, workspaceLeft, workspaceRight)
+  var bottom = clamp(clientBottom, workspaceTop, workspaceBottom)
   if (right <= left || bottom <= top)
     return { valid: false, x: 0, y: 0, width: 0, height: 0 }
 
-  var rawX = left / output.width * targetWidth
-  var rawY = top / output.height * targetHeight
-  var rawWidth = (right - left) / output.width * targetWidth
-  var rawHeight = (bottom - top) / output.height * targetHeight
-  var displayWidth = Math.min(targetWidth, Math.max(finiteNumber(minimumWidth) || 1, rawWidth))
-  var displayHeight = Math.min(targetHeight, Math.max(finiteNumber(minimumHeight) || 1, rawHeight))
-  var x = clamp(rawX + (rawWidth - displayWidth) / 2, 0, targetWidth - displayWidth)
-  var y = clamp(rawY + (rawHeight - displayHeight) / 2, 0, targetHeight - displayHeight)
+  var relativeX = left - transform.originX
+  var relativeY = top - transform.originY
+  var relativeWidth = right - left
+  var relativeHeight = bottom - top
 
-  return { valid: true, x: x, y: y, width: displayWidth, height: displayHeight }
+  var rawX = transform.offsetX + relativeX * transform.scale
+  var rawY = transform.offsetY + relativeY * transform.scale
+  var rawWidth = relativeWidth * transform.scale
+  var rawHeight = relativeHeight * transform.scale
+
+  var minW = finiteNumber(minimumWidth) || 0
+  var minH = finiteNumber(minimumHeight) || 0
+  var displayWidth = Math.min(transform.canvasWidth, Math.max(minW, rawWidth))
+  var displayHeight = Math.min(transform.canvasHeight, Math.max(minH, rawHeight))
+
+  var x = clamp(rawX + (rawWidth - displayWidth) / 2, 0, transform.canvasWidth - displayWidth)
+  var y = clamp(rawY + (rawHeight - displayHeight) / 2, 0, transform.canvasHeight - displayHeight)
+
+  return {
+    valid: true,
+    x: x,
+    y: y,
+    width: displayWidth,
+    height: displayHeight,
+    rawX: rawX,
+    rawY: rawY,
+    rawWidth: rawWidth,
+    rawHeight: rawHeight,
+    scale: transform.scale,
+    offsetX: transform.offsetX,
+    offsetY: transform.offsetY
+  }
 }
 
 // Malformed/unavailable IPC geometry must not make a window disappear. Keep

@@ -191,11 +191,13 @@ BorderSurface {
             ? modelData.lastIpcObject
             : (previewToplevel ? previewToplevel.lastIpcObject : null)
 
+          readonly property var targetMonitor: root.workspaceMonitor || (previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : Hyprland.focusedMonitor)
+          readonly property var targetScreen: root.screenForMonitor(targetMonitor)
+
           readonly property var previewGeometry: WindowGeometry.previewGeometry(
             previewIpc,
-            previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : root.workspaceMonitor,
-            root.screenForMonitor(previewToplevel && previewToplevel.monitor
-              ? previewToplevel.monitor : root.workspaceMonitor),
+            targetMonitor,
+            targetScreen,
             spatialPreview.width,
             spatialPreview.height,
             Math.min(spatialPreview.width, Math.max(Style.space(56), spatialPreview.width * 0.15)),
