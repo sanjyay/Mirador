@@ -344,9 +344,11 @@ Item {
         Hyprland.refreshMonitors()
         Hyprland.refreshWorkspaces()
       }
-      if (name.indexOf("window") !== -1 || name === "fullscreen"
-          || name === "changefloatingmode" || name.indexOf("workspace") !== -1)
+      if (name.indexOf("window") !== -1 || name.indexOf("group") !== -1
+          || name === "fullscreen" || name === "changefloatingmode"
+          || name.indexOf("workspace") !== -1 || name === "focusedmon") {
         Hyprland.refreshToplevels()
+      }
     }
   }
 

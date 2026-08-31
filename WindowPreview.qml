@@ -3,26 +3,23 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "WindowModel.js" as WindowModel
 
 Rectangle {
   id: root
 
   required property var toplevel
+  property bool isGroup: false
+  property var groupMembers: []
 
   readonly property var waylandToplevel: toplevel ? toplevel.wayland : null
   readonly property bool activatable: waylandToplevel !== null || (toplevel && String(toplevel.address || "") !== "")
   readonly property bool movable: toplevel !== null && String(toplevel.address || "") !== ""
   readonly property bool dragging: dragProxy.dragSessionActive
-  readonly property string appId: waylandToplevel ? String(waylandToplevel.appId || "") : ""
-  readonly property string title: toplevel ? String(toplevel.title || appId || "Window") : "Window"
-  readonly property var desktopEntry: {
-    if (!appId) return null
-    return DesktopEntries.byId(appId) || DesktopEntries.heuristicLookup(appId)
-  }
-  readonly property string iconSource: {
-    if (!desktopEntry || !desktopEntry.icon) return ""
-    return Quickshell.iconPath(desktopEntry.icon, true)
-  }
+  readonly property string appId: root.appIdFor(toplevel)
+  readonly property string title: root.titleFor(toplevel)
+  readonly property string iconSource: root.iconFor(toplevel)
+
   readonly property real pillHorizontalPadding: Math.max(Style.spacing.sm,
     Style.spacing.controlPaddingX)
   readonly property real pillVerticalPadding: Math.max(2,
@@ -33,14 +30,57 @@ Rectangle {
   readonly property real naturalPillHeight: Math.max(
     titleMetrics.height, iconSource !== "" ? pillIconSize : 0)
     + pillVerticalPadding * 2
-  readonly property bool showTitlePill: width >= Style.space(72)
+
+  readonly property bool showGroupTabs: root.isGroup
+    && root.groupMembers
+    && root.groupMembers.length > 1
+    && width >= Style.space(60)
+    && height >= naturalPillHeight * 1.8
+  readonly property bool showTitlePill: !root.showGroupTabs
+    && width >= Style.space(72)
     && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
 
   signal activated()
+  signal tabActivated(var targetToplevel)
   signal dragStarted(var toplevel)
   signal dragFinished(var toplevel)
+
+  function appIdFor(top) {
+    if (!top) return ""
+    var wayland = top.wayland
+    if (wayland && wayland.appId) return String(wayland.appId)
+    var ipc = top.lastIpcObject
+    if (ipc && ipc.initialClass) return String(ipc.initialClass)
+    if (ipc && ipc.class) return String(ipc.class)
+    return ""
+  }
+
+  function titleFor(top) {
+    if (!top) return "Window"
+    if (top.title) return String(top.title)
+    var ipc = top.lastIpcObject
+    if (ipc && ipc.title) return String(ipc.title)
+    var id = appIdFor(top)
+    return id || "Window"
+  }
+
+  function iconFor(top) {
+    var id = appIdFor(top)
+    if (!id) return ""
+    var entry = DesktopEntries.byId(id) || DesktopEntries.heuristicLookup(id)
+    if (!entry || !entry.icon) return ""
+    return Quickshell.iconPath(entry.icon, true)
+  }
+
+  function isSameToplevel(a, b) {
+    if (!a || !b) return false
+    if (a === b) return true
+    var addrA = WindowModel.normalizedAddress((a && a.address) || (a.lastIpcObject && a.lastIpcObject.address))
+    var addrB = WindowModel.normalizedAddress((b && b.address) || (b.lastIpcObject && b.lastIpcObject.address))
+    return addrA !== "" && addrA === addrB
+  }
 
   TextMetrics {
     id: titleMetrics
@@ -93,8 +133,7 @@ Rectangle {
     }
   }
 
-  // Interaction chrome is temporary: there is no permanent inner frame
-  // competing with the workspace card's outer border.
+  // Interaction chrome
   Rectangle {
     anchors.fill: parent
     z: 5
@@ -105,9 +144,105 @@ Rectangle {
     radius: root.radius
   }
 
-  // Compact, content-driven metadata floats over the screencopy and never
-  // changes imageArea or spatial geometry. Plain visual children do not
-  // intercept the root's tap/drag handlers.
+  // ── Group Tab Strip ────────────────────────────────────────────────────────
+  Rectangle {
+    id: groupTabBar
+    visible: root.showGroupTabs
+    z: 10
+    anchors.top: parent.top
+    anchors.topMargin: root.pillEdgeInset
+    anchors.horizontalCenter: parent.horizontalCenter
+    width: Math.min(
+      tabRow.implicitWidth + root.pillEdgeInset * 2,
+      Math.max(1, root.width - root.pillEdgeInset * 2))
+    height: root.naturalPillHeight + 2
+    radius: Math.max(3, Style.cornerRadiusSmall || (height / 4))
+    color: Util.alpha(Color.menu.background, 0.88)
+    border.width: 1
+    border.color: Util.alpha(Color.menu.border, 0.15)
+    clip: true
+
+    Row {
+      id: tabRow
+      anchors.fill: parent
+      anchors.margins: 1
+      spacing: 1
+
+      Repeater {
+        model: root.groupMembers
+
+        Rectangle {
+          required property var modelData
+          required property int index
+
+          readonly property bool isCurrentTab: root.isSameToplevel(modelData, root.toplevel)
+          readonly property string tabTitle: root.titleFor(modelData)
+          readonly property string tabIcon: root.iconFor(modelData)
+
+          width: Math.max(1, Math.floor((tabRow.width - (root.groupMembers.length - 1) * tabRow.spacing) / Math.max(1, root.groupMembers.length)))
+          height: parent.height
+          radius: Math.max(2, (Style.cornerRadiusSmall || 4) - 1)
+          color: isCurrentTab
+            ? Util.alpha(Color.accent, 0.32)
+            : (tabHover.hovered ? Util.alpha(Color.menu.text, 0.08) : "transparent")
+
+          border.width: isCurrentTab ? 1 : 0
+          border.color: Util.alpha(Color.accent, 0.6)
+
+          Row {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Style.spacing.xs * 2, implicitWidth)
+            spacing: Style.spacing.xs
+
+            Image {
+              id: tabAppIcon
+              visible: tabIcon !== ""
+              anchors.verticalCenter: parent.verticalCenter
+              width: visible ? root.pillIconSize : 0
+              height: width
+              source: tabIcon
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
+              smooth: true
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.max(1, parent.parent.width - Style.spacing.xs * 2
+                - (tabAppIcon.visible ? tabAppIcon.width + parent.spacing : 0))
+              text: tabTitle
+              textFormat: Text.PlainText
+              color: isCurrentTab ? Color.menu.text : Util.alpha(Color.menu.text, 0.72)
+              font.family: Style.font.menuFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: isCurrentTab
+              elide: Text.ElideRight
+              maximumLineCount: 1
+              verticalAlignment: Text.AlignVCenter
+            }
+          }
+
+          HoverHandler {
+            id: tabHover
+            cursorShape: Qt.PointingHandCursor
+          }
+
+          TapHandler {
+            acceptedButtons: Qt.LeftButton
+            onTapped: {
+              if (!isCurrentTab) {
+                root.tabActivated(modelData)
+              } else {
+                root.activated()
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Single Window Title Pill ───────────────────────────────────────────────
   Rectangle {
     id: titlePill
     visible: root.showTitlePill
