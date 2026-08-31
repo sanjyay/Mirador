@@ -102,10 +102,117 @@ TestCase {
     var win = WindowGeometry.previewGeometry(
       { at: [-960, -540], size: [960, 540] }, negMonitor, negScreen, 300, 150, 10, 10)
     verify(win.valid)
-    compare(win.x, 150)
-    compare(win.y, 75)
-    compare(win.width, 150)
-    compare(win.height, 75)
+    // On 300x150 canvas (2:1 aspect ratio) for a 1920x1080 (16:9) monitor,
+    // uniform scale = 150 / 1080 = 5/36. Rendered width = 266.667, offsetX = 16.667.
+    // Window is in bottom-right quadrant: relativeX = 960, relativeY = 540.
+    fuzzyCompare(win.x, 150)
+    fuzzyCompare(win.y, 75)
+    fuzzyCompare(win.width, 133.3333)
+    fuzzyCompare(win.height, 75)
+  }
+
+  function test_realUnequalHorizontalSplitRegression() {
+    // Exact geometry captured from real Hyprland workspace:
+    // Monitor 1920x1080 with 35px top bar (reserved [0, 35, 0, 0])
+    // Usable workspace: 1920 x 1045
+    // Window A (Cursor Theme Switcher): at [12, 47], size [1191, 1021]
+    // Window B (Ghostty terminal): at [1217, 47], size [691, 1021]
+    var realMonitor = { name: "eDP-2", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 35, 0, 0] }
+    var canvasW = 512
+    var canvasH = 327.48
+
+    var previewA = WindowGeometry.previewGeometry(
+      { at: [12, 47], size: [1191, 1021] }, realMonitor, null, canvasW, canvasH, 20, 16)
+    var previewB = WindowGeometry.previewGeometry(
+      { at: [1217, 47], size: [691, 1021] }, realMonitor, null, canvasW, canvasH, 20, 16)
+
+    verify(previewA.valid)
+    verify(previewB.valid)
+
+    // Common transform properties
+    fuzzyCompare(previewA.scale, previewB.scale)
+    fuzzyCompare(previewA.offsetX, previewB.offsetX)
+    fuzzyCompare(previewA.offsetY, previewB.offsetY)
+
+    var scale = previewA.scale
+    fuzzyCompare(scale, 512 / 1920) // 0.2666667
+
+    // Vertical alignment: both top and bottom edges must align exactly
+    fuzzyCompare(previewA.y, previewB.y)
+    fuzzyCompare(previewA.height, previewB.height)
+    fuzzyCompare(previewA.height, 1021 * scale)
+
+    // Horizontal positioning:
+    // Window A left outer margin: 12 * scale
+    fuzzyCompare(previewA.x, 12 * scale)
+    // Window B right outer margin: canvasW - (B.x + B.width) == 12 * scale
+    fuzzyCompare(canvasW - (previewB.x + previewB.width), 12 * scale)
+    // Inner compositor gap between A and B: B.x - (A.x + A.width) == 14 * scale
+    fuzzyCompare(previewB.x - (previewA.x + previewA.width), 14 * scale)
+
+    // Width split ratios must preserve the exact Hyprland proportion
+    var totalTiledWidth = previewA.width + previewB.width
+    fuzzyCompare(previewA.width / totalTiledWidth, 1191 / (1191 + 691))
+    fuzzyCompare(previewB.width / totalTiledWidth, 691 / (1191 + 691))
+
+    // Aspect ratio of previews must match true window aspect ratios
+    fuzzyCompare(previewA.width / previewA.height, 1191 / 1021)
+    fuzzyCompare(previewB.width / previewB.height, 691 / 1021)
+  }
+
+  function test_equalHorizontalSplit5050() {
+    var realMonitor = { name: "eDP-2", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 35, 0, 0] }
+    var previewA = WindowGeometry.previewGeometry(
+      { at: [12, 47], size: [941, 1021] }, realMonitor, null, 512, 327.48, 20, 16)
+    var previewB = WindowGeometry.previewGeometry(
+      { at: [967, 47], size: [941, 1021] }, realMonitor, null, 512, 327.48, 20, 16)
+
+    verify(previewA.valid)
+    verify(previewB.valid)
+    fuzzyCompare(previewA.width, previewB.width)
+    fuzzyCompare(previewA.height, previewB.height)
+    fuzzyCompare(previewA.y, previewB.y)
+    fuzzyCompare(previewB.x - (previewA.x + previewA.width), 14 * previewA.scale)
+  }
+
+  function test_verticalSplit() {
+    var realMonitor = { name: "eDP-2", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 35, 0, 0] }
+    var topWin = WindowGeometry.previewGeometry(
+      { at: [12, 47], size: [1896, 503] }, realMonitor, null, 512, 327.48, 20, 16)
+    var bottomWin = WindowGeometry.previewGeometry(
+      { at: [12, 564], size: [1896, 504] }, realMonitor, null, 512, 327.48, 20, 16)
+
+    verify(topWin.valid)
+    verify(bottomWin.valid)
+    fuzzyCompare(topWin.x, bottomWin.x)
+    fuzzyCompare(topWin.width, bottomWin.width)
+    fuzzyCompare(bottomWin.y - (topWin.y + topWin.height), 14 * topWin.scale)
+  }
+
+  function test_mixedTilingThreeWindows() {
+    var realMonitor = { name: "eDP-2", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 35, 0, 0] }
+    var leftWin = WindowGeometry.previewGeometry(
+      { at: [12, 47], size: [1191, 1021] }, realMonitor, null, 512, 327.48, 20, 16)
+    var topRightWin = WindowGeometry.previewGeometry(
+      { at: [1217, 47], size: [691, 503] }, realMonitor, null, 512, 327.48, 20, 16)
+    var bottomRightWin = WindowGeometry.previewGeometry(
+      { at: [1217, 564], size: [691, 504] }, realMonitor, null, 512, 327.48, 20, 16)
+
+    verify(leftWin.valid)
+    verify(topRightWin.valid)
+    verify(bottomRightWin.valid)
+
+    // Left vs Right X alignment
+    fuzzyCompare(topRightWin.x, bottomRightWin.x)
+    fuzzyCompare(topRightWin.width, bottomRightWin.width)
+    fuzzyCompare(topRightWin.x - (leftWin.x + leftWin.width), 14 * leftWin.scale)
+
+    // Top alignment
+    fuzzyCompare(leftWin.y, topRightWin.y)
+    // Right pane vertical gap
+    fuzzyCompare(bottomRightWin.y - (topRightWin.y + topRightWin.height), 14 * leftWin.scale)
+    // Bottom alignment
+    fuzzyCompare(leftWin.y + leftWin.height, bottomRightWin.y + bottomRightWin.height)
   }
 
   function test_resizeAndMoveSimulation() {
