@@ -178,7 +178,7 @@ omarchy menu keybindings --print
 You can also open the overview directly from a terminal with:
 
 ```bash
-omarchy-shell shell summon mirador '{}'
+omarchy-shell shell toggle mirador '{}'
 ```
 
 The plugin depends only on APIs and shared UI components provided by the
