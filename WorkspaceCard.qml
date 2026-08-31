@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
+import "WindowModel.js" as WindowModel
 
 BorderSurface {
   id: root
@@ -15,9 +16,19 @@ BorderSurface {
   property bool keyboardSelected: false
   property var draggedToplevel: null
   property bool livePreviews: false
+  property int toplevelRevision: 0
 
-  readonly property var toplevelModel: workspace ? workspace.toplevels : []
-  readonly property int windowCount: workspace ? workspace.toplevels.values.length : 0
+  readonly property var effectiveToplevels: {
+    // `lastIpcObject` changes after refreshToplevels() completes. Reading this
+    // revision makes that asynchronous, event-driven update invalidate the
+    // effective array even though the ObjectModel membership did not change.
+    var revision = root.toplevelRevision
+    var activeAddr = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : ""
+    return WindowModel.resolveWorkspacePreviews(
+      workspace ? workspace.toplevels.values : [], activeAddr)
+  }
+  readonly property var toplevelModel: effectiveToplevels
+  readonly property int windowCount: effectiveToplevels.length
   readonly property bool occupied: windowCount > 0
 
   readonly property real previewInset: Math.max(2,
@@ -76,6 +87,26 @@ BorderSurface {
   signal windowDragStarted(var toplevel)
   signal windowDragFinished(var toplevel)
   signal windowDropped(var toplevel)
+
+  Connections {
+    target: Hyprland
+    function onActiveToplevelChanged() { root.toplevelRevision++ }
+  }
+
+  // Track the completion of Quickshell's compositor-data refresh for existing
+  // clients. This creates no visual delegate or capture for hidden members.
+  Repeater {
+    model: root.workspace ? root.workspace.toplevels : []
+
+    Item {
+      required property var modelData
+
+      Connections {
+        target: modelData
+        function onLastIpcObjectChanged() { root.toplevelRevision++ }
+      }
+    }
+  }
 
   function screenForMonitor(monitor) {
     if (!monitor) return null
@@ -155,11 +186,16 @@ BorderSurface {
           required property var modelData
           required property int index
 
+          readonly property var previewToplevel: modelData && modelData.toplevel ? modelData.toplevel : modelData
+          readonly property var previewIpc: (modelData && modelData.lastIpcObject)
+            ? modelData.lastIpcObject
+            : (previewToplevel ? previewToplevel.lastIpcObject : null)
+
           readonly property var previewGeometry: WindowGeometry.previewGeometry(
-            modelData ? modelData.lastIpcObject : null,
-            modelData && modelData.monitor ? modelData.monitor : root.workspaceMonitor,
-            root.screenForMonitor(modelData && modelData.monitor
-              ? modelData.monitor : root.workspaceMonitor),
+            previewIpc,
+            previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : root.workspaceMonitor,
+            root.screenForMonitor(previewToplevel && previewToplevel.monitor
+              ? previewToplevel.monitor : root.workspaceMonitor),
             spatialPreview.width,
             spatialPreview.height,
             Math.min(spatialPreview.width, Math.max(Style.space(56), spatialPreview.width * 0.15)),
@@ -174,11 +210,14 @@ BorderSurface {
           width: Math.max(1, displayGeometry.width)
           height: Math.max(1, displayGeometry.height)
           z: index + 1
-          toplevel: modelData
+          toplevel: previewToplevel
+          isGroup: Boolean(modelData && modelData.isGroup)
+          groupMembers: (modelData && modelData.members) ? modelData.members : []
           liveCaptureEnabled: root.livePreviews && root.visible && previewArea.visible
-          onActivated: root.windowActivated(modelData)
-          onDragStarted: root.windowDragStarted(modelData)
-          onDragFinished: root.windowDragFinished(modelData)
+          onActivated: root.windowActivated(previewToplevel)
+          onTabActivated: function(targetToplevel) { root.windowActivated(targetToplevel) }
+          onDragStarted: root.windowDragStarted(previewToplevel)
+          onDragFinished: root.windowDragFinished(previewToplevel)
         }
       }
     }
