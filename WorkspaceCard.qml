@@ -12,7 +12,6 @@ BorderSurface {
   required property int workspaceId
   property var workspace: null
   property bool focused: false
-  property bool addWorkspace: false
   property bool keyboardSelected: false
   property var draggedToplevel: null
   property bool livePreviews: false
@@ -31,11 +30,7 @@ BorderSurface {
   readonly property int windowCount: effectiveToplevels.length
   readonly property bool occupied: windowCount > 0
 
-  readonly property real previewInset: Math.max(2,
-    Math.min(4, Number(Style.spacing.xs) || 2))
   readonly property real previewSpacing: Math.max(1, Style.spacing.xs || 2)
-  readonly property var previewCanvasGeometry: WindowGeometry.insetGeometry(
-    width, height, previewInset)
   readonly property var workspaceMonitor: (workspace && workspace.monitor)
     ? workspace.monitor : Hyprland.focusedMonitor
 
@@ -43,14 +38,14 @@ BorderSurface {
     ? Number(draggedToplevel.workspace.id) : -1
   readonly property bool validDropTarget: draggedToplevel !== null
     && String(draggedToplevel.address || "") !== ""
-    && workspaceId > 0 && workspaceId <= 10
+    && workspaceId > 0
     && draggedSourceWorkspaceId !== workspaceId
   readonly property bool dropHovered: validDropTarget && dropArea.containsDrag
 
+  readonly property bool cardHovered: cardMouseArea.containsMouse
+  readonly property bool highlighted: (cardHovered || keyboardSelected) && !focused
+
   // ── Border widths ─────────────────────────────────────────────────────────
-  // All states share the same 1-px physical width. The hierarchy is expressed
-  // entirely through colour opacity, which is easier to reason about.
-  // (Drop states keep a slightly thicker ring to clearly communicate drag.)
   readonly property int activeBorderWidth: Math.max(Style.space(2), Style.focusBorderWidth)
   readonly property int normalBorderWidth: Math.max(1, Style.normalBorderWidth)
 
@@ -58,31 +53,24 @@ BorderSurface {
   // Priority (highest first):
   //   dropHovered          → thick accent ring  (drag target confirmed)
   //   validDropTarget      → thinner accent ring (drag affordance)
-  //   focused              → accent ring         ← WINS over keyboardSelected
-  //   focused+kbSelected   → accent ring (same)  ← no separate treatment needed
-  //   keyboardSelected     → dim accent ring     (navigator cursor)
-  //   occupied/inactive    → nearly invisible    (does not compete)
-  //   empty/inactive       → fully invisible     (pure canvas)
+  //   focused              → strong accent ring (active workspace)
+  //   highlighted          → clear neutral border (hover / keyboard selection)
+  //   inactive             → visible defined outline (resting card)
   readonly property var cardBorderSpec: {
     if (dropHovered)
       return Border.withWidth(
         Border.flat(Color.accent, activeBorderWidth), activeBorderWidth)
     if (validDropTarget)
       return Border.withWidth(
-        Border.flat(Util.alpha(Color.accent, 0.55), normalBorderWidth), normalBorderWidth)
+        Border.flat(Util.alpha(Color.accent, 0.65), normalBorderWidth), normalBorderWidth)
     if (focused)
-      // Accent at full opacity — the strongest signal in the overview.
       return Border.flat(Color.accent, activeBorderWidth)
-    if (keyboardSelected)
-      // Keyboard cursor: same accent colour but appreciably dimmer so that
-      // the active workspace always reads as stronger.
-      return Border.flat(Util.alpha(Color.accent, 0.45), normalBorderWidth)
-    // Inactive (occupied or empty): border fades to near-invisible so active
-    // card is the only one whose frame the eye perceives.
-    return Border.flat(Util.alpha(Color.menu.border, 0.12), normalBorderWidth)
+    if (highlighted)
+      return Border.flat(Util.alpha(Color.menu.border, 0.75), normalBorderWidth)
+    return Border.flat(Util.alpha(Color.menu.border, 0.45), normalBorderWidth)
   }
 
-  signal workspaceActivated()
+  signal workspaceActivated(bool occupied)
   signal windowActivated(var toplevel)
   signal windowDragStarted(var toplevel)
   signal windowDragFinished(var toplevel)
@@ -118,57 +106,120 @@ BorderSurface {
   }
 
   radius: Style.cornerRadius
-  // Keep backgrounds consistent — the border is the primary indicator.
-  // Active workspace is fully opaque; others are slightly translucent.
-  // Avoid a brightly filled background so the border does the work.
-  color: occupied || focused
+  // Active and highlighted workspaces get full opaque background; resting gets near-opaque
+  color: (root.focused || root.highlighted)
     ? Color.menu.background
-    : Util.alpha(Color.menu.background, 0.72)
+    : (occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
   borderSpec: cardBorderSpec
   clip: true
+  scale: root.highlighted ? 1.008 : 1.0
 
-  // Full-card click — sits below all interactive children.
-  MouseArea {
-    anchors.fill: parent
-    z: 1
-    cursorShape: Qt.PointingHandCursor
-    onClicked: root.workspaceActivated()
+  Behavior on scale {
+    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
   }
 
-  // Drag/keyboard fill overlay — provides a surface-level tint during drag
-  // and keyboard navigation. Focused workspace does NOT get an extra fill;
-  // the accent border alone is the active indicator.
+  // Full-card click & hover tracking — sits below all interactive children.
+  MouseArea {
+    id: cardMouseArea
+    anchors.fill: parent
+    z: 1
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+    onClicked: root.workspaceActivated(root.occupied)
+  }
+
+  // Drag/keyboard/active fill overlay — provides surface tint during drag,
+  // hover elevation, keyboard navigation, or subtle active state sheen.
   Rectangle {
     anchors.fill: parent
     z: 2
     color: root.dropHovered
       ? Style.selectedFillFor(Color.menu.text, Color.accent)
-      : (root.validDropTarget || root.keyboardSelected
+      : (root.validDropTarget
         ? Style.hoverFillFor(Color.menu.text, Color.accent)
-        : "transparent")
+        : (root.focused
+          ? Util.alpha(Color.accent, 0.05)
+          : (root.highlighted
+            ? Util.alpha(Color.menu.text, 0.05)
+            : Util.alpha(Color.menu.text, 0.02))))
 
     Behavior on color {
-      ColorAnimation { duration: 80 }
+      ColorAnimation { duration: 100 }
+    }
+  }
+
+  // ── Workspace Header ───────────────────────────────────────────────────────
+  // KDE-style top area with prominent number badge.
+  Item {
+    id: cardHeader
+    z: 30
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.topMargin: Style.spacing.sm
+    anchors.leftMargin: Style.spacing.md
+    height: Math.max(Style.space(22), badgeLabel.implicitHeight + Style.spacing.xs * 2)
+
+    // Number badge
+    Rectangle {
+      id: badge
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      height: cardHeader.height
+      width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md * 2)
+      radius: Math.min(Style.cornerRadius, Style.space(6))
+      color: root.focused
+        ? Color.accent
+        : (root.highlighted
+          ? Util.alpha(Color.menu.text, 0.16)
+          : Util.alpha(Color.menu.text, 0.10))
+      border.width: root.focused ? 0 : 1
+      border.color: root.focused
+        ? "transparent"
+        : (root.highlighted
+          ? Util.alpha(Color.menu.border, 0.60)
+          : Util.alpha(Color.menu.border, 0.38))
+
+      Behavior on color {
+        ColorAnimation { duration: 100 }
+      }
+
+      Text {
+        id: badgeLabel
+        anchors.centerIn: parent
+        text: root.workspaceId === 10 ? "0" : String(root.workspaceId)
+        font.family: Style.font.menuFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+        color: root.focused ? Color.menu.scrim : Color.menu.text
+        opacity: root.focused ? 1.0 : (root.highlighted ? 0.95 : 0.85)
+
+        Behavior on opacity {
+          NumberAnimation { duration: 100 }
+        }
+      }
     }
   }
 
   // ── Preview area ───────────────────────────────────────────────────────────
   Item {
     id: previewArea
-    visible: !root.addWorkspace
     z: 5
-    x: root.previewCanvasGeometry.x
-    y: root.previewCanvasGeometry.y
-    width: root.previewCanvasGeometry.width
-    height: root.previewCanvasGeometry.height
+    anchors.top: cardHeader.bottom
+    anchors.bottom: parent.bottom
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.topMargin: Style.spacing.xs
+    anchors.bottomMargin: Style.spacing.sm
+    anchors.leftMargin: Style.spacing.sm
+    anchors.rightMargin: Style.spacing.sm
 
-    // Empty hint: barely-visible centred dot.
+    // Empty hint: subtle centred dot.
     Text {
       visible: !root.occupied
       anchors.centerIn: parent
       text: "·"
       color: Color.menu.text
-      opacity: root.focused ? 0.50 : 0.22
+      opacity: root.focused ? 0.55 : (root.highlighted ? 0.40 : 0.25)
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.displayLarge
       verticalAlignment: Text.AlignVCenter
@@ -223,63 +274,6 @@ BorderSurface {
         }
       }
     }
-
-    // ── Workspace number badge ─────────────────────────────────────────────
-    // Small overlay in the top-left. It consumes no preview geometry. The
-    // number is always large and bold enough
-    // to read at a glance. Active state: accent-filled pill with bright digit.
-    // Inactive: dark translucent pill with readable digit.
-    Rectangle {
-      id: badge
-      z: 30
-      anchors.top: parent.top
-      anchors.left: parent.left
-      anchors.topMargin: Style.spacing.xs
-      anchors.leftMargin: Style.spacing.xs
-      width: badgeLabel.implicitWidth + Style.spacing.md * 2
-      height: badgeLabel.implicitHeight + Style.spacing.xs * 2
-      radius: height / 2
-      color: root.focused
-        ? Color.accent
-        : (root.keyboardSelected
-          ? Util.alpha(Color.menu.text, 0.18)
-          : Util.alpha(Color.menu.background, 0.72))
-
-      Behavior on color {
-        ColorAnimation { duration: 80 }
-      }
-
-      Text {
-        id: badgeLabel
-        anchors.centerIn: parent
-        text: root.workspaceId === 10 ? "0" : String(root.workspaceId)
-        font.family: Style.font.menuFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-        // On the accent pill use the overview scrim background as contrast;
-        // otherwise use menu.text at varying opacity.
-        color: root.focused ? Color.menu.scrim : Color.menu.text
-        opacity: root.focused ? 1.0 : (root.occupied || root.keyboardSelected ? 0.90 : 0.55)
-
-        Behavior on opacity {
-          NumberAnimation { duration: 80 }
-        }
-      }
-    }
-  }
-
-  // ── Add-workspace card ─────────────────────────────────────────────────────
-  Text {
-    visible: root.addWorkspace
-    anchors.centerIn: parent
-    z: 3
-    text: "+"
-    color: Color.menu.text
-    opacity: root.dropHovered ? 1 : 0.58
-    font.family: Style.font.menuFamily
-    font.pixelSize: Style.font.displayLarge
-    horizontalAlignment: Text.AlignHCenter
-    verticalAlignment: Text.AlignVCenter
   }
 
   DropArea {
