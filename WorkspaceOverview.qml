@@ -43,7 +43,11 @@ Item {
   // ── Layout calculation ──────────────────────────────────────────────────────
   readonly property var workspaceModel: root.workspaceIds()
   readonly property int workspaceCount: workspaceModel.length
-  readonly property var overviewCardModel: root.workspaceModel
+  readonly property var insertionModel: (root.draggedToplevel !== null)
+    ? root.computeInsertionTargets(root.workspaceModel)
+    : []
+  readonly property var overviewCardModel: root.buildOverviewItems(
+    root.workspaceModel, root.draggedToplevel !== null)
   readonly property int cardCount: overviewCardModel.length
   readonly property real cardAspectRatio: 1.55
 
@@ -71,12 +75,6 @@ Item {
   readonly property int rows: Math.max(1, gridGeometry.rows)
   readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
   readonly property real cardHeight: Math.max(1, gridGeometry.cardHeight)
-
-  readonly property var insertionZones: (root.draggedToplevel !== null)
-    ? root.computeInsertionZones(root.workspaceModel, root.columns, root.rows,
-        root.cardWidth, root.cardHeight, root.gridSpacing,
-        root.usableX + root.gridGeometry.x, root.usableGridY + root.gridGeometry.y)
-    : []
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
   function workspaceById(id) {
@@ -134,67 +132,94 @@ Item {
     return contextualNextWorkspaceId(currentId, root.workspaceModel)
   }
 
-  function computeInsertionZones(workspaceIds, columnCount, rowCount, cWidth, cHeight, gSpacing, gX, gY) {
+  function buildOverviewItems(workspaceIds, isDragging) {
     var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
     if (ids.length === 0) return []
 
-    var zones = []
-    var count = ids.length
-    var cols = Math.max(1, columnCount)
-    var pillWidth = Style.space(32)
-
-    function cardRect(index) {
-      var row = Math.floor(index / cols)
-      var col = index % cols
-      return {
-        x: gX + col * (cWidth + gSpacing),
-        y: gY + row * (cHeight + gSpacing),
-        width: cWidth,
-        height: cHeight
+    if (!isDragging) {
+      var items = []
+      for (var i = 0; i < ids.length; i++) {
+        items.push({ workspaceId: ids[i], isInsertion: false })
       }
+      return items
     }
 
+    var items = []
     // 1. Before first workspace (if first > 1)
     if (ids[0] > 1) {
-      var r0 = cardRect(0)
-      zones.push({
-        targetWorkspaceId: ids[0] - 1,
-        x: r0.x - pillWidth - gSpacing / 2,
-        y: r0.y,
-        width: pillWidth,
-        height: r0.height
-      })
+      items.push({ workspaceId: ids[0] - 1, isInsertion: true })
     }
 
-    // 2. Between adjacent workspaces
-    for (var i = 0; i < count - 1; i++) {
-      var curId = ids[i]
-      var nextId = ids[i + 1]
-      if (nextId > curId + 1) {
-        var rCur = cardRect(i)
-        var zX = rCur.x + rCur.width + (gSpacing - pillWidth) / 2
-        var zY = rCur.y
-        zones.push({
-          targetWorkspaceId: curId + 1,
-          x: zX,
-          y: zY,
-          width: pillWidth,
-          height: rCur.height
-        })
+    for (var i = 0; i < ids.length; i++) {
+      // Add the real workspace
+      items.push({ workspaceId: ids[i], isInsertion: false })
+
+      // If there is a gap before the next workspace, insert target (cur + 1)
+      if (i < ids.length - 1) {
+        if (ids[i + 1] > ids[i] + 1) {
+          items.push({ workspaceId: ids[i] + 1, isInsertion: true })
+        }
       }
     }
 
     // 3. After last workspace
-    var rLast = cardRect(count - 1)
-    zones.push({
-      targetWorkspaceId: ids[count - 1] + 1,
-      x: rLast.x + rLast.width + (gSpacing - pillWidth) / 2,
-      y: rLast.y,
-      width: pillWidth,
-      height: rLast.height
-    })
+    items.push({ workspaceId: ids[ids.length - 1] + 1, isInsertion: true })
 
-    return zones
+    return items
+  }
+
+  function computeInsertionTargets(workspaceIds) {
+    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
+    if (ids.length === 0) return []
+
+    var targets = []
+    if (ids[0] > 1) {
+      targets.push(ids[0] - 1)
+    }
+
+    for (var i = 0; i < ids.length - 1; i++) {
+      if (ids[i + 1] > ids[i] + 1) {
+        targets.push(ids[i] + 1)
+      }
+    }
+
+    targets.push(ids[ids.length - 1] + 1)
+    return targets
+  }
+
+  function slotIndexForWorkspace(wsId, isDragging) {
+    if (!isDragging) {
+      return root.workspaceModel.indexOf(wsId)
+    }
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      if (item && !item.isInsertion && item.workspaceId === wsId) {
+        return i
+      }
+    }
+    return -1
+  }
+
+  function slotIndexForInsertion(targetWsId) {
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      if (item && item.isInsertion && item.workspaceId === targetWsId) {
+        return i
+      }
+    }
+    return -1
+  }
+
+  function slotX(idx) {
+    if (idx < 0) return 0
+    var col = idx % root.columns
+    return Math.round(root.usableX + root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
+  }
+
+  function slotY(idx) {
+    if (idx < 0) return 0
+    var row = Math.floor(idx / root.columns)
+    return Math.round(root.usableGridY + root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
 
   function cardIndexAfterMove(index, dx, dy, count, columnCount) {
@@ -214,8 +239,11 @@ Item {
   function initialSelectedCardIndex() {
     var focused = Hyprland.focusedWorkspace
     if (focused) {
-      var index = root.workspaceModel.indexOf(focused.id)
-      if (index >= 0) return index
+      for (var i = 0; i < root.overviewCardModel.length; i++) {
+        var item = root.overviewCardModel[i]
+        var wsId = typeof item === "object" ? item.workspaceId : item
+        if (wsId === focused.id) return i
+      }
     }
     return root.cardCount > 0 ? 0 : -1
   }
@@ -228,10 +256,19 @@ Item {
   function activateSelectedCard() {
     var index = root.selectedCardIndex
     if (index < 0 || index >= root.cardCount) return
-    var workspaceId = root.overviewCardModel[index]
-    var ws = root.workspaceById(workspaceId)
-    var occupied = Boolean(ws && ws.toplevels && ws.toplevels.values && ws.toplevels.values.length > 0)
-    root.activateWorkspace(ws, workspaceId, occupied)
+    var item = root.overviewCardModel[index]
+    var workspaceId = typeof item === "object" ? item.workspaceId : item
+    var isInsertion = typeof item === "object" ? Boolean(item.isInsertion) : false
+    if (isInsertion) {
+      root.dispatchWorkspace(workspaceId)
+      Hyprland.refreshWorkspaces()
+      Hyprland.refreshToplevels()
+    } else {
+      var ws = root.workspaceById(workspaceId)
+      if (ws) ws.activate()
+      else root.dispatchWorkspace(workspaceId)
+    }
+    Qt.callLater(root.dismiss)
   }
 
   function normalizedAddress(toplevel) {
@@ -360,75 +397,6 @@ Item {
     if (root.draggedToplevel === toplevel) root.draggedToplevel = null
   }
 
-  // ── Insertion Drop Zone Component ──────────────────────────────────────────
-  component WorkspaceInsertionZone: BorderSurface {
-    id: insertionRoot
-
-    required property int targetWorkspaceId
-    required property real targetX
-    required property real targetY
-    required property real targetWidth
-    required property real targetHeight
-
-    x: targetX
-    y: targetY
-    width: targetWidth
-    height: targetHeight
-    z: 40
-
-    radius: Math.min(Style.cornerRadius, Style.space(8))
-    color: dropArea.containsDrag
-      ? Style.hoverFillFor(Color.menu.text, Color.accent)
-      : Util.alpha(Color.menu.background, 0.50)
-    borderSpec: Border.flat(
-      dropArea.containsDrag
-        ? Color.accent
-        : Util.alpha(Color.accent, 0.40),
-      dropArea.containsDrag ? Math.max(2, Style.focusBorderWidth) : 1)
-
-    Behavior on color { ColorAnimation { duration: 80 } }
-
-    Column {
-      anchors.centerIn: parent
-      spacing: Style.spacing.xs
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        text: "+"
-        color: dropArea.containsDrag ? Color.accent : Color.menu.text
-        font.family: Style.font.menuFamily
-        font.pixelSize: Style.font.title
-        font.bold: true
-        opacity: dropArea.containsDrag ? 1.0 : 0.60
-      }
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        text: String(insertionRoot.targetWorkspaceId)
-        font.family: Style.font.menuFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-        color: dropArea.containsDrag ? Color.accent : Color.menu.text
-        opacity: dropArea.containsDrag ? 1.0 : 0.75
-      }
-    }
-
-    DropArea {
-      id: dropArea
-      anchors.fill: parent
-      keys: ["omarchy-window"]
-
-      onDropped: function(drop) {
-        if (!drop.source || !drop.source.toplevel) {
-          drop.accepted = false
-          return
-        }
-        drop.acceptProposedAction()
-        root.moveWindowToWorkspace(drop.source.toplevel, insertionRoot.targetWorkspaceId)
-      }
-    }
-  }
-
   // ── Panel window ────────────────────────────────────────────────────────────
   PanelWindow {
     id: panel
@@ -467,54 +435,54 @@ Item {
         }
       }
 
-      // ── Temporary Insertion Drop Zones (During Window Drag) ────────────────
+      // ── Real Workspace Cards (Persistent across drag transitions) ──────────
       Repeater {
-        model: root.insertionZones
+        model: root.workspaceModel
 
-        WorkspaceInsertionZone {
-          required property var modelData
+        WorkspaceCard {
+          required property int modelData
+          required property int index
 
-          targetWorkspaceId: modelData.targetWorkspaceId
-          targetX: modelData.x
-          targetY: modelData.y
-          targetWidth: modelData.width
-          targetHeight: modelData.height
+          readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+
+          x: root.slotX(slotIndex)
+          y: root.slotY(slotIndex)
+          width: Math.round(root.cardWidth)
+          height: Math.round(root.cardHeight)
+
+          workspaceId: modelData
+          workspace: root.workspaceById(modelData)
+          livePreviews: root.opened && panel.visible
+          draggedToplevel: root.draggedToplevel
+          keyboardSelected: slotIndex === root.selectedCardIndex
+          focused: Hyprland.focusedWorkspace !== null
+            && Hyprland.focusedWorkspace.id === modelData
+          onWorkspaceActivated: function(occupied) { root.activateWorkspace(workspace, modelData, occupied) }
+          onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
+          onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
+          onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
+          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
         }
       }
 
-      // The grid is positioned inside the usable area below any bar
-      // rather than centred in the full panel, so cards never overlap the bar.
-      Grid {
-        id: workspaceGrid
+      // ── Temporary Insertion Workspace Cards (Active only during drag) ───────
+      Repeater {
+        model: root.insertionModel
 
-        x: root.usableX + root.gridGeometry.x
-        y: root.usableGridY + root.gridGeometry.y
+        InsertionWorkspaceCard {
+          required property int modelData
+          required property int index
 
-        columns: root.columns
-        spacing: root.gridSpacing
+          readonly property int slotIndex: root.slotIndexForInsertion(modelData)
 
-        Repeater {
-          model: root.overviewCardModel
+          x: root.slotX(slotIndex)
+          y: root.slotY(slotIndex)
+          width: Math.round(root.cardWidth)
+          height: Math.round(root.cardHeight)
 
-          WorkspaceCard {
-            required property int modelData
-            required property int index
-
-            width: root.cardWidth
-            height: root.cardHeight
-            workspaceId: modelData
-            workspace: root.workspaceById(modelData)
-            livePreviews: root.opened && panel.visible
-            draggedToplevel: root.draggedToplevel
-            keyboardSelected: index === root.selectedCardIndex
-            focused: Hyprland.focusedWorkspace !== null
-              && Hyprland.focusedWorkspace.id === modelData
-            onWorkspaceActivated: function(occupied) { root.activateWorkspace(workspace, modelData, occupied) }
-            onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
-            onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
-            onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
-            onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
-          }
+          targetWorkspaceId: modelData
+          draggedToplevel: root.draggedToplevel
+          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
         }
       }
     }

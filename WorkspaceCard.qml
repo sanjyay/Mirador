@@ -49,26 +49,16 @@ BorderSurface {
   readonly property int activeBorderWidth: Math.max(Style.space(2), Style.focusBorderWidth)
   readonly property int normalBorderWidth: Math.max(1, Style.normalBorderWidth)
 
-  // ── Border spec ────────────────────────────────────────────────────────────
-  // Priority (highest first):
-  //   dropHovered          → thick accent ring  (drag target confirmed)
-  //   validDropTarget      → thinner accent ring (drag affordance)
-  //   focused              → strong accent ring (active workspace)
-  //   highlighted          → clear neutral border (hover / keyboard selection)
-  //   inactive             → visible defined outline (resting card)
-  readonly property var cardBorderSpec: {
-    if (dropHovered)
-      return Border.withWidth(
-        Border.flat(Color.accent, activeBorderWidth), activeBorderWidth)
-    if (validDropTarget)
-      return Border.withWidth(
-        Border.flat(Util.alpha(Color.accent, 0.65), normalBorderWidth), normalBorderWidth)
-    if (focused)
-      return Border.flat(Color.accent, activeBorderWidth)
-    if (highlighted)
-      return Border.flat(Util.alpha(Color.menu.border, 0.75), normalBorderWidth)
-    return Border.flat(Util.alpha(Color.menu.border, 0.45), normalBorderWidth)
+  // ── Border styling ────────────────────────────────────────────────────────
+  readonly property color cardBorderColor: {
+    if (dropHovered) return Color.accent
+    if (validDropTarget) return Util.alpha(Color.accent, 0.65)
+    if (focused) return Color.accent
+    if (highlighted) return Util.alpha(Color.menu.text, 0.70)
+    return Color.menu.border
   }
+  readonly property int cardBorderWidth: (dropHovered || focused) ? activeBorderWidth : normalBorderWidth
+  readonly property var cardBorderSpec: Border.flat(cardBorderColor, cardBorderWidth)
 
   signal workspaceActivated(bool occupied)
   signal windowActivated(var toplevel)
@@ -110,7 +100,7 @@ BorderSurface {
   color: (root.focused || root.highlighted)
     ? Color.menu.background
     : (occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
-  borderSpec: cardBorderSpec
+  borderSpec: Border.none()
   clip: true
   scale: root.highlighted ? 1.008 : 1.0
 
@@ -291,5 +281,18 @@ BorderSurface {
       drop.acceptProposedAction()
       root.windowDropped(drop.source.toplevel)
     }
+  }
+
+  // ── Dedicated Topmost Border Overlay ────────────────────────────────────────
+  // Topmost visual overlay (z: 100) ensuring the outer card border is rendered above
+  // all preview canvases, screencopy buffers, tint overlays, and child chrome.
+  Rectangle {
+    id: borderOverlay
+    anchors.fill: parent
+    z: 100
+    color: "transparent"
+    radius: root.radius
+    border.width: root.cardBorderWidth
+    border.color: root.cardBorderColor
   }
 }
