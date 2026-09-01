@@ -6,6 +6,14 @@ activation, spatial previews that reflect each window's compositor geometry,
 and dragging windows between workspaces.
 ![Mirador Preview](preview.png)
 
+## What's new in version 2.1
+
+* **First-Class Drag-to-Create Insertion Cards**: Temporary workspace insertion targets now render as full-sized workspace cards (`InsertionWorkspaceCard`) with matching KDE badges, centered `+` icons, and `"Drop to create WS N"` cues. The overview grid dynamically reflows during drag to give insertion targets proper card presence.
+* **Seamless Single-Pull Drag & Drop**: Persistent delegate architecture ensures that window previews and drag sessions remain uninterrupted when the layout expands, allowing windows to be moved to existing or new workspaces on the very first pull.
+* **KDE-Style Workspace Number Badges**: Streamlined card headers with clean, prominent number badges (`[1]`, `[2]`, ... `[0]`) in the top-left corner, removing visual clutter and maximizing window preview area.
+* **Fast Keyboard Navigation & Activation**: Move card selection smoothly using arrow keys or Vim bindings (`h`, `j`, `k`, `l`) and press `Enter`/`Return` to immediately jump to that workspace and dismiss the overview. Press `+` or `=` to create the next contextual workspace.
+* **Crisp, Content-Independent Card Borders**: Dedicated topmost border overlay (`z: 100`) with integer pixel-aligned layout ensures complete, uniform 4-sided borders around all inactive workspaces regardless of dark terminal backgrounds or child preview contents.
+
 ## What's new in version 2
 
 <details>
@@ -183,6 +191,19 @@ omarchy-shell shell summon mirador '{}'
 
 The plugin depends only on APIs and shared UI components provided by the
 Omarchy Shell. It does not require `hyprexpo`, `hyprpm`, or client polling.
+
+## Keyboard navigation and controls
+
+| Key / Action | Description |
+| :--- | :--- |
+| `Left` / `h`, `Right` / `l` | Move workspace card selection horizontally |
+| `Up` / `k`, `Down` / `j` | Move workspace card selection vertically |
+| `Enter` / `Return` / `Space` | Activate the selected workspace and dismiss Mirador |
+| `+` / `=` | Create next contextual workspace |
+| `Escape` | Dismiss Mirador |
+| `Click workspace card` | Switch to workspace (empty cards dismiss overview) |
+| `Click window preview` | Focus window and dismiss overview |
+| `Drag window preview` | Move window to target workspace or drop onto insertion card to create new workspace |
 
 ## License
 
