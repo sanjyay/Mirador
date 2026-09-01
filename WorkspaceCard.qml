@@ -11,11 +11,18 @@ BorderSurface {
 
   required property int workspaceId
   property var workspace: null
+  property var overview: null
   property bool focused: false
   property bool keyboardSelected: false
   property var draggedToplevel: null
   property bool livePreviews: false
   property int toplevelRevision: 0
+
+  onDropHoveredChanged: {
+    if (dropHovered && root.draggedToplevel && overview) {
+      overview.showDemoHint("DRAG → WS " + root.workspaceId, true)
+    }
+  }
 
   readonly property var effectiveToplevels: {
     // `lastIpcObject` changes after refreshToplevels() completes. Reading this

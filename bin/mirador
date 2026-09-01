@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="2.1.0"
+
+show_help() {
+  cat << 'HELP'
+Usage:
+  mirador            Toggle Mirador
+  mirador --demo     Open Mirador with demo input overlay
+  mirador --help     Show this help
+  mirador --version  Show version information
+HELP
+}
+
+case "${1:-}" in
+  "" )
+    exec omarchy-shell shell toggle mirador '{}'
+    ;;
+  --demo )
+    exec omarchy-shell shell summon mirador '{"demo":true}'
+    ;;
+  -h | --help | help )
+    show_help
+    exit 0
+    ;;
+  -v | --version | version )
+    echo "mirador ${VERSION}"
+    exit 0
+    ;;
+  * )
+    echo "Error: unknown argument '$1'" >&2
+    echo "Run 'mirador --help' for usage." >&2
+    exit 1
+    ;;
+esac

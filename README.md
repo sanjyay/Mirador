@@ -183,15 +183,6 @@ To inspect existing shortcuts before choosing one, run:
 omarchy menu keybindings --print
 ```
 
-You can also open the overview directly from a terminal with:
-
-```bash
-omarchy-shell shell summon mirador '{}'
-```
-
-The plugin depends only on APIs and shared UI components provided by the
-Omarchy Shell. It does not require `hyprexpo`, `hyprpm`, or client polling.
-
 ## Keyboard navigation and controls
 
 | Key / Action | Description |
@@ -204,6 +195,25 @@ Omarchy Shell. It does not require `hyprexpo`, `hyprpm`, or client polling.
 | `Click workspace card` | Switch to workspace (empty cards dismiss overview) |
 | `Click window preview` | Focus window and dismiss overview |
 | `Drag window preview` | Move window to target workspace or drop onto insertion card to create new workspace |
+
+## CLI and demo recording mode
+
+Mirador includes a `mirador` CLI command:
+
+```bash
+mirador            # Toggle Mirador overview
+mirador --demo     # Open Mirador with on-screen input overlay for demo recordings
+mirador --help     # Show command-line help
+mirador --version  # Show version information
+```
+
+### Demo recording mode
+
+Running `mirador --demo` opens Mirador in a session-scoped demo mode that renders a clean on-screen input HUD at the bottom of the overview.
+
+* Shows key combinations (e.g. `←`, `ENTER`, `CTRL + →`, `ESC`) and semantic interactions (e.g. `SWITCH → WS 3`, `DRAG WINDOW`, `MOVE → WS 4`, `NEW WS 2`).
+* The overlay is non-interactive, session-only, and displays only interactions received directly by Mirador.
+* Normal Mirador invocations (`mirador` or keyboard shortcuts) do not display the demo overlay, and demo state automatically resets when the overview is dismissed.
 
 ## License
 

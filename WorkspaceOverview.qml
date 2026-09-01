@@ -13,6 +13,7 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property bool demoMode: false
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
   property int selectedCardIndex: -1
@@ -301,6 +302,30 @@ Item {
     return screens.length > 0 ? screens[0] : null
   }
 
+  function showDemoHint(text, sticky) {
+    if (root.demoMode && demoOverlay) {
+      demoOverlay.showHint(text, sticky)
+    }
+  }
+
+  function cleanAppName(raw) {
+    if (!raw) return ""
+    var name = String(raw).split(".").pop()
+    if (name.length > 0) return name.charAt(0).toUpperCase() + name.slice(1)
+    return name
+  }
+
+  function appNameFor(top) {
+    if (!top) return ""
+    var wayland = top.wayland
+    if (wayland && wayland.appId) return root.cleanAppName(String(wayland.appId))
+    var ipc = top.lastIpcObject
+    if (ipc && ipc.initialClass) return root.cleanAppName(String(ipc.initialClass))
+    if (ipc && ipc.class) return root.cleanAppName(String(ipc.class))
+    if (top.appId) return root.cleanAppName(String(top.appId))
+    return ""
+  }
+
   function open(payloadJson) {
     Hyprland.refreshMonitors()
     Hyprland.refreshWorkspaces()
@@ -308,20 +333,40 @@ Item {
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
+
+    var payload = null
+    try {
+      if (typeof payloadJson === "string" && payloadJson.length > 0)
+        payload = JSON.parse(payloadJson)
+      else if (typeof payloadJson === "object" && payloadJson !== null)
+        payload = payloadJson
+    } catch (e) {
+      payload = null
+    }
+    root.demoMode = Boolean(payload && payload.demo)
     root.opened = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() {
+      keyCatcher.forceActiveFocus()
+      if (root.demoMode && demoOverlay) {
+        demoOverlay.showHint("MIRADOR DEMO", false)
+      }
+    })
   }
 
   function close() {
+    root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.opened = false
+    if (demoOverlay) demoOverlay.hideHint()
   }
 
   function dismiss() {
+    root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.opened = false
+    if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "mirador")
   }
@@ -335,6 +380,7 @@ Item {
   // When clicking inside an empty workspace, transports to that workspace and closes Mirador.
   // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
   function activateWorkspace(workspace, workspaceId, occupied) {
+    root.showDemoHint("SWITCH → WS " + workspaceId, false)
     if (workspace) workspace.activate()
     else root.dispatchWorkspace(workspaceId)
 
@@ -346,6 +392,7 @@ Item {
   // Plus button creation: creates contextual workspace AND KEEPS MIRADOR OPEN
   function createNewWorkspace() {
     var workspaceId = root.nextWorkspaceId()
+    root.showDemoHint("CREATE WS " + workspaceId, false)
     if (!root.dispatchWorkspace(workspaceId)) return
     Hyprland.refreshWorkspaces()
     Hyprland.refreshToplevels()
@@ -358,6 +405,8 @@ Item {
 
   // Window preview activation: focuses target window AND CLOSES MIRADOR
   function activateWindow(toplevel) {
+    var app = root.appNameFor(toplevel)
+    root.showDemoHint(app ? ("FOCUS → " + app) : "FOCUS WINDOW", false)
     var address = root.normalizedAddress(toplevel)
     var wayland = toplevel ? toplevel.wayland : null
     if (address && Hyprland.usingLua)
@@ -375,7 +424,14 @@ Item {
   function moveWindowToWorkspace(toplevel, workspaceId) {
     var address = root.normalizedAddress(toplevel)
     var sourceId = root.sourceWorkspaceId(toplevel)
-    if (!address || workspaceId <= 0 || sourceId === workspaceId) return false
+    if (!address || workspaceId <= 0 || sourceId === workspaceId) {
+      if (demoOverlay) demoOverlay.hideHint()
+      return false
+    }
+
+    var app = root.appNameFor(toplevel)
+    var label = app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId)
+    root.showDemoHint(label, false)
 
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
@@ -390,11 +446,18 @@ Item {
   }
 
   function beginWindowDrag(toplevel) {
-    if (root.normalizedAddress(toplevel)) root.draggedToplevel = toplevel
+    if (root.normalizedAddress(toplevel)) {
+      root.draggedToplevel = toplevel
+      var app = root.appNameFor(toplevel)
+      root.showDemoHint(app ? ("DRAG " + app) : "DRAG WINDOW", true)
+    }
   }
 
   function endWindowDrag(toplevel) {
-    if (root.draggedToplevel === toplevel) root.draggedToplevel = null
+    if (root.draggedToplevel === toplevel) {
+      root.draggedToplevel = null
+      if (demoOverlay) demoOverlay.hideHint()
+    }
   }
 
   // ── Panel window ────────────────────────────────────────────────────────────
@@ -429,6 +492,9 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
+        if (root.demoMode && demoOverlay) {
+          demoOverlay.handleKeyEvent(event)
+        }
         if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.text === "+" || event.text === "=") {
           event.accepted = true
           root.createNewWorkspace()
@@ -450,6 +516,7 @@ Item {
           width: Math.round(root.cardWidth)
           height: Math.round(root.cardHeight)
 
+          overview: root
           workspaceId: modelData
           workspace: root.workspaceById(modelData)
           livePreviews: root.opened && panel.visible
@@ -480,11 +547,22 @@ Item {
           width: Math.round(root.cardWidth)
           height: Math.round(root.cardHeight)
 
+          overview: root
           targetWorkspaceId: modelData
           draggedToplevel: root.draggedToplevel
           onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
         }
       }
+    }
+
+    // ── Demo Input Overlay ──────────────────────────────────────────────────
+    DemoInputOverlay {
+      id: demoOverlay
+      z: 1000
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.max(root.barInsetBottom + Style.space(24), Style.space(32))
+      demoMode: root.demoMode
     }
   }
 

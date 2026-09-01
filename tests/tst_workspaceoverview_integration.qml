@@ -259,4 +259,13 @@ TestCase {
     compare(dragging35[4].workspaceId, 6)
     compare(dragging35[4].isInsertion, true)
   }
+
+  function test_demoModePayloadAndOverlayIntegration() {
+    var source = workspaceOverviewSource()
+    // Must contain demoMode property, DemoInputOverlay integration, and demo payload extraction
+    verify(/property bool demoMode\s*:\s*false/.test(source))
+    verify(/DemoInputOverlay/.test(source))
+    verify(/root\.demoMode\s*=\s*Boolean\(payload\s*&&\s*payload\.demo\)/.test(source))
+    verify(/demoOverlay\.handleKeyEvent/.test(source))
+  }
 }

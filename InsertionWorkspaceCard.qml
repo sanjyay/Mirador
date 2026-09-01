@@ -8,6 +8,13 @@ BorderSurface {
 
   required property int targetWorkspaceId
   property var draggedToplevel: null
+  property var overview: null
+
+  onDropHoveredChanged: {
+    if (dropHovered && root.draggedToplevel && overview) {
+      overview.showDemoHint("DRAG → NEW WS " + root.targetWorkspaceId, true)
+    }
+  }
 
   readonly property bool dropHovered: dropArea.containsDrag
   readonly property int activeBorderWidth: Math.max(Style.space(2), Style.focusBorderWidth)
