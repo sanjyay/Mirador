@@ -55,7 +55,7 @@ https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 Install through Omarchy:
 
 ```bash
-omarchy plugin add https://github.com/sanjyyayy/Mirador.git
+omarchy plugin add https://github.com/sanjyay/Mirador.git
 ```
 
 Alternatively, install it manually by cloning this repository into your
@@ -63,7 +63,7 @@ Omarchy plugins directory:
 
 ```bash
 mkdir -p ~/.config/omarchy/plugins
-git clone https://github.com/sanjyyayy/Mirador.git \
+git clone https://github.com/sanjyay/Mirador.git \
   ~/.config/omarchy/plugins/mirador
 omarchy-shell shell rescanPlugins
 ```
