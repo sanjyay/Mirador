@@ -13,6 +13,7 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property bool demoMode: false
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
   property int selectedCardIndex: -1
@@ -43,24 +44,20 @@ Item {
   // ── Layout calculation ──────────────────────────────────────────────────────
   readonly property var workspaceModel: root.workspaceIds()
   readonly property int workspaceCount: workspaceModel.length
-  readonly property int nextWorkspaceId: root.nextWorkspaceAfter(workspaceModel)
-  readonly property var overviewCardModel: {
-    var ids = workspaceModel.slice()
-    if (nextWorkspaceId > 0) ids.push(nextWorkspaceId)
-    return ids
-  }
+  readonly property var insertionModel: (root.draggedToplevel !== null)
+    ? root.computeInsertionTargets(root.workspaceModel)
+    : []
+  readonly property var overviewCardModel: root.buildOverviewItems(
+    root.workspaceModel, root.draggedToplevel !== null)
   readonly property int cardCount: overviewCardModel.length
   readonly property real cardAspectRatio: 1.55
 
   // Mirador's own outer margin, applied on top of the bar inset so there is
   // always a small breathing gap between cards and the bar (or monitor edge).
   readonly property real outerMargin: Math.max(Style.gapsOut, Style.spacing.panelPadding)
-  readonly property real gridSpacing: Style.spacing.lg
+  readonly property real gridSpacing: Style.space(48)
 
   // Usable panel area after subtracting bar-reserved edges.
-  // panel.width/height equals the full monitor dimensions because the panel
-  // anchors all four edges, so subtracting bar insets + outerMargin on each
-  // side gives the actual content rectangle.
   readonly property real usableX:      barInsetLeft   + outerMargin
   readonly property real usableY:      barInsetTop    + outerMargin
   readonly property real usableWidth:  Math.max(1, panel.width
@@ -68,8 +65,12 @@ Item {
   readonly property real usableHeight: Math.max(1, panel.height
     - barInsetTop - barInsetBottom - outerMargin * 2)
 
+  // Usable grid area across full usable panel
+  readonly property real usableGridY: root.usableY
+  readonly property real usableGridHeight: root.usableHeight
+
   readonly property var gridGeometry: WindowGeometry.overviewGridGeometry(
-    cardCount, usableWidth, usableHeight, cardAspectRatio,
+    cardCount, usableWidth, usableGridHeight, cardAspectRatio,
     Style.space(520), gridSpacing)
   readonly property int columns: Math.max(1, gridGeometry.columns)
   readonly property int rows: Math.max(1, gridGeometry.rows)
@@ -78,30 +79,148 @@ Item {
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
   function workspaceById(id) {
-    var values = Hyprland.workspaces.values
+    var values = Hyprland.workspaces ? Hyprland.workspaces.values : []
     for (var i = 0; i < values.length; i++) {
-      if (values[i].id === id) return values[i]
+      if (values[i] && values[i].id === id) return values[i]
     }
     return null
   }
 
   function workspaceIds() {
-    var ids = [1, 2, 3, 4, 5]
-    var values = Hyprland.workspaces.values
+    var ids = []
+    var values = Hyprland.workspaces ? Hyprland.workspaces.values : []
 
     for (var i = 0; i < values.length; i++) {
-      var id = values[i].id
-      if (id > 0 && id <= 10 && ids.indexOf(id) === -1) ids.push(id)
+      var ws = values[i]
+      if (!ws) continue
+      var id = Number(ws.id)
+      if (id > 0 && ids.indexOf(id) === -1) {
+        ids.push(id)
+      }
+    }
+
+    if (ids.length === 0) {
+      var focused = Hyprland.focusedWorkspace
+      if (focused && focused.id > 0) ids.push(focused.id)
+      else ids.push(1)
     }
 
     ids.sort(function(left, right) { return left - right })
     return ids
   }
 
-  function nextWorkspaceAfter(ids) {
-    if (!ids || ids.length === 0) return -1
-    var next = ids[ids.length - 1] + 1
-    return next <= 10 ? next : -1
+  function contextualNextWorkspaceId(currentId, existingIds) {
+    var c = Number(currentId) || 1
+    var existing = existingIds || []
+
+    for (var d = 1; d <= 100; d++) {
+      var lower = c - d
+      if (lower >= 1 && existing.indexOf(lower) === -1) {
+        return lower
+      }
+      var higher = c + d
+      if (higher >= 1 && existing.indexOf(higher) === -1) {
+        return higher
+      }
+    }
+    return c + 1
+  }
+
+  function nextWorkspaceId() {
+    var currentId = (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id > 0)
+      ? Hyprland.focusedWorkspace.id
+      : (root.workspaceModel.length > 0 ? root.workspaceModel[0] : 1)
+    return contextualNextWorkspaceId(currentId, root.workspaceModel)
+  }
+
+  function buildOverviewItems(workspaceIds, isDragging) {
+    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
+    if (ids.length === 0) return []
+
+    if (!isDragging) {
+      var items = []
+      for (var i = 0; i < ids.length; i++) {
+        items.push({ workspaceId: ids[i], isInsertion: false })
+      }
+      return items
+    }
+
+    var items = []
+    // 1. Before first workspace (if first > 1)
+    if (ids[0] > 1) {
+      items.push({ workspaceId: ids[0] - 1, isInsertion: true })
+    }
+
+    for (var i = 0; i < ids.length; i++) {
+      // Add the real workspace
+      items.push({ workspaceId: ids[i], isInsertion: false })
+
+      // If there is a gap before the next workspace, insert target (cur + 1)
+      if (i < ids.length - 1) {
+        if (ids[i + 1] > ids[i] + 1) {
+          items.push({ workspaceId: ids[i] + 1, isInsertion: true })
+        }
+      }
+    }
+
+    // 3. After last workspace
+    items.push({ workspaceId: ids[ids.length - 1] + 1, isInsertion: true })
+
+    return items
+  }
+
+  function computeInsertionTargets(workspaceIds) {
+    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
+    if (ids.length === 0) return []
+
+    var targets = []
+    if (ids[0] > 1) {
+      targets.push(ids[0] - 1)
+    }
+
+    for (var i = 0; i < ids.length - 1; i++) {
+      if (ids[i + 1] > ids[i] + 1) {
+        targets.push(ids[i] + 1)
+      }
+    }
+
+    targets.push(ids[ids.length - 1] + 1)
+    return targets
+  }
+
+  function slotIndexForWorkspace(wsId, isDragging) {
+    if (!isDragging) {
+      return root.workspaceModel.indexOf(wsId)
+    }
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      if (item && !item.isInsertion && item.workspaceId === wsId) {
+        return i
+      }
+    }
+    return -1
+  }
+
+  function slotIndexForInsertion(targetWsId) {
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      if (item && item.isInsertion && item.workspaceId === targetWsId) {
+        return i
+      }
+    }
+    return -1
+  }
+
+  function slotX(idx) {
+    if (idx < 0) return 0
+    var col = idx % root.columns
+    return Math.round(root.usableX + root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
+  }
+
+  function slotY(idx) {
+    if (idx < 0) return 0
+    var row = Math.floor(idx / root.columns)
+    return Math.round(root.usableGridY + root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
 
   function cardIndexAfterMove(index, dx, dy, count, columnCount) {
@@ -121,8 +240,11 @@ Item {
   function initialSelectedCardIndex() {
     var focused = Hyprland.focusedWorkspace
     if (focused) {
-      var index = root.workspaceModel.indexOf(focused.id)
-      if (index >= 0) return index
+      for (var i = 0; i < root.overviewCardModel.length; i++) {
+        var item = root.overviewCardModel[i]
+        var wsId = typeof item === "object" ? item.workspaceId : item
+        if (wsId === focused.id) return i
+      }
     }
     return root.cardCount > 0 ? 0 : -1
   }
@@ -135,11 +257,19 @@ Item {
   function activateSelectedCard() {
     var index = root.selectedCardIndex
     if (index < 0 || index >= root.cardCount) return
-    var workspaceId = root.overviewCardModel[index]
-    if (root.nextWorkspaceId > 0 && index === root.workspaceCount)
-      root.activateNextWorkspace()
-    else
-      root.activateWorkspace(root.workspaceById(workspaceId), workspaceId)
+    var item = root.overviewCardModel[index]
+    var workspaceId = typeof item === "object" ? item.workspaceId : item
+    var isInsertion = typeof item === "object" ? Boolean(item.isInsertion) : false
+    if (isInsertion) {
+      root.dispatchWorkspace(workspaceId)
+      Hyprland.refreshWorkspaces()
+      Hyprland.refreshToplevels()
+    } else {
+      var ws = root.workspaceById(workspaceId)
+      if (ws) ws.activate()
+      else root.dispatchWorkspace(workspaceId)
+    }
+    Qt.callLater(root.dismiss)
   }
 
   function normalizedAddress(toplevel) {
@@ -153,7 +283,7 @@ Item {
   }
 
   function dispatchWorkspace(workspaceId) {
-    if (workspaceId <= 0 || workspaceId > 10) return false
+    if (workspaceId <= 0) return false
     if (Hyprland.usingLua)
       Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + workspaceId + "\" })")
     else
@@ -172,6 +302,30 @@ Item {
     return screens.length > 0 ? screens[0] : null
   }
 
+  function showDemoHint(text, sticky) {
+    if (root.demoMode && demoOverlay) {
+      demoOverlay.showHint(text, sticky)
+    }
+  }
+
+  function cleanAppName(raw) {
+    if (!raw) return ""
+    var name = String(raw).split(".").pop()
+    if (name.length > 0) return name.charAt(0).toUpperCase() + name.slice(1)
+    return name
+  }
+
+  function appNameFor(top) {
+    if (!top) return ""
+    var wayland = top.wayland
+    if (wayland && wayland.appId) return root.cleanAppName(String(wayland.appId))
+    var ipc = top.lastIpcObject
+    if (ipc && ipc.initialClass) return root.cleanAppName(String(ipc.initialClass))
+    if (ipc && ipc.class) return root.cleanAppName(String(ipc.class))
+    if (top.appId) return root.cleanAppName(String(top.appId))
+    return ""
+  }
+
   function open(payloadJson) {
     Hyprland.refreshMonitors()
     Hyprland.refreshWorkspaces()
@@ -179,20 +333,40 @@ Item {
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
+
+    var payload = null
+    try {
+      if (typeof payloadJson === "string" && payloadJson.length > 0)
+        payload = JSON.parse(payloadJson)
+      else if (typeof payloadJson === "object" && payloadJson !== null)
+        payload = payloadJson
+    } catch (e) {
+      payload = null
+    }
+    root.demoMode = Boolean(payload && payload.demo)
     root.opened = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() {
+      keyCatcher.forceActiveFocus()
+      if (root.demoMode && demoOverlay) {
+        demoOverlay.showHint("MIRADOR DEMO", false)
+      }
+    })
   }
 
   function close() {
+    root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.opened = false
+    if (demoOverlay) demoOverlay.hideHint()
   }
 
   function dismiss() {
+    root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.opened = false
+    if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "mirador")
   }
@@ -202,19 +376,37 @@ Item {
     else root.open("{}")
   }
 
-  function activateWorkspace(workspace, workspaceId) {
+  // Workspace activation: switches Hyprland active workspace.
+  // When clicking inside an empty workspace, transports to that workspace and closes Mirador.
+  // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
+  function activateWorkspace(workspace, workspaceId, occupied) {
+    root.showDemoHint("SWITCH → WS " + workspaceId, false)
     if (workspace) workspace.activate()
-    else if (!root.dispatchWorkspace(workspaceId)) return
-    Qt.callLater(root.dismiss)
+    else root.dispatchWorkspace(workspaceId)
+
+    if (occupied === false) {
+      Qt.callLater(root.dismiss)
+    }
+  }
+
+  // Plus button creation: creates contextual workspace AND KEEPS MIRADOR OPEN
+  function createNewWorkspace() {
+    var workspaceId = root.nextWorkspaceId()
+    root.showDemoHint("CREATE WS " + workspaceId, false)
+    if (!root.dispatchWorkspace(workspaceId)) return
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
+    // MIRADOR STAYS OPEN
   }
 
   function activateNextWorkspace() {
-    var workspaceId = root.nextWorkspaceId
-    if (!root.dispatchWorkspace(workspaceId)) return
-    Qt.callLater(root.dismiss)
+    root.createNewWorkspace()
   }
 
+  // Window preview activation: focuses target window AND CLOSES MIRADOR
   function activateWindow(toplevel) {
+    var app = root.appNameFor(toplevel)
+    root.showDemoHint(app ? ("FOCUS → " + app) : "FOCUS WINDOW", false)
     var address = root.normalizedAddress(toplevel)
     var wayland = toplevel ? toplevel.wayland : null
     if (address && Hyprland.usingLua)
@@ -225,13 +417,21 @@ Item {
       wayland.activate()
     else
       return
-    Qt.callLater(root.dismiss)
+    Qt.callLater(root.dismiss) // WINDOW ACTIVATION CLOSES MIRADOR
   }
 
+  // Drag-and-drop window move: moves window to workspace AND KEEPS MIRADOR OPEN
   function moveWindowToWorkspace(toplevel, workspaceId) {
     var address = root.normalizedAddress(toplevel)
     var sourceId = root.sourceWorkspaceId(toplevel)
-    if (!address || workspaceId <= 0 || workspaceId > 10 || sourceId === workspaceId) return false
+    if (!address || workspaceId <= 0 || sourceId === workspaceId) {
+      if (demoOverlay) demoOverlay.hideHint()
+      return false
+    }
+
+    var app = root.appNameFor(toplevel)
+    var label = app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId)
+    root.showDemoHint(label, false)
 
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
@@ -240,15 +440,24 @@ Item {
     } else {
       Hyprland.dispatch("movetoworkspacesilent " + workspaceId + ",address:" + address)
     }
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
     return true
   }
 
   function beginWindowDrag(toplevel) {
-    if (root.normalizedAddress(toplevel)) root.draggedToplevel = toplevel
+    if (root.normalizedAddress(toplevel)) {
+      root.draggedToplevel = toplevel
+      var app = root.appNameFor(toplevel)
+      root.showDemoHint(app ? ("DRAG " + app) : "DRAG WINDOW", true)
+    }
   }
 
   function endWindowDrag(toplevel) {
-    if (root.draggedToplevel === toplevel) root.draggedToplevel = null
+    if (root.draggedToplevel === toplevel) {
+      root.draggedToplevel = null
+      if (demoOverlay) demoOverlay.hideHint()
+    }
   }
 
   // ── Panel window ────────────────────────────────────────────────────────────
@@ -277,54 +486,83 @@ Item {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      focus: true
       onMoveRequested: function(dx, dy) { root.moveCardSelection(dx, dy) }
       onActivateRequested: root.activateSelectedCard()
       onCloseRequested: root.dismiss()
 
-      // The grid is positioned inside the usable area (bar inset + outerMargin)
-      // rather than centred in the full panel, so cards never overlap the bar.
-      Grid {
-        id: workspaceGrid
-
-        // The geometry helper fits every card, then returns exact centered
-        // offsets for any count, screen aspect ratio, scale, and bar edge.
-        x: root.usableX + root.gridGeometry.x
-        y: root.usableY + root.gridGeometry.y
-
-        columns: root.columns
-        spacing: root.gridSpacing
-
-        Repeater {
-          model: root.overviewCardModel
-
-          WorkspaceCard {
-            required property int modelData
-            required property int index
-
-            readonly property bool isAddCard: root.nextWorkspaceId > 0
-              && index === root.workspaceCount
-
-            width: root.cardWidth
-            height: root.cardHeight
-            workspaceId: modelData
-            workspace: isAddCard ? null : root.workspaceById(modelData)
-            addWorkspace: isAddCard
-            livePreviews: root.opened && panel.visible && !isAddCard
-            draggedToplevel: root.draggedToplevel
-            keyboardSelected: index === root.selectedCardIndex
-            focused: !isAddCard && Hyprland.focusedWorkspace !== null
-              && Hyprland.focusedWorkspace.id === modelData
-            onWorkspaceActivated: {
-              if (isAddCard) root.activateNextWorkspace()
-              else root.activateWorkspace(workspace, modelData)
-            }
-            onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
-            onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
-            onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
-            onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
-          }
+      Keys.onPressed: function(event) {
+        if (root.demoMode && demoOverlay) {
+          demoOverlay.handleKeyEvent(event)
+        }
+        if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.text === "+" || event.text === "=") {
+          event.accepted = true
+          root.createNewWorkspace()
         }
       }
+
+      // ── Real Workspace Cards (Persistent across drag transitions) ──────────
+      Repeater {
+        model: root.workspaceModel
+
+        WorkspaceCard {
+          required property int modelData
+          required property int index
+
+          readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+
+          x: root.slotX(slotIndex)
+          y: root.slotY(slotIndex)
+          width: Math.round(root.cardWidth)
+          height: Math.round(root.cardHeight)
+
+          overview: root
+          workspaceId: modelData
+          workspace: root.workspaceById(modelData)
+          livePreviews: root.opened && panel.visible
+          draggedToplevel: root.draggedToplevel
+          keyboardSelected: slotIndex === root.selectedCardIndex
+          focused: Hyprland.focusedWorkspace !== null
+            && Hyprland.focusedWorkspace.id === modelData
+          onWorkspaceActivated: function(occupied) { root.activateWorkspace(workspace, modelData, occupied) }
+          onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
+          onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
+          onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
+          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
+        }
+      }
+
+      // ── Temporary Insertion Workspace Cards (Active only during drag) ───────
+      Repeater {
+        model: root.insertionModel
+
+        InsertionWorkspaceCard {
+          required property int modelData
+          required property int index
+
+          readonly property int slotIndex: root.slotIndexForInsertion(modelData)
+
+          x: root.slotX(slotIndex)
+          y: root.slotY(slotIndex)
+          width: Math.round(root.cardWidth)
+          height: Math.round(root.cardHeight)
+
+          overview: root
+          targetWorkspaceId: modelData
+          draggedToplevel: root.draggedToplevel
+          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
+        }
+      }
+    }
+
+    // ── Demo Input Overlay ──────────────────────────────────────────────────
+    DemoInputOverlay {
+      id: demoOverlay
+      z: 1000
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Math.max(root.barInsetBottom + Style.space(24), Style.space(32))
+      demoMode: root.demoMode
     }
   }
 
@@ -340,13 +578,16 @@ Item {
     function onRawEvent(event) {
       if (!root.opened || !event || !event.name) return
       var name = String(event.name)
-      if (name.indexOf("monitor") !== -1 || name.indexOf("moveworkspace") === 0) {
+      if (name.indexOf("monitor") !== -1 || name.indexOf("workspace") !== -1
+          || name.indexOf("moveworkspace") === 0 || name === "createworkspace"
+          || name === "destroyworkspace") {
         Hyprland.refreshMonitors()
         Hyprland.refreshWorkspaces()
       }
       if (name.indexOf("window") !== -1 || name.indexOf("group") !== -1
           || name === "fullscreen" || name === "changefloatingmode"
-          || name.indexOf("workspace") !== -1 || name === "focusedmon") {
+          || name.indexOf("workspace") !== -1 || name === "focusedmon"
+          || name === "movewindow" || name === "movewindowv2") {
         Hyprland.refreshToplevels()
       }
     }
