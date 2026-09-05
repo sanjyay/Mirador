@@ -255,6 +255,123 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
+// Fit a focused workspace layout where the primary selected workspace occupies
+// the majority of the screen (65-75% area), and remaining workspaces form an
+// adaptive secondary rail/grid on the right.
+function focusedOverviewGeometry(count, primaryIndex, areaWidth, areaHeight,
+                                 aspectRatio, spacing) {
+  var safeCount = Math.max(0, Math.floor(finiteNumber(count) || 0))
+  var safeWidth = Math.max(1, finiteNumber(areaWidth) || 1)
+  var safeHeight = Math.max(1, finiteNumber(areaHeight) || 1)
+  var safeAspect = Math.max(0.01, finiteNumber(aspectRatio) || 1)
+  var gap = Math.max(0, finiteNumber(spacing) || 0)
+  var primIdx = safeCount > 0 ? Math.max(0, Math.min(safeCount - 1, Math.floor(finiteNumber(primaryIndex) || 0))) : 0
+
+  if (safeCount === 0) {
+    return { primaryIndex: -1, cards: [] }
+  }
+
+  if (safeCount === 1) {
+    var singleW = Math.min(safeWidth, safeHeight * safeAspect)
+    var singleH = singleW / safeAspect
+    return {
+      primaryIndex: 0,
+      cards: [{
+        index: 0,
+        isPrimary: true,
+        x: (safeWidth - singleW) / 2,
+        y: (safeHeight - singleH) / 2,
+        width: singleW,
+        height: singleH
+      }]
+    }
+  }
+
+  var secCount = safeCount - 1
+  // Single vertical rail layout:
+  // Primary card targets 72-76% of usable width (capped by aspect ratio & safeHeight).
+  // The secondary rail occupies the remaining horizontal width as a single column.
+  var primRatio = 0.74
+  var primW = Math.min(safeWidth * primRatio, safeHeight * safeAspect)
+  var primH = primW / safeAspect
+  if (primH > safeHeight) {
+    primH = safeHeight
+    primW = primH * safeAspect
+  }
+
+  var secAvailW = safeWidth - primW - gap
+  // Enforce sensible minimum secondary card width/height
+  var minSecW = Math.min(220, safeWidth * 0.22)
+  if (secAvailW < minSecW && safeWidth > minSecW + 200) {
+    secAvailW = minSecW
+    primW = Math.min(safeWidth - secAvailW - gap, safeHeight * safeAspect)
+    primH = primW / safeAspect
+  }
+
+  var secCardW = Math.max(1, secAvailW)
+  var secCardH = Math.max(1, secCardW / safeAspect)
+
+  var totalW = primW + gap + secCardW
+  var startX = (safeWidth - totalW) / 2
+  var primY = (safeHeight - primH) / 2
+
+  var secXStart = startX + primW + gap
+
+  // Total content height of the secondary column
+  var totalSecContentH = secCount > 0 ? (secCardH * secCount + gap * (secCount - 1)) : 0
+  var railVisibleH = safeHeight
+
+  // If content fits within safeHeight, center it vertically in the rail;
+  // otherwise, start at 0 so it scrolls downward.
+  var secContentStartY = totalSecContentH <= safeHeight ? (safeHeight - totalSecContentH) / 2 : 0
+
+  var cards = []
+  for (var i = 0; i < safeCount; i++) {
+    cards.push(null)
+  }
+
+  cards[primIdx] = {
+    index: primIdx,
+    isPrimary: true,
+    x: startX,
+    y: primY,
+    width: primW,
+    height: primH,
+    railContentY: 0
+  }
+
+  var secIdx = 0
+  for (var j = 0; j < safeCount; j++) {
+    if (j === primIdx) continue
+    var contentY = secContentStartY + secIdx * (secCardH + gap)
+    cards[j] = {
+      index: j,
+      isPrimary: false,
+      x: secXStart,
+      y: contentY,
+      width: secCardW,
+      height: secCardH,
+      railIndex: secIdx,
+      railContentY: contentY
+    }
+    secIdx++
+  }
+
+  return {
+    primaryIndex: primIdx,
+    cards: cards,
+    primaryCard: cards[primIdx],
+    rail: {
+      x: secXStart,
+      y: 0,
+      width: secCardW,
+      height: railVisibleH,
+      contentHeight: totalSecContentH,
+      scrollNeeded: totalSecContentH > railVisibleH
+    }
+  }
+}
+
 // Hyprland reports client positions in global compositor coordinates. Monitor
 // x/y share that coordinate space, while the monitor mode dimensions need to
 // be converted to logical dimensions on scaled outputs. A matching QScreen is
@@ -489,6 +606,9 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
     var cy = (it.centerY !== undefined && !isNaN(finiteNumber(it.centerY)))
       ? finiteNumber(it.centerY) : (y + h / 2)
 
+    var visualOrder = it.visualOrder !== undefined ? finiteNumber(it.visualOrder) : NaN
+    var isPrimary = Boolean(it.isPrimary)
+
     validItems.push({
       item: it,
       index: it.index !== undefined ? it.index : i,
@@ -497,7 +617,9 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
       width: w,
       height: h,
       centerX: cx,
-      centerY: cy
+      centerY: cy,
+      visualOrder: isNaN(visualOrder) ? null : visualOrder,
+      isPrimary: isPrimary
     })
   }
 
@@ -516,69 +638,67 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
     currentItem = validItems[0]
   }
 
-  // Sort primarily top-to-bottom, secondarily left-to-right
-  validItems.sort(function(a, b) {
-    if (Math.abs(a.centerY - b.centerY) > 1) {
-      return a.centerY - b.centerY
-    }
-    return a.centerX - b.centerX
-  })
-
-  // Group items into visual rows based on rendered vertical geometry
-  var rows = []
-  for (var i = 0; i < validItems.length; i++) {
-    var item = validItems[i]
-    var added = false
-    for (var r = 0; r < rows.length; r++) {
-      var rowCenterY = rows[r].centerY
-      var rowHeight = rows[r].height || item.height || 1
-      if (Math.abs(item.centerY - rowCenterY) < rowHeight * 0.5) {
-        rows[r].items.push(item)
-        var sumY = 0
-        for (var k = 0; k < rows[r].items.length; k++) sumY += rows[r].items[k].centerY
-        rows[r].centerY = sumY / rows[r].items.length
-        added = true
+  // 1. Horizontal navigation: one continuous global cycle
+  // If items provide explicit visualOrder, respect it for the global reading cycle.
+  if (dx !== 0) {
+    var hasExplicitOrder = true
+    for (var i = 0; i < validItems.length; i++) {
+      if (validItems[i].visualOrder === null) {
+        hasExplicitOrder = false
         break
       }
     }
-    if (!added) {
-      rows.push({
-        centerY: item.centerY,
-        height: item.height,
-        items: [item]
+
+    var orderedItems = []
+    if (hasExplicitOrder) {
+      orderedItems = validItems.slice().sort(function(a, b) {
+        return a.visualOrder - b.visualOrder
       })
+    } else {
+      // Sort primarily top-to-bottom, secondarily left-to-right
+      var geomSorted = validItems.slice().sort(function(a, b) {
+        if (Math.abs(a.centerY - b.centerY) > 1) return a.centerY - b.centerY
+        return a.centerX - b.centerX
+      })
+
+      var rGroup = []
+      for (var i = 0; i < geomSorted.length; i++) {
+        var itm = geomSorted[i]
+        var added = false
+        for (var r = 0; r < rGroup.length; r++) {
+          var rCy = rGroup[r].centerY
+          var rH = rGroup[r].height || itm.height || 1
+          if (Math.abs(itm.centerY - rCy) < rH * 0.5) {
+            rGroup[r].items.push(itm)
+            var sumY = 0
+            for (var k = 0; k < rGroup[r].items.length; k++) sumY += rGroup[r].items[k].centerY
+            rGroup[r].centerY = sumY / rGroup[r].items.length
+            added = true
+            break
+          }
+        }
+        if (!added) {
+          rGroup.push({ centerY: itm.centerY, height: itm.height, items: [itm] })
+        }
+      }
+      rGroup.sort(function(a, b) { return a.centerY - b.centerY })
+      for (var r = 0; r < rGroup.length; r++) {
+        rGroup[r].items.sort(function(a, b) { return a.centerX - b.centerX })
+        for (var c = 0; c < rGroup[r].items.length; c++) {
+          orderedItems.push(rGroup[r].items[c])
+        }
+      }
     }
-  }
 
-  // Sort rows top-to-bottom
-  rows.sort(function(a, b) { return a.centerY - b.centerY })
-
-  // Within each row, sort items left-to-right
-  for (var r = 0; r < rows.length; r++) {
-    rows[r].items.sort(function(a, b) { return a.centerX - b.centerX })
-  }
-
-  // Flatten rows into a continuous global visual sequence (reading order)
-  var orderedItems = []
-  for (var r = 0; r < rows.length; r++) {
-    for (var c = 0; c < rows[r].items.length; c++) {
-      orderedItems.push(rows[r].items[c])
+    var currentGlobalIndex = -1
+    for (var i = 0; i < orderedItems.length; i++) {
+      if (orderedItems[i].index === currentItem.index) {
+        currentGlobalIndex = i
+        break
+      }
     }
-  }
+    if (currentGlobalIndex === -1) currentGlobalIndex = 0
 
-  // Locate current item in orderedItems and in rows
-  var currentGlobalIndex = -1
-  for (var i = 0; i < orderedItems.length; i++) {
-    if (orderedItems[i] === currentItem) {
-      currentGlobalIndex = i
-      break
-    }
-  }
-  if (currentGlobalIndex === -1) currentGlobalIndex = 0
-
-  // 1. Horizontal navigation: one continuous global cycle
-  // Left / Right ignores row boundaries completely.
-  if (dx !== 0) {
     var total = orderedItems.length
     if (total <= 1) return orderedItems[0].index
 
@@ -593,6 +713,92 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
 
   // 2. Vertical navigation: spatial row navigation with wrapping
   if (dy !== 0) {
+    // If a primary card exists alongside secondary cards (focused layout)
+    var primaryItem = null
+    var secondaryItems = []
+    for (var i = 0; i < validItems.length; i++) {
+      if (validItems[i].isPrimary) primaryItem = validItems[i]
+      else secondaryItems.push(validItems[i])
+    }
+
+    if (primaryItem && secondaryItems.length > 0) {
+      // In focused mode with single vertical rail, navigation moves up/down the global workspace sequence
+      var hasExplicitOrder = true
+      for (var i = 0; i < validItems.length; i++) {
+        if (validItems[i].visualOrder === undefined || validItems[i].visualOrder === null) {
+          hasExplicitOrder = false
+          break
+        }
+      }
+
+      var orderedItems = []
+      if (hasExplicitOrder) {
+        orderedItems = validItems.slice().sort(function(a, b) {
+          return a.visualOrder - b.visualOrder
+        })
+      } else {
+        orderedItems = validItems.slice().sort(function(a, b) {
+          return a.index - b.index
+        })
+      }
+
+      var currentGlobalIndex = -1
+      for (var i = 0; i < orderedItems.length; i++) {
+        if (orderedItems[i].index === currentItem.index) {
+          currentGlobalIndex = i
+          break
+        }
+      }
+      if (currentGlobalIndex === -1) currentGlobalIndex = 0
+
+      var total = orderedItems.length
+      if (total <= 1) return orderedItems[0].index
+
+      var nextGlobalIndex = currentGlobalIndex
+      if (dy > 0) {
+        nextGlobalIndex = (currentGlobalIndex + 1) % total
+      } else if (dy < 0) {
+        nextGlobalIndex = (currentGlobalIndex - 1 + total) % total
+      }
+      return orderedItems[nextGlobalIndex].index
+    }
+
+    // Default uniform row grouping for normal overview mode
+    var geomSorted = validItems.slice().sort(function(a, b) {
+      if (Math.abs(a.centerY - b.centerY) > 1) return a.centerY - b.centerY
+      return a.centerX - b.centerX
+    })
+
+    var rows = []
+    for (var i = 0; i < geomSorted.length; i++) {
+      var item = geomSorted[i]
+      var added = false
+      for (var r = 0; r < rows.length; r++) {
+        var rowCenterY = rows[r].centerY
+        var rowHeight = rows[r].height || item.height || 1
+        if (Math.abs(item.centerY - rowCenterY) < rowHeight * 0.5) {
+          rows[r].items.push(item)
+          var sumY = 0
+          for (var k = 0; k < rows[r].items.length; k++) sumY += rows[r].items[k].centerY
+          rows[r].centerY = sumY / rows[r].items.length
+          added = true
+          break
+        }
+      }
+      if (!added) {
+        rows.push({
+          centerY: item.centerY,
+          height: item.height,
+          items: [item]
+        })
+      }
+    }
+
+    rows.sort(function(a, b) { return a.centerY - b.centerY })
+    for (var r = 0; r < rows.length; r++) {
+      rows[r].items.sort(function(a, b) { return a.centerX - b.centerX })
+    }
+
     var currentRowIndex = -1
     for (var r = 0; r < rows.length; r++) {
       for (var c = 0; c < rows[r].items.length; c++) {

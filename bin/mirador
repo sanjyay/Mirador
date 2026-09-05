@@ -7,6 +7,7 @@ show_help() {
   cat << 'HELP'
 Usage:
   mirador            Toggle Mirador
+  mirador --focused  Open Mirador directly in focused workspace overview mode
   mirador --demo     Open Mirador with demo input overlay
   mirador --help     Show this help
   mirador --version  Show version information
@@ -16,6 +17,9 @@ HELP
 case "${1:-}" in
   "" )
     exec omarchy-shell shell toggle mirador '{}'
+    ;;
+  --focused | -f )
+    exec omarchy-shell shell summon mirador '{"focused":true}'
     ;;
   --demo )
     exec omarchy-shell shell summon mirador '{"demo":true}'

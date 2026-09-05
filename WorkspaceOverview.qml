@@ -17,6 +17,15 @@ Item {
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
   property int selectedCardIndex: -1
+  property string overviewMode: "normal"
+
+  function toggleOverviewMode() {
+    if (root.overviewMode === "focused") {
+      root.overviewMode = "normal"
+    } else {
+      root.overviewMode = "focused"
+    }
+  }
 
   // ── Bar geometry ────────────────────────────────────────────────────────────
   // `shell.bar` is the live Bar plugin instance injected by the shell loader.
@@ -76,6 +85,54 @@ Item {
   readonly property int rows: Math.max(1, gridGeometry.rows)
   readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
   readonly property real cardHeight: Math.max(1, gridGeometry.cardHeight)
+
+  // ── Focused mode rail geometry & scrolling ─────────────────────────────────
+  property real railScrollY: 0
+
+  readonly property var focusedGeometry: {
+    if (root.overviewMode !== "focused") return null
+    var primIdx = root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0
+    return WindowGeometry.focusedOverviewGeometry(
+      root.cardCount, primIdx, root.usableWidth, root.usableGridHeight,
+      root.cardAspectRatio, root.gridSpacing)
+  }
+  readonly property var railGeometry: focusedGeometry ? focusedGeometry.rail : null
+  readonly property real railX: railGeometry ? railGeometry.x : 0
+  readonly property real railWidth: railGeometry ? railGeometry.width : 0
+  readonly property real railHeight: railGeometry ? railGeometry.height : root.usableGridHeight
+  readonly property real railContentHeight: railGeometry ? railGeometry.contentHeight : 0
+  readonly property bool railScrollNeeded: railGeometry ? Boolean(railGeometry.scrollNeeded) : false
+  readonly property real railScrollMax: Math.max(0, root.railContentHeight - root.railHeight)
+
+  function scrollRail(deltaY) {
+    if (!root.railScrollNeeded) return
+    var step = (deltaY / 120.0) * Style.space(60)
+    var target = root.railScrollY - step
+    root.railScrollY = Math.max(0, Math.min(root.railScrollMax, target))
+  }
+
+  function ensureCardVisible(idx) {
+    if (root.overviewMode !== "focused" || !root.railScrollNeeded) return
+    var fg = root.focusedGeometry
+    if (!fg || !fg.cards || idx < 0 || idx >= fg.cards.length) return
+    var card = fg.cards[idx]
+    if (!card) return
+
+    var contentY = card.railContentY
+    var cardH = card.height
+    var viewH = root.railHeight
+    var margin = root.gridSpacing
+
+    if (contentY < root.railScrollY + margin) {
+      root.railScrollY = Math.max(0, contentY - margin)
+    } else if (contentY + cardH > root.railScrollY + viewH - margin) {
+      root.railScrollY = Math.min(root.railScrollMax, contentY + cardH - viewH + margin)
+    }
+  }
+
+  onSelectedCardIndexChanged: {
+    root.ensureCardVisible(root.selectedCardIndex)
+  }
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
   function workspaceById(id) {
@@ -211,6 +268,15 @@ Item {
     return -1
   }
 
+  function focusedCardGeom(idx) {
+    if (root.overviewMode !== "focused" || idx < 0) return null
+    if (!root.focusedGeometry || !root.focusedGeometry.cards) return null
+    if (idx < root.focusedGeometry.cards.length) {
+      return root.focusedGeometry.cards[idx]
+    }
+    return null
+  }
+
   function normalCardGeom(idx) {
     if (idx < 0 || !root.gridGeometry || !root.gridGeometry.cards) return null
     if (idx < root.gridGeometry.cards.length) {
@@ -220,12 +286,20 @@ Item {
   }
 
   function slotWidth(idx) {
+    if (root.overviewMode === "focused") {
+      var card = root.focusedCardGeom(idx)
+      if (card && card.width > 0) return Math.round(card.width)
+    }
     var nCard = root.normalCardGeom(idx)
     if (nCard && nCard.width > 0) return Math.round(nCard.width)
     return Math.round(root.cardWidth)
   }
 
   function slotHeight(idx) {
+    if (root.overviewMode === "focused") {
+      var card = root.focusedCardGeom(idx)
+      if (card && card.height > 0) return Math.round(card.height)
+    }
     var nCard = root.normalCardGeom(idx)
     if (nCard && nCard.height > 0) return Math.round(nCard.height)
     return Math.round(root.cardHeight)
@@ -233,18 +307,29 @@ Item {
 
   function slotX(idx) {
     if (idx < 0) return 0
+    if (root.overviewMode === "focused") {
+      var card = root.focusedCardGeom(idx)
+      if (card) return Math.round(card.x)
+    }
     var nCard = root.normalCardGeom(idx)
-    if (nCard) return Math.round(root.usableX + nCard.x)
+    if (nCard) return Math.round(nCard.x)
     var col = idx % root.columns
-    return Math.round(root.usableX + root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
+    return Math.round(root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
   }
 
   function slotY(idx) {
     if (idx < 0) return 0
+    if (root.overviewMode === "focused") {
+      var card = root.focusedCardGeom(idx)
+      if (card) {
+        var yOffset = card.isPrimary ? 0 : root.railScrollY
+        return Math.round(card.y - yOffset)
+      }
+    }
     var nCard = root.normalCardGeom(idx)
-    if (nCard) return Math.round(root.usableGridY + nCard.y)
+    if (nCard) return Math.round(nCard.y)
     var row = Math.floor(idx / root.columns)
-    return Math.round(root.usableGridY + root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
+    return Math.round(root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
 
   function workspaceNavigationItems() {
@@ -262,6 +347,8 @@ Item {
       var width = root.slotWidth(slotIdx)
       var height = root.slotHeight(slotIdx)
 
+      var isPrimary = (root.overviewMode === "focused" && slotIdx === (root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0))
+
       items.push({
         index: slotIdx,
         workspaceId: wsId,
@@ -271,7 +358,9 @@ Item {
         height: height,
         centerX: gx + width / 2,
         centerY: gy + height / 2,
-        isInsertion: false
+        isInsertion: false,
+        isPrimary: isPrimary,
+        visualOrder: i
       })
     }
     return items
@@ -392,6 +481,8 @@ Item {
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
+    root.overviewMode = "normal"
+    root.railScrollY = 0
 
     var payload = null
     try {
@@ -403,6 +494,9 @@ Item {
       payload = null
     }
     root.demoMode = Boolean(payload && payload.demo)
+    if (payload && (payload.focused || payload.mode === "focused")) {
+      root.overviewMode = "focused"
+    }
     root.opened = true
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
@@ -416,6 +510,8 @@ Item {
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
+    root.overviewMode = "normal"
+    root.railScrollY = 0
     root.opened = false
     if (demoOverlay) demoOverlay.hideHint()
   }
@@ -424,6 +520,8 @@ Item {
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
+    root.overviewMode = "normal"
+    root.railScrollY = 0
     root.opened = false
     if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
@@ -546,8 +644,20 @@ Item {
       id: keyCatcher
       anchors.fill: parent
       focus: true
+      property bool returnHandled: false
+
       onMoveRequested: function(dx, dy) { root.moveCardSelection(dx, dy) }
-      onActivateRequested: root.activateSelectedCard()
+      onReturnRequested: {
+        keyCatcher.returnHandled = true
+        root.activateSelectedCard()
+      }
+      onActivateRequested: {
+        if (keyCatcher.returnHandled) {
+          keyCatcher.returnHandled = false
+          return
+        }
+        root.toggleOverviewMode()
+      }
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
@@ -560,58 +670,93 @@ Item {
         }
       }
 
-      // ── Real Workspace Cards (Persistent across drag transitions) ──────────
-      Repeater {
-        model: root.workspaceModel
+      // ── Cards Viewport Container (Clips to usable overview bounds) ──────────
+      Item {
+        id: cardsContainer
+        x: root.usableX
+        y: root.usableGridY
+        width: root.usableWidth
+        height: root.usableGridHeight
+        clip: true
 
-        WorkspaceCard {
-          required property int modelData
-          required property int index
-
-          readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
-
-          x: root.slotX(slotIndex)
-          y: root.slotY(slotIndex)
-          width: root.slotWidth(slotIndex)
-          height: root.slotHeight(slotIndex)
-
-          overview: root
-          workspaceId: modelData
-          workspace: root.workspaceById(modelData)
-          livePreviews: root.opened && panel.visible
-          draggedToplevel: root.draggedToplevel
-          keyboardSelected: slotIndex === root.selectedCardIndex
-          focused: Hyprland.focusedWorkspace !== null
-          onWorkspaceActivated: function(occupied) {
-            root.selectedCardIndex = slotIndex
-            root.activateWorkspace(workspace, modelData, occupied)
+        // ── Secondary Rail Wheel Area (Scrolls rail without activating) ───────
+        MouseArea {
+          id: railWheelArea
+          x: root.railX
+          y: 0
+          width: root.railWidth
+          height: parent.height
+          visible: root.overviewMode === "focused" && root.railScrollNeeded
+          z: 0
+          acceptedButtons: Qt.NoButton
+          onWheel: function(wheel) {
+            root.scrollRail(wheel.angleDelta.y)
           }
-          onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
-          onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
-          onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
-          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
         }
-      }
 
-      // ── Temporary Insertion Workspace Cards (Active only during drag) ───────
-      Repeater {
-        model: root.insertionModel
+        // ── Real Workspace Cards (Persistent across drag transitions) ──────────
+        Repeater {
+          model: root.workspaceModel
 
-        InsertionWorkspaceCard {
-          required property int modelData
-          required property int index
+          WorkspaceCard {
+            required property int modelData
+            required property int index
 
-          readonly property int slotIndex: root.slotIndexForInsertion(modelData)
+            readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+            readonly property bool isPrimaryFocusedCard: root.overviewMode === "focused" && slotIndex === (root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0)
+            readonly property bool isRailSecondary: root.overviewMode === "focused" && !isPrimaryFocusedCard
 
-          x: root.slotX(slotIndex)
-          y: root.slotY(slotIndex)
-          width: root.slotWidth(slotIndex)
-          height: root.slotHeight(slotIndex)
+            x: root.slotX(slotIndex)
+            y: root.slotY(slotIndex)
+            width: root.slotWidth(slotIndex)
+            height: root.slotHeight(slotIndex)
 
-          overview: root
-          targetWorkspaceId: modelData
-          draggedToplevel: root.draggedToplevel
-          onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
+            overview: root
+            workspaceId: modelData
+            workspace: root.workspaceById(modelData)
+            livePreviews: {
+              if (!root.opened || !panel.visible) return false
+              if (root.overviewMode !== "focused") return true
+              return isPrimaryFocusedCard || (y + height >= root.usableGridY && y <= root.usableGridY + root.usableGridHeight)
+            }
+            draggedToplevel: root.draggedToplevel
+            keyboardSelected: slotIndex === root.selectedCardIndex
+            focused: Hyprland.focusedWorkspace !== null
+            onWorkspaceActivated: function(occupied) {
+              if (root.overviewMode === "focused" && root.selectedCardIndex !== slotIndex) {
+                root.selectedCardIndex = slotIndex
+                return
+              }
+              root.selectedCardIndex = slotIndex
+              root.activateWorkspace(workspace, modelData, occupied)
+            }
+            onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
+            onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
+            onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }
+            onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
+          }
+        }
+
+        // ── Temporary Insertion Workspace Cards (Active only during drag) ───────
+        Repeater {
+          model: root.insertionModel
+
+          InsertionWorkspaceCard {
+            required property int modelData
+            required property int index
+
+            readonly property int slotIndex: root.slotIndexForInsertion(modelData)
+
+            x: root.slotX(slotIndex)
+            y: root.slotY(slotIndex)
+            width: root.slotWidth(slotIndex)
+            height: root.slotHeight(slotIndex)
+
+            overview: root
+            targetWorkspaceId: modelData
+            draggedToplevel: root.draggedToplevel
+            onWindowDropped: function(toplevel) { root.moveWindowToWorkspace(toplevel, modelData) }
+          }
         }
       }
     }

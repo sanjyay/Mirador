@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.3
+import "../WindowGeometry.js" as WindowGeometry
 
 TestCase {
   name: "WorkspaceOverviewIntegration"
@@ -321,5 +322,82 @@ TestCase {
     var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewGridGeometry[\s\S]*?\)/)
     verify(gridGeomDecl && !/selectedCardIndex/.test(gridGeomDecl[0]),
       "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
+  }
+
+  function test_focusedOverviewModePropertiesAndKeyHandling() {
+    var source = workspaceOverviewSource()
+    // Overview must declare overviewMode defaulting to "normal"
+    verify(/property string overviewMode\s*:\s*"normal"/.test(source))
+    // Overview must have toggleOverviewMode()
+    verify(/function toggleOverviewMode\(\)/.test(source))
+    // Return key activates card; Space key (onActivateRequested) toggles overviewMode
+    verify(/onReturnRequested[\s\S]*root\.activateSelectedCard\(\)/.test(source))
+    verify(/onActivateRequested[\s\S]*root\.toggleOverviewMode\(\)/.test(source))
+    // Focused mode uses dynamic card dimensions
+    verify(/function slotWidth\(/.test(source))
+    verify(/function slotHeight\(/.test(source))
+    verify(/WindowGeometry\.focusedOverviewGeometry/.test(source))
+    // Dismissing resets overviewMode to "normal"
+    verify(/root\.overviewMode\s*=\s*"normal"/.test(source))
+  }
+
+  function test_focusedOverviewRailScrollingAndWheelIntegration() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // Must declare rail scrolling properties
+    verify(/property real railScrollY\s*:\s*0/.test(source))
+    verify(/readonly property bool railScrollNeeded/.test(source))
+    verify(/readonly property real railScrollMax/.test(source))
+    verify(/function scrollRail\(/.test(source))
+    verify(/function ensureCardVisible\(/.test(source))
+    verify(/onSelectedCardIndexChanged\s*:\s*\{[\s\S]*root\.ensureCardVisible/.test(source))
+
+    // Must clip cards inside cardsContainer
+    verify(/id\s*:\s*cardsContainer/.test(source))
+    verify(/clip\s*:\s*true/.test(source))
+
+    // Must have rail wheel capture that does not steal clicks
+    verify(/id\s*:\s*railWheelArea/.test(source))
+    verify(/acceptedButtons\s*:\s*Qt\.NoButton/.test(source))
+    verify(/root\.scrollRail\(wheel\.angleDelta\.y\)/.test(source))
+
+    // WorkspaceCard forwards mouse wheel to overview without activation
+    verify(/cardMouseArea[\s\S]*onWheel\s*:\s*function\(wheel\)/.test(cardSource))
+    verify(/root\.overview\.scrollRail\(wheel\.angleDelta\.y\)/.test(cardSource))
+  }
+
+  function test_focusedOverviewPromotionAndNoDuplicates() {
+    // Test geometry promotion with 5 workspaces
+    for (var prim = 0; prim < 5; prim++) {
+      var geom = WindowGeometry.focusedOverviewGeometry(5, prim, 1920, 1080, 1.55, 48)
+      compare(geom.cards.length, 5)
+      compare(geom.primaryIndex, prim)
+      verify(geom.cards[prim].isPrimary)
+
+      var primaryCount = 0
+      var secondaryCount = 0
+      var seenIndices = {}
+
+      for (var i = 0; i < geom.cards.length; i++) {
+        var card = geom.cards[i]
+        verify(card !== null)
+        verify(!seenIndices[card.index], "Duplicate card index detected: " + card.index)
+        seenIndices[card.index] = true
+
+        if (card.isPrimary) {
+          primaryCount++
+          compare(card.index, prim)
+        } else {
+          secondaryCount++
+          verify(card.index !== prim)
+          compare(card.x, geom.rail.x)
+          compare(card.width, geom.rail.width)
+        }
+      }
+
+      compare(primaryCount, 1, "Exactly one primary workspace")
+      compare(secondaryCount, 4, "Remaining workspaces are secondary rail items")
+    }
   }
 }
