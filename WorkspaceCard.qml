@@ -17,8 +17,11 @@ BorderSurface {
   property var draggedToplevel: null
   property bool livePreviews: false
   property int toplevelRevision: 0
+  property bool isSpecial: false
 
-  readonly property bool isScratchpad: WindowModel.isSpecialWorkspace(root.workspace) || root.workspaceId < 0
+  readonly property bool isScratchpad: root.isSpecial
+    || WindowModel.isSpecialWorkspace(root.workspace)
+    || (typeof root.workspaceId === "number" && root.workspaceId < 0)
 
   onDropHoveredChanged: {
     if (dropHovered && root.draggedToplevel && overview) {

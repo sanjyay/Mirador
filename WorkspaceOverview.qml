@@ -413,8 +413,12 @@ Item {
     var specialIds = []
     for (var i = 0; i < raw.length; i++) {
       var id = raw[i]
-      if (id > 0) numericIds.push(id)
-      else specialIds.push(id)
+      var ws = root.workspaceById(id)
+      if (root.isSpecialWorkspace(ws) || (typeof id === "number" && id < 0)) {
+        specialIds.push(id)
+      } else {
+        numericIds.push(id)
+      }
     }
     numericIds.sort(function(a, b) { return a - b })
 
@@ -646,18 +650,20 @@ Item {
     var item = root.overviewCardModel[index]
     var workspaceId = typeof item === "object" ? item.workspaceId : item
     var isInsertion = typeof item === "object" ? Boolean(item.isInsertion) : false
-    var isScratch = typeof item === "object" ? Boolean(item.isScratchpad) : workspaceId < 0
+    var ws = root.workspaceById(workspaceId)
+    var isScratch = (typeof item === "object" && Boolean(item.isScratchpad))
+                    || root.isSpecialWorkspace(ws)
+                    || (typeof workspaceId === "number" && workspaceId < 0)
 
     if (isInsertion) {
       root.dispatchWorkspace(workspaceId)
       Hyprland.refreshWorkspaces()
       Hyprland.refreshToplevels()
-    } else if (isScratch || workspaceId < 0) {
-      var ws = root.workspaceById(workspaceId)
+    } else if (isScratch) {
       root.showDemoHint("TOGGLE SCRATCHPAD", false)
-      root.toggleSpecialWorkspace(ws ? ws.name : "scratchpad")
+      var specialName = (ws && ws.name) ? ws.name : "scratchpad"
+      root.toggleSpecialWorkspace(specialName)
     } else {
-      var ws = root.workspaceById(workspaceId)
       if (ws) ws.activate()
       else root.dispatchWorkspace(workspaceId)
     }
@@ -790,7 +796,16 @@ Item {
   // When clicking inside an empty workspace or scratchpad, transports/toggles that workspace and closes Mirador.
   // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
   function activateWorkspace(workspace, workspaceId, occupied) {
-    if (workspaceId < 0 || (workspace && root.isSpecialWorkspace(workspace))) {
+    var isSpecial = root.isSpecialWorkspace(workspace)
+      || (function() {
+        for (var i = 0; i < root.overviewCardModel.length; i++) {
+          var it = root.overviewCardModel[i]
+          if (it && it.workspaceId === workspaceId) return Boolean(it.isScratchpad)
+        }
+        return typeof workspaceId === "number" && workspaceId < 0
+      })()
+
+    if (isSpecial) {
       root.showDemoHint("TOGGLE SCRATCHPAD", false)
       var specialName = (workspace && workspace.name) ? workspace.name : "scratchpad"
       root.toggleSpecialWorkspace(specialName)
@@ -838,11 +853,18 @@ Item {
     Qt.callLater(root.dismiss) // WINDOW ACTIVATION CLOSES MIRADOR
   }
 
-  // Drag-and-drop window move: moves window to workspace AND KEEPS MIRADOR OPEN
   function moveWindowToWorkspace(toplevel, workspaceId) {
     var address = root.normalizedAddress(toplevel)
     var sourceId = root.sourceWorkspaceId(toplevel)
-    var isTargetSpecial = workspaceId < 0
+    var targetWs = root.workspaceById(workspaceId)
+    var isTargetSpecial = root.isSpecialWorkspace(targetWs)
+      || (function() {
+        for (var i = 0; i < root.overviewCardModel.length; i++) {
+          var it = root.overviewCardModel[i]
+          if (it && it.workspaceId === workspaceId) return Boolean(it.isScratchpad)
+        }
+        return typeof workspaceId === "number" && workspaceId < 0
+      })()
 
     if (!address || (!isTargetSpecial && workspaceId <= 0) || sourceId === workspaceId) {
       if (demoOverlay) demoOverlay.hideHint()
@@ -1008,6 +1030,7 @@ Item {
             required property int index
 
             readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+            readonly property var overviewItem: (slotIndex >= 0 && slotIndex < root.overviewCardModel.length) ? root.overviewCardModel[slotIndex] : null
 
             x: root.slotX(slotIndex)
             y: root.slotY(slotIndex)
@@ -1024,6 +1047,7 @@ Item {
             overview: root
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
+            isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
             livePreviews: root.opened && panel.visible
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex

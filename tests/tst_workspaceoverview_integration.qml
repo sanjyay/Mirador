@@ -691,11 +691,52 @@ TestCase {
 
     // 3. moveWindowToWorkspace supports negative target workspace IDs (scratchpad)
     var moveMatch = source.match(/function\s+moveWindowToWorkspace\(toplevel,\s*workspaceId\)[\s\S]*?\n  \}/)
-    verify(moveMatch && /isTargetSpecial\s*=\s*workspaceId\s*<\s*0/.test(moveMatch[0]),
-      "moveWindowToWorkspace must identify negative IDs as special targets")
+    verify(moveMatch && /isTargetSpecial/.test(moveMatch[0]),
+      "moveWindowToWorkspace must identify special targets")
     verify(moveMatch && /special:scratchpad/.test(moveMatch[0]),
       "moveWindowToWorkspace must resolve special:scratchpad target name")
     verify(moveMatch && /MOVE\s*→\s*SCRATCHPAD/.test(moveMatch[0]),
       "moveWindowToWorkspace must show SCRATCHPAD demo hint when moving to scratchpad")
+  }
+
+  function test_scratchpadSpaceAndKeyNavigationInvariants() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // 1. Space key always invokes toggleOverviewMode(), NEVER activates scratchpad
+    // onActivateRequested in PanelKeyCatcher triggers root.toggleOverviewMode()
+    verify(/onActivateRequested\s*:\s*\{[\s\S]*root\.toggleOverviewMode\(\)/.test(source),
+      "Space must ALWAYS toggle between Normal and Focused mode")
+    verify(!/onActivateRequested[\s\S]*toggleSpecialWorkspace/.test(source),
+      "Space must NEVER call toggleSpecialWorkspace")
+
+    // 2. Only Enter/Return (onReturnRequested) or mouse activation triggers scratchpad activation
+    verify(/onReturnRequested\s*:\s*\{[\s\S]*root\.activateSelectedCard\(\)/.test(source),
+      "Return/Enter must trigger activateSelectedCard")
+
+    // 3. WorkspaceCard explicitly receives isSpecial from overviewItem
+    verify(/isSpecial\s*:\s*Boolean\(overviewItem\s*&&\s*overviewItem\.isScratchpad\)/.test(source),
+      "WorkspaceOverview must explicitly bind isSpecial to WorkspaceCard from overviewItem")
+    verify(/property\s+bool\s+isSpecial\s*:\s*false/.test(cardSource),
+      "WorkspaceCard must declare isSpecial property")
+
+    // 4. In Focused mode with Scratchpad selected (e.g. index 2 in [1, 2, -98]),
+    // scratchpad is promoted to primary card (isPrimary: true)
+    var items = [
+      { workspaceId: 1, isInsertion: false, isScratchpad: false },
+      { workspaceId: 2, isInsertion: false, isScratchpad: false },
+      { workspaceId: -98, isInsertion: false, isScratchpad: true }
+    ]
+    var scratchpadIndex = 2
+    var focusedGeom = WindowGeometry.focusedOverviewGeometry(
+      items.length, scratchpadIndex, 1920, 1080, 16 / 9, 24)
+    compare(focusedGeom.primaryIndex, scratchpadIndex)
+    compare(focusedGeom.cards.length, 3)
+    verify(focusedGeom.cards[scratchpadIndex].isPrimary === true,
+      "Scratchpad card must be primary when selected in focused mode")
+    verify(focusedGeom.cards[0].isPrimary === false,
+      "Numeric card 0 must be in secondary rail")
+    verify(focusedGeom.cards[1].isPrimary === false,
+      "Numeric card 1 must be in secondary rail")
   }
 }

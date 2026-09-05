@@ -295,16 +295,26 @@ TestCase {
     verify(WindowModel.isSpecialWorkspace({ id: -98 }))
     verify(WindowModel.isSpecialWorkspace({ name: "special:scratchpad" }))
 
+    // Explicit special workspaces with POSITIVE IDs or type flags (not relying on magic negative ID)
+    verify(WindowModel.isSpecialWorkspace({ id: 4, name: "special:scratchpad" }))
+    verify(WindowModel.isSpecialWorkspace({ id: 99, name: "special:notes" }))
+    verify(WindowModel.isSpecialWorkspace({ id: 5, isSpecial: true }))
+    verify(WindowModel.isSpecialWorkspace({ id: 6, isScratchpad: true }))
+    verify(WindowModel.isSpecialWorkspace("special:scratchpad"))
+    verify(WindowModel.isSpecialWorkspace("special"))
+
     // Numbers
     verify(WindowModel.isSpecialWorkspace(-98))
     verify(WindowModel.isSpecialWorkspace(-1))
     verify(!WindowModel.isSpecialWorkspace(1))
     verify(!WindowModel.isSpecialWorkspace(0))
 
-    // Normal numeric workspaces
+    // Normal numeric workspaces (even with non-standard names)
     verify(!WindowModel.isSpecialWorkspace({ id: 1, name: "1" }))
     verify(!WindowModel.isSpecialWorkspace({ id: 2, name: "2" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: 4, name: "code" }))
     verify(!WindowModel.isSpecialWorkspace({ id: 10, name: "10" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: 10, name: "browser" }))
 
     // Null and undefined
     verify(!WindowModel.isSpecialWorkspace(null))
