@@ -5,6 +5,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
+import "GestureHelper.js" as GestureHelper
 
 Item {
   id: root
@@ -19,11 +20,100 @@ Item {
   property int selectedCardIndex: -1
   property string overviewMode: "normal"
 
+  function setOverviewMode(mode) {
+    if (mode !== "normal" && mode !== "focused") return
+    if (root.overviewMode === mode) return
+    root.overviewMode = mode
+    root.railScrollY = 0
+    root.wheelDeltaAccumulatorX = 0
+    root.wheelDeltaAccumulatorY = 0
+    if (mode === "focused") {
+      root.ensureCardVisible(root.selectedCardIndex)
+    }
+  }
+
   function toggleOverviewMode() {
     if (root.overviewMode === "focused") {
-      root.overviewMode = "normal"
+      root.setOverviewMode("normal")
     } else {
-      root.overviewMode = "focused"
+      root.setOverviewMode("focused")
+    }
+  }
+
+  // ── Pinch gesture handling ──────────────────────────────────────────────────
+  readonly property real pinchThreshold: GestureHelper.PINCH_THRESHOLD
+  property bool pinchTriggered: false
+
+  function handlePinchScale(scale) {
+    if (root.pinchTriggered) return
+    var targetMode = GestureHelper.shouldTriggerTransition(
+      root.overviewMode, scale, root.pinchTriggered, root.pinchThreshold)
+    if (targetMode) {
+      root.pinchTriggered = true
+      root.setOverviewMode(targetMode)
+    }
+  }
+
+  function handlePinchActiveChanged(active) {
+    if (!active) {
+      root.pinchTriggered = false
+    }
+  }
+
+  // ── Cursor wheel workspace navigation ─────────────────────────────
+  // Mode-specific navigation:
+  // In Normal mode:
+  // - vertical wheel down = Right arrow / l -> moveCardSelection(1, 0)  (endless global cycle forward)
+  // - vertical wheel up   = Left arrow / h  -> moveCardSelection(-1, 0) (endless global cycle backward)
+  // In Focused mode:
+  // - vertical wheel down = Down arrow / j -> moveCardSelection(0, 1)  (spatial row down)
+  // - vertical wheel up   = Up arrow / k   -> moveCardSelection(0, -1) (spatial row up)
+  // In both modes:
+  // - horizontal wheel right = Right arrow / l -> moveCardSelection(1, 0)
+  // - horizontal wheel left  = Left arrow / h  -> moveCardSelection(-1, 0)
+  property real wheelDeltaAccumulatorX: 0
+  property real wheelDeltaAccumulatorY: 0
+
+  function handleWheelNavigation(deltaX, deltaY) {
+    var threshold = 60
+    if (Math.abs(deltaY) >= Math.abs(deltaX) && deltaY !== 0) {
+      root.wheelDeltaAccumulatorX = 0
+      root.wheelDeltaAccumulatorY += deltaY
+      if (root.overviewMode === "normal") {
+        if (root.wheelDeltaAccumulatorY <= -threshold) {
+          root.moveCardSelection(1, 0)  // wheel down = global next (Right arrow / l)
+          root.wheelDeltaAccumulatorY = 0
+        } else if (root.wheelDeltaAccumulatorY >= threshold) {
+          root.moveCardSelection(-1, 0) // wheel up = global previous (Left arrow / h)
+          root.wheelDeltaAccumulatorY = 0
+        }
+      } else {
+        if (root.wheelDeltaAccumulatorY <= -threshold) {
+          root.moveCardSelection(0, 1)  // wheel down = Down arrow / j
+          root.wheelDeltaAccumulatorY = 0
+        } else if (root.wheelDeltaAccumulatorY >= threshold) {
+          root.moveCardSelection(0, -1) // wheel up = Up arrow / k
+          root.wheelDeltaAccumulatorY = 0
+        }
+      }
+    } else if (deltaX !== 0) {
+      root.wheelDeltaAccumulatorY = 0
+      root.wheelDeltaAccumulatorX += deltaX
+      if (root.wheelDeltaAccumulatorX >= threshold) {
+        root.moveCardSelection(1, 0)  // wheel right = Right arrow / l
+        root.wheelDeltaAccumulatorX = 0
+      } else if (root.wheelDeltaAccumulatorX <= -threshold) {
+        root.moveCardSelection(-1, 0) // wheel left = Left arrow / h
+        root.wheelDeltaAccumulatorX = 0
+      }
+    }
+  }
+
+  function handleCardWheel(isPrimary, deltaX, deltaY) {
+    if (root.overviewMode === "focused" && !isPrimary && root.railScrollNeeded) {
+      root.scrollRail(deltaY)
+    } else {
+      root.handleWheelNavigation(deltaX, deltaY)
     }
   }
 
@@ -483,6 +573,9 @@ Item {
     root.selectedCardIndex = root.initialSelectedCardIndex()
     root.overviewMode = "normal"
     root.railScrollY = 0
+    root.pinchTriggered = false
+    root.wheelDeltaAccumulatorX = 0
+    root.wheelDeltaAccumulatorY = 0
 
     var payload = null
     try {
@@ -512,6 +605,9 @@ Item {
     root.selectedCardIndex = -1
     root.overviewMode = "normal"
     root.railScrollY = 0
+    root.pinchTriggered = false
+    root.wheelDeltaAccumulatorX = 0
+    root.wheelDeltaAccumulatorY = 0
     root.opened = false
     if (demoOverlay) demoOverlay.hideHint()
   }
@@ -522,6 +618,9 @@ Item {
     root.selectedCardIndex = -1
     root.overviewMode = "normal"
     root.railScrollY = 0
+    root.pinchTriggered = false
+    root.wheelDeltaAccumulatorX = 0
+    root.wheelDeltaAccumulatorY = 0
     root.opened = false
     if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
@@ -638,6 +737,9 @@ Item {
     MouseArea {
       anchors.fill: parent
       onClicked: root.dismiss()
+      onWheel: function(wheel) {
+        root.handleWheelNavigation(wheel.angleDelta.x, wheel.angleDelta.y)
+      }
     }
 
     PanelKeyCatcher {
@@ -645,6 +747,15 @@ Item {
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
+
+      // ── Cursor wheel arrow-key workspace navigation ─────────────────────────
+      WheelHandler {
+        id: catcherWheelHandler
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: function(event) {
+          root.handleWheelNavigation(event.angleDelta.x, event.angleDelta.y)
+        }
+      }
 
       onMoveRequested: function(dx, dy) { root.moveCardSelection(dx, dy) }
       onReturnRequested: {
@@ -667,6 +778,24 @@ Item {
         if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.text === "+" || event.text === "=") {
           event.accepted = true
           root.createNewWorkspace()
+        }
+      }
+
+      // ── Two-finger pinch handler (native QtQuick pointer handler) ───────────
+      PinchHandler {
+        id: pinchHandler
+        target: null
+        grabPermissions: PointerHandler.CanTakeOverFromAnything
+        onActiveChanged: {
+          root.handlePinchActiveChanged(active)
+        }
+        onScaleChanged: function(delta) {
+          var s = (activeScale > 0) ? activeScale : scale
+          root.handlePinchScale(s)
+        }
+        onUpdated: {
+          var s = (activeScale > 0) ? activeScale : scale
+          root.handlePinchScale(s)
         }
       }
 
