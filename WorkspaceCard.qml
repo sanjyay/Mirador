@@ -49,8 +49,11 @@ BorderSurface {
     && draggedSourceWorkspaceId !== workspaceId
   readonly property bool dropHovered: validDropTarget && dropArea.containsDrag
 
+  // Current active workspace in overview: selected via keyboard or initially focused.
+  readonly property bool isCurrent: root.keyboardSelected
+    || (root.focused && (root.overview ? root.overview.selectedCardIndex < 0 : true))
   readonly property bool cardHovered: cardMouseArea.containsMouse
-  readonly property bool highlighted: (cardHovered || keyboardSelected) && !focused
+  readonly property bool highlighted: cardHovered && !isCurrent
 
   // ── Border widths ─────────────────────────────────────────────────────────
   readonly property int activeBorderWidth: Math.max(Style.space(2), Style.focusBorderWidth)
@@ -60,12 +63,26 @@ BorderSurface {
   readonly property color cardBorderColor: {
     if (dropHovered) return Color.accent
     if (validDropTarget) return Util.alpha(Color.accent, 0.65)
-    if (focused) return Color.accent
+    if (isCurrent) return Color.accent
     if (highlighted) return Util.alpha(Color.menu.text, 0.70)
     return Color.menu.border
   }
-  readonly property int cardBorderWidth: (dropHovered || focused) ? activeBorderWidth : normalBorderWidth
+  readonly property int cardBorderWidth: (dropHovered || isCurrent) ? activeBorderWidth : normalBorderWidth
   readonly property var cardBorderSpec: Border.flat(cardBorderColor, cardBorderWidth)
+
+  // ── Workspace Card Opacity ────────────────────────────────────────────────
+  // The active workspace is fully opaque (1.0). Inactive workspaces are slightly
+  // dimmed (0.72) so their windows remain clearly visible while letting the user
+  // instantly identify their current workspace.
+  readonly property real cardOpacity: {
+    if (root.dropHovered) return 1.0
+    if (root.draggedToplevel !== null) {
+      return root.validDropTarget ? 0.92 : 0.60
+    }
+    if (root.isCurrent) return 1.0
+    if (root.cardHovered) return 0.90
+    return 0.72
+  }
 
   signal workspaceActivated(bool occupied)
   signal windowActivated(var toplevel)
@@ -104,14 +121,19 @@ BorderSurface {
 
   radius: Style.cornerRadius
   // Active and highlighted workspaces get full opaque background; resting gets near-opaque
-  color: (root.focused || root.highlighted)
+  color: (root.isCurrent || root.highlighted)
     ? Color.menu.background
     : (occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
   borderSpec: Border.none()
   clip: true
-  scale: root.highlighted ? 1.008 : 1.0
+  scale: (root.isCurrent || root.highlighted) ? 1.008 : 1.0
+  opacity: root.cardOpacity
 
   Behavior on scale {
+    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+  }
+
+  Behavior on opacity {
     NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
   }
 
@@ -134,7 +156,7 @@ BorderSurface {
       ? Style.selectedFillFor(Color.menu.text, Color.accent)
       : (root.validDropTarget
         ? Style.hoverFillFor(Color.menu.text, Color.accent)
-        : (root.focused
+        : (root.isCurrent
           ? Util.alpha(Color.accent, 0.05)
           : (root.highlighted
             ? Util.alpha(Color.menu.text, 0.05)
@@ -164,13 +186,13 @@ BorderSurface {
       height: cardHeader.height
       width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md * 2)
       radius: Math.min(Style.cornerRadius, Style.space(6))
-      color: root.focused
+      color: root.isCurrent
         ? Color.accent
         : (root.highlighted
           ? Util.alpha(Color.menu.text, 0.16)
           : Util.alpha(Color.menu.text, 0.10))
-      border.width: root.focused ? 0 : 1
-      border.color: root.focused
+      border.width: root.isCurrent ? 0 : 1
+      border.color: root.isCurrent
         ? "transparent"
         : (root.highlighted
           ? Util.alpha(Color.menu.border, 0.60)
@@ -187,8 +209,8 @@ BorderSurface {
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
         font.bold: true
-        color: root.focused ? Color.menu.scrim : Color.menu.text
-        opacity: root.focused ? 1.0 : (root.highlighted ? 0.95 : 0.85)
+        color: root.isCurrent ? Color.menu.scrim : Color.menu.text
+        opacity: root.isCurrent ? 1.0 : (root.highlighted ? 0.95 : 0.85)
 
         Behavior on opacity {
           NumberAnimation { duration: 100 }
@@ -216,7 +238,7 @@ BorderSurface {
       anchors.centerIn: parent
       text: "·"
       color: Color.menu.text
-      opacity: root.focused ? 0.55 : (root.highlighted ? 0.40 : 0.25)
+      opacity: root.isCurrent ? 0.55 : (root.highlighted ? 0.40 : 0.25)
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.displayLarge
       verticalAlignment: Text.AlignVCenter

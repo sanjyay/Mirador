@@ -523,8 +523,10 @@ Item {
           draggedToplevel: root.draggedToplevel
           keyboardSelected: slotIndex === root.selectedCardIndex
           focused: Hyprland.focusedWorkspace !== null
-            && Hyprland.focusedWorkspace.id === modelData
-          onWorkspaceActivated: function(occupied) { root.activateWorkspace(workspace, modelData, occupied) }
+          onWorkspaceActivated: function(occupied) {
+            root.selectedCardIndex = slotIndex
+            root.activateWorkspace(workspace, modelData, occupied)
+          }
           onWindowActivated: function(toplevel) { root.activateWindow(toplevel) }
           onWindowDragStarted: function(toplevel) { root.beginWindowDrag(toplevel) }
           onWindowDragFinished: function(toplevel) { root.endWindowDrag(toplevel) }

@@ -268,4 +268,17 @@ TestCase {
     verify(/root\.demoMode\s*=\s*Boolean\(payload\s*&&\s*payload\.demo\)/.test(source))
     verify(/demoOverlay\.handleKeyEvent/.test(source))
   }
+
+  function test_workspaceDimmingAndFocusStyling() {
+    var source = workspaceCardSource()
+    // Must define isCurrent property reflecting keyboard and initial focus selection
+    verify(/readonly property bool isCurrent\s*:\s*root\.keyboardSelected/.test(source))
+    // Must define cardOpacity with smooth animation Behavior
+    verify(/readonly property real cardOpacity/.test(source))
+    verify(/opacity\s*:\s*root\.cardOpacity/.test(source))
+    verify(/Behavior on opacity/.test(source))
+    // Inactive card dimming level should be 0.72 and active level 1.0
+    verify(/root\.isCurrent\s*\?\s*1\.0\s*:/.test(source))
+    verify(/0\.72/.test(source))
+  }
 }
