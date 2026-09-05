@@ -10,6 +10,13 @@ https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 
 
 
+## What's new in version 2.1.1
+
+* **Cyclic & Wrap-Around Keyboard Navigation**: Smooth continuous navigation across workspaces using arrow keys or Vim bindings (`h`, `j`, `k`, `l`):
+  * **Horizontal Continuous Global Cycling (`Left`/`h`, `Right`/`l`)**: Navigates cards in visual reading order across all rows without getting trapped at row boundaries, wrapping seamlessly from the last workspace back to the first, and vice versa.
+  * **Vertical Spatial Row Navigation & Wrapping (`Up`/`k`, `Down`/`j`)**: Moves directly between visual rows, jumping to the card in the target row whose horizontal center is geometrically closest to the current card. Moving Up from the top row wraps around to the bottom row, and moving Down from the bottom row wraps to the top row.
+* **Focused Workspace Dimming Contrast**: Inactive workspaces are subtly dimmed (0.90 opacity) while the active workspace stays fully opaque (1.0) with an accent border, keeping all window previews clear and readable while instantly identifying which workspace is currently active.
+
 ## What's new in version 2.1
 
 * **First-Class Drag-to-Create Insertion Cards**: Temporary workspace insertion targets now render as full-sized workspace cards (`InsertionWorkspaceCard`) with matching KDE badges, centered `+` icons, and `"Drop to create WS N"` cues. The overview grid dynamically reflows during drag to give insertion targets proper card presence.
@@ -182,8 +189,8 @@ omarchy menu keybindings --print
 
 | Key / Action | Description |
 | :--- | :--- |
-| `Left` / `h`, `Right` / `l` | Move workspace card selection horizontally |
-| `Up` / `k`, `Down` / `j` | Move workspace card selection vertically |
+| `Left` / `h`, `Right` / `l` | Continuous global cycling across workspaces in visual reading order (wraps around) |
+| `Up` / `k`, `Down` / `j` | Move selection between visual rows to closest card by center, wrapping top/bottom |
 | `Enter` / `Return` / `Space` | Activate the selected workspace and dismiss Mirador |
 | `+` / `=` | Create next contextual workspace |
 | `Escape` | Dismiss Mirador |
