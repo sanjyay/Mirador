@@ -277,8 +277,8 @@ TestCase {
     verify(/readonly property real cardOpacity/.test(source))
     verify(/opacity\s*:\s*root\.cardOpacity/.test(source))
     verify(/Behavior on opacity/.test(source))
-    // Inactive card dimming level should be 0.72 and active level 1.0
+    // Inactive card dimming level should be 0.90 and active level 1.0
     verify(/root\.isCurrent\s*\?\s*1\.0\s*:/.test(source))
-    verify(/0\.72/.test(source))
+    verify(/0\.90/.test(source))
   }
 }

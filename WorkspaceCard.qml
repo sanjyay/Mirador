@@ -72,16 +72,16 @@ BorderSurface {
 
   // ── Workspace Card Opacity ────────────────────────────────────────────────
   // The active workspace is fully opaque (1.0). Inactive workspaces are slightly
-  // dimmed (0.72) so their windows remain clearly visible while letting the user
+  // dimmed (0.90) so their windows remain clearly visible while letting the user
   // instantly identify their current workspace.
   readonly property real cardOpacity: {
     if (root.dropHovered) return 1.0
     if (root.draggedToplevel !== null) {
-      return root.validDropTarget ? 0.92 : 0.60
+      return root.validDropTarget ? 0.95 : 0.60
     }
     if (root.isCurrent) return 1.0
-    if (root.cardHovered) return 0.90
-    return 0.72
+    if (root.cardHovered) return 0.95
+    return 0.90
   }
 
   signal workspaceActivated(bool occupied)
