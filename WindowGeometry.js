@@ -36,68 +36,223 @@ function insetGeometry(width, height, requestedInset) {
   }
 }
 
-// Fit a complete workspace grid inside the bar-aware usable rectangle and
-// return offsets that center it exactly. Trying every possible column count
-// avoids aspect-ratio heuristics that become unbalanced for counts such as six
-// or on portrait/ultrawide outputs.
+// Helper to generate balanced row distributions for count items into R rows.
+// For example, count = 5, R = 2 produces [[3, 2], [2, 3]].
+function getBalancedRowDistributions(count, R) {
+  var kHigh = Math.ceil(count / R)
+  var kLow = Math.floor(count / R)
+  var h = count - kLow * R
+  var l = R - h
+
+  if (h === 0) {
+    var single = []
+    for (var i = 0; i < R; i++) single.push(kLow)
+    return [single]
+  }
+
+  // Priority order:
+  // 1. Top-heavy: h high rows, then l low rows (e.g. [2, 1], [3, 2], [3, 2, 2])
+  // 2. Symmetric / centered distributions
+  // 3. Bottom-heavy: l low rows, then h high rows (e.g. [1, 2], [2, 3], [2, 2, 3])
+  var results = []
+  var seen = {}
+
+  function permute(remainingHigh, remainingLow, current) {
+    if (remainingHigh === 0 && remainingLow === 0) {
+      var key = current.join(",")
+      if (!seen[key]) {
+        seen[key] = true
+        results.push(current.slice())
+      }
+      return
+    }
+    if (remainingHigh > 0) {
+      current.push(kHigh)
+      permute(remainingHigh - 1, remainingLow, current)
+      current.pop()
+    }
+    if (remainingLow > 0) {
+      current.push(kLow)
+      permute(remainingHigh, remainingLow - 1, current)
+      current.pop()
+    }
+  }
+
+  permute(h, l, [])
+  return results
+}
+
+// Adaptive equal-size overview layout solver for Normal overview mode.
+// Solves: "What is the largest common workspace-card size that allows all workspaces to fit on screen?"
+// Subject to:
+// - every card has the same width
+// - every card has the same height
+// - workspace aspect ratio is preserved
+// - all cards remain inside the usable viewport
+// - reasonable spacing remains
+// - rows are centered independently
+// - no overlap
+// - no fake empty workspace cells
 function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
                               maximumCardWidth, spacing) {
+  var effectiveSpacing = spacing
+  var effectiveMaxWidth = maximumCardWidth
+  if (arguments.length === 5) {
+    effectiveSpacing = maximumCardWidth
+    effectiveMaxWidth = null
+  }
+
   var safeCount = Math.max(0, Math.floor(finiteNumber(count) || 0))
   var safeWidth = Math.max(1, finiteNumber(areaWidth) || 1)
   var safeHeight = Math.max(1, finiteNumber(areaHeight) || 1)
   var safeAspect = Math.max(0.01, finiteNumber(aspectRatio) || 1)
-  var safeMaximumWidth = Math.max(1, finiteNumber(maximumCardWidth) || safeWidth)
-  var gap = Math.max(0, finiteNumber(spacing) || 0)
+  var gap = Math.max(0, finiteNumber(effectiveSpacing) || 0)
+  var safeMaximumWidth = (effectiveMaxWidth !== undefined && effectiveMaxWidth !== null && finiteNumber(effectiveMaxWidth) > 0)
+    ? Math.max(1, finiteNumber(effectiveMaxWidth))
+    : safeWidth
 
   if (safeCount === 0) {
-    return { columns: 0, rows: 0, cardWidth: 0, cardHeight: 0,
-      gridWidth: 0, gridHeight: 0, x: safeWidth / 2, y: safeHeight / 2 }
+    return {
+      columns: 0,
+      rows: 0,
+      cardWidth: 0,
+      cardHeight: 0,
+      gridWidth: 0,
+      gridHeight: 0,
+      x: safeWidth / 2,
+      y: safeHeight / 2,
+      rowDistribution: [],
+      cards: []
+    }
+  }
+
+  if (safeCount === 1) {
+    var singleW = Math.min(safeMaximumWidth, safeWidth, safeHeight * safeAspect)
+    var singleH = singleW / safeAspect
+    var singleX = (safeWidth - singleW) / 2
+    var singleY = (safeHeight - singleH) / 2
+    return {
+      columns: 1,
+      rows: 1,
+      cardWidth: singleW,
+      cardHeight: singleH,
+      gridWidth: singleW,
+      gridHeight: singleH,
+      x: singleX,
+      y: singleY,
+      rowDistribution: [1],
+      cards: [{
+        index: 0,
+        x: singleX,
+        y: singleY,
+        width: singleW,
+        height: singleH,
+        row: 0,
+        col: 0
+      }]
+    }
   }
 
   var best = null
-  for (var columns = 1; columns <= safeCount; columns++) {
-    var rows = Math.ceil(safeCount / columns)
-    var widthAvailable = safeWidth - gap * (columns - 1)
-    var heightAvailable = safeHeight - gap * (rows - 1)
-    if (widthAvailable <= 0 || heightAvailable <= 0) continue
+  var targetAspect = safeWidth / safeHeight
 
-    var cardWidth = Math.min(
-      safeMaximumWidth,
-      widthAvailable / columns,
-      heightAvailable / rows * safeAspect)
-    if (!isFinite(cardWidth) || cardWidth <= 0) continue
+  // Evaluate candidate row counts from 1 up to safeCount
+  for (var R = 1; R <= safeCount; R++) {
+    var dists = getBalancedRowDistributions(safeCount, R)
+    for (var d = 0; d < dists.length; d++) {
+      var dist = dists[d]
+      var Cmax = 0
+      for (var k = 0; k < dist.length; k++) {
+        if (dist[k] > Cmax) Cmax = dist[k]
+      }
+      var widthAvailable = safeWidth - gap * (Cmax - 1)
+      var heightAvailable = safeHeight - gap * (R - 1)
+      if (widthAvailable <= 0 || heightAvailable <= 0) continue
 
-    var cardHeight = cardWidth / safeAspect
-    var gridWidth = cardWidth * columns + gap * (columns - 1)
-    var gridHeight = cardHeight * rows + gap * (rows - 1)
-    var candidate = {
-      columns: columns,
-      rows: rows,
-      cardWidth: cardWidth,
-      cardHeight: cardHeight,
-      gridWidth: gridWidth,
-      gridHeight: gridHeight,
-      x: (safeWidth - gridWidth) / 2,
-      y: (safeHeight - gridHeight) / 2
+      var cardW = Math.min(
+        safeMaximumWidth,
+        widthAvailable / Cmax,
+        (heightAvailable / R) * safeAspect)
+      if (!isFinite(cardW) || cardW <= 0) continue
+
+      var cardH = cardW / safeAspect
+      var cardArea = cardW * cardH
+      var gridW = Cmax * cardW + gap * (Cmax - 1)
+      var gridH = R * cardH + gap * (R - 1)
+      var gridAspect = gridW / gridH
+      var aspectDiff = Math.abs(gridAspect - targetAspect)
+
+      var candidate = {
+        columns: Cmax,
+        rows: R,
+        rowDistribution: dist,
+        cardWidth: cardW,
+        cardHeight: cardH,
+        cardArea: cardArea,
+        gridWidth: gridW,
+        gridHeight: gridH,
+        x: (safeWidth - gridW) / 2,
+        y: (safeHeight - gridH) / 2,
+        aspectDiff: aspectDiff
+      }
+
+      // Objective: largest common card area wins
+      if (!best || cardW > best.cardWidth + 0.001) {
+        best = candidate
+      } else if (Math.abs(cardW - best.cardWidth) <= 0.001) {
+        // Tie breakers:
+        // 1. Better screen shape match (aspectDiff)
+        // 2. Fewer rows for stable landscape layouts
+        if (candidate.aspectDiff < best.aspectDiff - 0.01) {
+          best = candidate
+        } else if (Math.abs(candidate.aspectDiff - best.aspectDiff) <= 0.01 && candidate.rows < best.rows) {
+          best = candidate
+        }
+      }
     }
-
-    // Largest readable cards win. For effectively equal sizes, prefer the
-    // arrangement closest to square, then fewer rows for stable landscape
-    // layouts.
-    var balance = Math.abs(columns - rows)
-    var bestBalance = best ? Math.abs(best.columns - best.rows) : Infinity
-    if (!best || cardWidth > best.cardWidth + 0.001
-        || (Math.abs(cardWidth - best.cardWidth) <= 0.001
-          && (balance < bestBalance
-            || (balance === bestBalance && rows < best.rows))))
-      best = candidate
   }
 
-  return best || { columns: 1, rows: safeCount, cardWidth: 1,
-    cardHeight: 1 / safeAspect, gridWidth: 1,
-    gridHeight: safeCount / safeAspect + gap * (safeCount - 1),
-    x: (safeWidth - 1) / 2,
-    y: (safeHeight - (safeCount / safeAspect + gap * (safeCount - 1))) / 2 }
+  if (!best) {
+    var fallbackDist = [safeCount]
+    var fallbackH = safeCount / safeAspect + gap * (safeCount - 1)
+    return {
+      columns: 1,
+      rows: safeCount,
+      cardWidth: 1,
+      cardHeight: 1 / safeAspect,
+      gridWidth: 1,
+      gridHeight: fallbackH,
+      x: (safeWidth - 1) / 2,
+      y: (safeHeight - fallbackH) / 2,
+      rowDistribution: fallbackDist,
+      cards: []
+    }
+  }
+
+  // Populate individual card geometries with independent row centering
+  var cards = []
+  var curY = best.y
+  var cardIdx = 0
+  for (var r = 0; r < best.rows; r++) {
+    var countInRow = best.rowDistribution[r]
+    var rowW = countInRow * best.cardWidth + gap * (countInRow - 1)
+    var rowX = (safeWidth - rowW) / 2
+    for (var c = 0; c < countInRow; c++) {
+      cards.push({
+        index: cardIdx++,
+        x: rowX + c * (best.cardWidth + gap),
+        y: curY,
+        width: best.cardWidth,
+        height: best.cardHeight,
+        row: r,
+        col: c
+      })
+    }
+    curY += best.cardHeight + gap
+  }
+  best.cards = cards
+
+  return best
 }
 
 // Hyprland reports client positions in global compositor coordinates. Monitor

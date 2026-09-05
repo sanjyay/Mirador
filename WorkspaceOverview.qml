@@ -71,7 +71,7 @@ Item {
 
   readonly property var gridGeometry: WindowGeometry.overviewGridGeometry(
     cardCount, usableWidth, usableGridHeight, cardAspectRatio,
-    Style.space(520), gridSpacing)
+    gridSpacing)
   readonly property int columns: Math.max(1, gridGeometry.columns)
   readonly property int rows: Math.max(1, gridGeometry.rows)
   readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
@@ -211,14 +211,38 @@ Item {
     return -1
   }
 
+  function normalCardGeom(idx) {
+    if (idx < 0 || !root.gridGeometry || !root.gridGeometry.cards) return null
+    if (idx < root.gridGeometry.cards.length) {
+      return root.gridGeometry.cards[idx]
+    }
+    return null
+  }
+
+  function slotWidth(idx) {
+    var nCard = root.normalCardGeom(idx)
+    if (nCard && nCard.width > 0) return Math.round(nCard.width)
+    return Math.round(root.cardWidth)
+  }
+
+  function slotHeight(idx) {
+    var nCard = root.normalCardGeom(idx)
+    if (nCard && nCard.height > 0) return Math.round(nCard.height)
+    return Math.round(root.cardHeight)
+  }
+
   function slotX(idx) {
     if (idx < 0) return 0
+    var nCard = root.normalCardGeom(idx)
+    if (nCard) return Math.round(root.usableX + nCard.x)
     var col = idx % root.columns
     return Math.round(root.usableX + root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
   }
 
   function slotY(idx) {
     if (idx < 0) return 0
+    var nCard = root.normalCardGeom(idx)
+    if (nCard) return Math.round(root.usableGridY + nCard.y)
     var row = Math.floor(idx / root.columns)
     return Math.round(root.usableGridY + root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
@@ -227,8 +251,6 @@ Item {
     var items = []
     var isDragging = root.draggedToplevel !== null
     var wsIds = root.workspaceModel || []
-    var width = Math.round(root.cardWidth)
-    var height = Math.round(root.cardHeight)
 
     for (var i = 0; i < wsIds.length; i++) {
       var wsId = wsIds[i]
@@ -237,6 +259,8 @@ Item {
 
       var gx = root.slotX(slotIdx)
       var gy = root.slotY(slotIdx)
+      var width = root.slotWidth(slotIdx)
+      var height = root.slotHeight(slotIdx)
 
       items.push({
         index: slotIdx,
@@ -548,8 +572,8 @@ Item {
 
           x: root.slotX(slotIndex)
           y: root.slotY(slotIndex)
-          width: Math.round(root.cardWidth)
-          height: Math.round(root.cardHeight)
+          width: root.slotWidth(slotIndex)
+          height: root.slotHeight(slotIndex)
 
           overview: root
           workspaceId: modelData
@@ -581,8 +605,8 @@ Item {
 
           x: root.slotX(slotIndex)
           y: root.slotY(slotIndex)
-          width: Math.round(root.cardWidth)
-          height: Math.round(root.cardHeight)
+          width: root.slotWidth(slotIndex)
+          height: root.slotHeight(slotIndex)
 
           overview: root
           targetWorkspaceId: modelData

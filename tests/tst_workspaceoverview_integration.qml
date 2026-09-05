@@ -289,4 +289,37 @@ TestCase {
     verify(/WindowGeometry\.cyclicCardMove/.test(source))
     verify(/isInsertion\s*:\s*false/.test(source))
   }
+
+  function test_adaptiveOverviewNormalModeIntegration() {
+    var source = workspaceOverviewSource()
+
+    // 1. Grid geometry without 520px cap
+    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*cardAspectRatio,\s*gridSpacing\)/.test(source),
+      "WorkspaceOverview must invoke overviewGridGeometry without hardcoded 520px cap")
+
+    // 2. normalCardGeom helper defined and used
+    verify(/function\s+normalCardGeom\(idx\)/.test(source),
+      "WorkspaceOverview must define normalCardGeom helper")
+
+    var slotXMatch = source.match(/function\s+slotX\(idx\)[\s\S]*?\n  \}/)
+    verify(slotXMatch && /normalCardGeom/.test(slotXMatch[0]),
+      "slotX must query normalCardGeom in normal overview mode")
+
+    var slotYMatch = source.match(/function\s+slotY\(idx\)[\s\S]*?\n  \}/)
+    verify(slotYMatch && /normalCardGeom/.test(slotYMatch[0]),
+      "slotY must query normalCardGeom in normal overview mode")
+
+    var slotWMatch = source.match(/function\s+slotWidth\(idx\)[\s\S]*?\n  \}/)
+    verify(slotWMatch && /normalCardGeom/.test(slotWMatch[0]),
+      "slotWidth must query normalCardGeom in normal overview mode")
+
+    var slotHMatch = source.match(/function\s+slotHeight\(idx\)[\s\S]*?\n  \}/)
+    verify(slotHMatch && /normalCardGeom/.test(slotHMatch[0]),
+      "slotHeight must query normalCardGeom in normal overview mode")
+
+    // 3. Invariant: gridGeometry has NO dependency on selectedCardIndex
+    var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewGridGeometry[\s\S]*?\)/)
+    verify(gridGeomDecl && !/selectedCardIndex/.test(gridGeomDecl[0]),
+      "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
+  }
 }
