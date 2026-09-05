@@ -706,5 +706,90 @@ TestCase {
       compare(g1.cards[i].width, g2.cards[i].width)
       compare(g1.cards[i].height, g2.cards[i].height)
     }
+
+    // In contrast, Focused mode geometry depends on primaryIndex (selection)
+    var f0 = WindowGeometry.focusedOverviewGeometry(5, 0, width, height, aspect, spacing)
+    var f1 = WindowGeometry.focusedOverviewGeometry(5, 1, width, height, aspect, spacing)
+    verify(f0.cards[0].isPrimary)
+    verify(!f0.cards[1].isPrimary)
+    verify(!f1.cards[0].isPrimary)
+    verify(f1.cards[1].isPrimary)
+  }
+
+  function test_focusedOverviewGeometry_singleCard() {
+    var result = WindowGeometry.focusedOverviewGeometry(1, 0, 1920, 1080, 1.55, 48)
+    compare(result.primaryIndex, 0)
+    compare(result.cards.length, 1)
+    verify(result.cards[0].isPrimary)
+    fuzzyCompare(result.cards[0].width, 1080 * 1.55)
+    fuzzyCompare(result.cards[0].height, 1080)
+  }
+
+  function test_focusedOverviewGeometry_allocationAndSpacing() {
+    var width = 1880
+    var height = 1000
+    var aspect = 1.55
+    var spacing = 48
+
+    var result = WindowGeometry.focusedOverviewGeometry(4, 1, width, height, aspect, spacing)
+    compare(result.primaryIndex, 1)
+    compare(result.cards.length, 4)
+
+    // Primary card occupies 1
+    var primary = result.cards[1]
+    verify(primary.isPrimary)
+    verify(primary.width > width * 0.65, "Primary card occupies >65% of width")
+    fuzzyCompare(primary.width / primary.height, aspect)
+
+    // Secondary cards form a vertical rail
+    verify(result.rail !== null, "Rail geometry must be defined")
+    compare(result.rail.width, result.cards[0].width)
+    fuzzyCompare(result.rail.width / result.cards[0].height, aspect)
+
+    // Verify all 3 secondary cards have the exact same size
+    compare(result.cards[0].width, result.cards[2].width)
+    compare(result.cards[0].width, result.cards[3].width)
+    compare(result.cards[0].height, result.cards[2].height)
+    compare(result.cards[0].height, result.cards[3].height)
+    verify(!result.cards[0].isPrimary)
+    verify(!result.cards[2].isPrimary)
+    verify(!result.cards[3].isPrimary)
+
+    // Total width matches primary + gap + rail
+    var totalUsedW = primary.width + spacing + result.rail.width
+    fuzzyCompare(result.cards[0].x, primary.x + primary.width + spacing)
+  }
+
+  function test_focusedOverviewGeometry_cyclicNavigation() {
+    var width = 1880
+    var height = 1000
+    var aspect = 1.55
+    var spacing = 48
+
+    var result = WindowGeometry.focusedOverviewGeometry(4, 0, width, height, aspect, spacing)
+    var navItems = []
+    for (var i = 0; i < result.cards.length; i++) {
+      var c = result.cards[i]
+      navItems.push({
+        index: i,
+        workspaceId: i + 1,
+        x: c.x,
+        y: c.y,
+        width: c.width,
+        height: c.height,
+        centerX: c.x + c.width / 2,
+        centerY: c.y + c.height / 2,
+        isInsertion: false,
+        isPrimary: c.isPrimary,
+        visualOrder: i
+      })
+    }
+
+    // Right from primary (0) moves to rail item (1)
+    compare(WindowGeometry.cyclicCardMove(navItems, 0, 1, 0), 1)
+    // Left from rail item (1) moves back to primary (0)
+    compare(WindowGeometry.cyclicCardMove(navItems, 1, -1, 0), 0)
+    // Down from rail item 1 moves to rail item 2
+    compare(WindowGeometry.cyclicCardMove(navItems, 1, 0, 1), 2)
   }
 }

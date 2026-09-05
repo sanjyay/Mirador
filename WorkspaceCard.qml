@@ -140,6 +140,11 @@ BorderSurface {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: root.workspaceActivated(root.occupied)
+    onWheel: function(wheel) {
+      if (root.overview && typeof root.overview.scrollRail === "function") {
+        root.overview.scrollRail(wheel.angleDelta.y)
+      }
+    }
   }
 
   // Drag/keyboard/active fill overlay — provides surface tint during drag,
