@@ -106,7 +106,7 @@ Rectangle {
     ScreencopyView {
       id: preview
       anchors.centerIn: parent
-      captureSource: root.waylandToplevel
+      captureSource: root.liveCaptureEnabled ? root.waylandToplevel : null
       live: root.liveCaptureEnabled
       paintCursor: false
       width: {

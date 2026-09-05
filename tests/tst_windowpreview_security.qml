@@ -36,6 +36,11 @@ TestCase {
     verify(/text\s*:\s*root\.title\s*\n\s*textFormat\s*:\s*Text\.PlainText/.test(source))
   }
 
+  function test_hiddenPreviewReleasesCaptureSource() {
+    var source = windowPreviewSource()
+    verify(/captureSource\s*:\s*root\.liveCaptureEnabled\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(source))
+  }
+
   function test_hostileTitlesRemainPlainText() {
     compare(securedText.textFormat, Text.PlainText)
 
