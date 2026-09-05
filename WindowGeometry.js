@@ -36,6 +36,70 @@ function insetGeometry(width, height, requestedInset) {
   }
 }
 
+// Compute the safe viewport geometry by subtracting the reserved bar area
+// from the screen/monitor bounds for any bar position ('top', 'bottom', 'left', 'right').
+// Guarantees that cards and chrome never overlap the bar region in any direction.
+function safeAreaGeometry(screenWidth, screenHeight, barPosition, barSize, outerMargin, reservedStruts) {
+  var safeW = Math.max(1, finiteNumber(screenWidth) || 1)
+  var safeH = Math.max(1, finiteNumber(screenHeight) || 1)
+  var pos = String(barPosition || "").toLowerCase().trim()
+  var bSize = Math.max(0, Math.min(Math.min(safeW, safeH) / 2, finiteNumber(barSize) || 0))
+  var margin = Math.max(0, finiteNumber(outerMargin) || 0)
+
+  var safeLeft = 0
+  var safeTop = 0
+  var safeRight = safeW
+  var safeBottom = safeH
+
+  if (pos === "top") {
+    safeTop = bSize
+  } else if (pos === "bottom") {
+    safeBottom = Math.max(safeTop, safeH - bSize)
+  } else if (pos === "left") {
+    safeLeft = bSize
+  } else if (pos === "right") {
+    safeRight = Math.max(safeLeft, safeW - bSize)
+  }
+
+  if (reservedStruts && reservedStruts.length >= 4) {
+    var rL = Math.max(0, finiteNumber(reservedStruts[0]) || 0)
+    var rT = Math.max(0, finiteNumber(reservedStruts[1]) || 0)
+    var rR = Math.max(0, finiteNumber(reservedStruts[2]) || 0)
+    var rB = Math.max(0, finiteNumber(reservedStruts[3]) || 0)
+    if (rL > safeLeft) safeLeft = rL
+    if (rT > safeTop) safeTop = rT
+    if (safeW - rR < safeRight) safeRight = Math.max(safeLeft, safeW - rR)
+    if (safeH - rB < safeBottom) safeBottom = Math.max(safeTop, safeH - rB)
+  }
+
+  var safeViewportWidth = Math.max(1, safeRight - safeLeft)
+  var safeViewportHeight = Math.max(1, safeBottom - safeTop)
+
+  // Usable area after applying breathing margin inside the safe viewport
+  var usableX = safeLeft + margin
+  var usableY = safeTop + margin
+  var usableWidth = Math.max(1, safeViewportWidth - margin * 2)
+  var usableHeight = Math.max(1, safeViewportHeight - margin * 2)
+
+  return {
+    screenWidth: safeW,
+    screenHeight: safeH,
+    barPosition: pos,
+    barSize: bSize,
+    outerMargin: margin,
+    safeLeft: safeLeft,
+    safeTop: safeTop,
+    safeRight: safeRight,
+    safeBottom: safeBottom,
+    safeWidth: safeViewportWidth,
+    safeHeight: safeViewportHeight,
+    usableX: usableX,
+    usableY: usableY,
+    usableWidth: usableWidth,
+    usableHeight: usableHeight
+  }
+}
+
 // Helper to generate balanced row distributions for count items into R rows.
 // For example, count = 5, R = 2 produces [[3, 2], [2, 3]].
 function getBalancedRowDistributions(count, R) {
@@ -802,7 +866,7 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
     var currentRowIndex = -1
     for (var r = 0; r < rows.length; r++) {
       for (var c = 0; c < rows[r].items.length; c++) {
-        if (rows[r].items[c] === currentItem) {
+        if (rows[r].items[c].index === currentItem.index) {
           currentRowIndex = r
           break
         }

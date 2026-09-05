@@ -291,39 +291,6 @@ TestCase {
     verify(/isInsertion\s*:\s*false/.test(source))
   }
 
-  function test_adaptiveOverviewNormalModeIntegration() {
-    var source = workspaceOverviewSource()
-
-    // 1. Grid geometry without 520px cap
-    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*cardAspectRatio,\s*gridSpacing\)/.test(source),
-      "WorkspaceOverview must invoke overviewGridGeometry without hardcoded 520px cap")
-
-    // 2. normalCardGeom helper defined and used
-    verify(/function\s+normalCardGeom\(idx\)/.test(source),
-      "WorkspaceOverview must define normalCardGeom helper")
-
-    var slotXMatch = source.match(/function\s+slotX\(idx\)[\s\S]*?\n  \}/)
-    verify(slotXMatch && /normalCardGeom/.test(slotXMatch[0]),
-      "slotX must query normalCardGeom in normal overview mode")
-
-    var slotYMatch = source.match(/function\s+slotY\(idx\)[\s\S]*?\n  \}/)
-    verify(slotYMatch && /normalCardGeom/.test(slotYMatch[0]),
-      "slotY must query normalCardGeom in normal overview mode")
-
-    var slotWMatch = source.match(/function\s+slotWidth\(idx\)[\s\S]*?\n  \}/)
-    verify(slotWMatch && /normalCardGeom/.test(slotWMatch[0]),
-      "slotWidth must query normalCardGeom in normal overview mode")
-
-    var slotHMatch = source.match(/function\s+slotHeight\(idx\)[\s\S]*?\n  \}/)
-    verify(slotHMatch && /normalCardGeom/.test(slotHMatch[0]),
-      "slotHeight must query normalCardGeom in normal overview mode")
-
-    // 3. Invariant: gridGeometry has NO dependency on selectedCardIndex
-    var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewGridGeometry[\s\S]*?\)/)
-    verify(gridGeomDecl && !/selectedCardIndex/.test(gridGeomDecl[0]),
-      "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
-  }
-
   function test_focusedOverviewModePropertiesAndKeyHandling() {
     var source = workspaceOverviewSource()
     // Overview must declare overviewMode defaulting to "normal"
@@ -396,8 +363,8 @@ TestCase {
         }
       }
 
-      compare(primaryCount, 1, "Exactly one primary workspace")
-      compare(secondaryCount, 4, "Remaining workspaces are secondary rail items")
+      compare(primaryCount, 1)
+      compare(secondaryCount, 4)
     }
   }
 
@@ -510,4 +477,88 @@ TestCase {
     verify(/root\.overview\.handleCardWheel/.test(cardSource),
       "WorkspaceCard must delegate normal mode and primary card wheel to handleCardWheel")
   }
+
+  function test_adaptiveOverviewNormalModeIntegration() {
+    var source = workspaceOverviewSource()
+
+    // 1. Grid geometry without 520px cap
+    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*cardAspectRatio,\s*gridSpacing\)/.test(source),
+      "WorkspaceOverview must invoke overviewGridGeometry without hardcoded 520px cap")
+
+    // 2. normalCardGeom helper defined and used
+    verify(/function\s+normalCardGeom\(idx\)/.test(source),
+      "WorkspaceOverview must define normalCardGeom helper")
+
+    var slotXMatch = source.match(/function\s+slotX\(idx\)[\s\S]*?\n  \}/)
+    verify(slotXMatch && /normalCardGeom/.test(slotXMatch[0]),
+      "slotX must query normalCardGeom in normal overview mode")
+
+    var slotYMatch = source.match(/function\s+slotY\(idx\)[\s\S]*?\n  \}/)
+    verify(slotYMatch && /normalCardGeom/.test(slotYMatch[0]),
+      "slotY must query normalCardGeom in normal overview mode")
+
+    var slotWMatch = source.match(/function\s+slotWidth\(idx\)[\s\S]*?\n  \}/)
+    verify(slotWMatch && /normalCardGeom/.test(slotWMatch[0]),
+      "slotWidth must query normalCardGeom in normal overview mode")
+
+    var slotHMatch = source.match(/function\s+slotHeight\(idx\)[\s\S]*?\n  \}/)
+    verify(slotHMatch && /normalCardGeom/.test(slotHMatch[0]),
+      "slotHeight must query normalCardGeom in normal overview mode")
+
+    // 3. Invariant: gridGeometry has NO dependency on selectedCardIndex
+    var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewGridGeometry[\s\S]*?\)/)
+    verify(gridGeomDecl && !/selectedCardIndex/.test(gridGeomDecl[0]),
+      "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
+  }
+
+  function test_safeAreaAuthoritativeBarIntegration() {
+    var source = workspaceOverviewSource()
+
+    // 1. Safe area geometry helper invocation
+    verify(/safeArea\s*:\s*WindowGeometry\.safeAreaGeometry\s*\(/.test(source),
+      "WorkspaceOverview must compute safeArea via WindowGeometry.safeAreaGeometry")
+
+    // 2. Usable viewport wired strictly to safeArea results
+    verify(/readonly\s+property\s+real\s+usableX\s*:\s*safeArea\.usableX/.test(source),
+      "usableX must be driven by safeArea.usableX")
+    verify(/readonly\s+property\s+real\s+usableY\s*:\s*safeArea\.usableY/.test(source),
+      "usableY must be driven by safeArea.usableY")
+    verify(/readonly\s+property\s+real\s+usableWidth\s*:\s*safeArea\.usableWidth/.test(source),
+      "usableWidth must be driven by safeArea.usableWidth")
+    verify(/readonly\s+property\s+real\s+usableHeight\s*:\s*safeArea\.usableHeight/.test(source),
+      "usableHeight must be driven by safeArea.usableHeight")
+
+    // 3. Multi-tier authoritative bar detection (shell.bar, shell.barConfig, monitorReserved struts)
+    verify(/readonly\s+property\s+var\s+monitorReserved\s*:/.test(source),
+      "WorkspaceOverview must expose monitorReserved from Hyprland monitor IPC")
+    verify(/lastIpcObject\.reserved/.test(source),
+      "WorkspaceOverview must read lastIpcObject.reserved struts")
+    verify(/configuredBarPosition/.test(source),
+      "WorkspaceOverview must support configuredBarPosition fallback")
+    verify(/Math\.max\(\s*shellBarSize,\s*monPixels\s*\)/.test(source),
+      "barPixels must resolve to Math.max(shellBarSize, monPixels) for authoritative sizing")
+
+    // 4. Tightened margins and spacing to enlarge previews
+    verify(/outerMargin\s*:\s*Math\.max\(16,\s*Style\.space\(16\)\)/.test(source),
+      "outerMargin must be streamlined to 16px to minimize wasted edge padding")
+    verify(/gridSpacing\s*:\s*Style\.space\(24\)/.test(source),
+      "gridSpacing must be optimized to 24px (from 48px)")
+
+    // 5. Cards container positioned and clipped strictly to usable bounds inside safe area
+    verify(/id\s*:\s*cardsContainer/.test(source),
+      "cardsContainer must host all cards within the safe viewport")
+    verify(/cardsContainer[\s\S]*x\s*:\s*root\.usableX/.test(source),
+      "cardsContainer must be positioned at root.usableX")
+    verify(/cardsContainer[\s\S]*y\s*:\s*root\.usableGridY/.test(source),
+      "cardsContainer must be positioned at root.usableGridY")
+    verify(/cardsContainer[\s\S]*width\s*:\s*root\.usableWidth/.test(source),
+      "cardsContainer must be bounded by root.usableWidth")
+    verify(/cardsContainer[\s\S]*height\s*:\s*root\.usableGridHeight/.test(source),
+      "cardsContainer must be bounded by root.usableGridHeight")
+    verify(/cardsContainer[\s\S]*clip\s*:\s*true/.test(source),
+      "cardsContainer must clip content so nothing ever renders outside safe viewport")
+  }
 }
+
+
+
