@@ -101,22 +101,13 @@ Rectangle {
   Item {
     id: imageArea
     anchors.fill: parent
-    clip: true
 
     ScreencopyView {
       id: preview
-      anchors.centerIn: parent
+      anchors.fill: parent
       captureSource: root.liveCaptureEnabled ? root.waylandToplevel : null
       live: root.liveCaptureEnabled
       paintCursor: false
-      width: {
-        if (!hasContent || sourceSize.width <= 0 || sourceSize.height <= 0) return parent.width
-        return Math.min(parent.width, parent.height * sourceSize.width / sourceSize.height)
-      }
-      height: {
-        if (!hasContent || sourceSize.width <= 0 || sourceSize.height <= 0) return parent.height
-        return Math.min(parent.height, parent.width * sourceSize.height / sourceSize.width)
-      }
       visible: hasContent
     }
 

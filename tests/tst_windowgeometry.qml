@@ -536,4 +536,28 @@ TestCase {
     // Right from 1 should wrap to workspace 0
     compare(WindowGeometry.cyclicCardMove(mixed, 1, 1, 0), 0)
   }
+
+  function test_snapToDevicePixels() {
+    // 1x DPR standard screen: snaps to whole integers
+    compare(WindowGeometry.snapToDevicePixels(10.2, 1), 10)
+    compare(WindowGeometry.snapToDevicePixels(10.7, 1), 11)
+    compare(WindowGeometry.snapToDevicePixels(10.5, 1), 11)
+
+    // 2x DPR HiDPI screen: snaps to 0.5 physical boundaries
+    compare(WindowGeometry.snapToDevicePixels(10.2, 2), 10)
+    compare(WindowGeometry.snapToDevicePixels(10.3, 2), 10.5)
+    compare(WindowGeometry.snapToDevicePixels(10.7, 2), 10.5)
+    compare(WindowGeometry.snapToDevicePixels(10.8, 2), 11)
+
+    // 1.5x DPR fractional scale: snaps to multiples of 1/1.5 = 2/3
+    fuzzyCompare(WindowGeometry.snapToDevicePixels(10.0, 1.5), 10.0)
+    fuzzyCompare(WindowGeometry.snapToDevicePixels(10.33, 1.5), 10.0)
+    fuzzyCompare(WindowGeometry.snapToDevicePixels(10.4, 1.5), 10.66667)
+
+    // Fallbacks on invalid DPR or NaN
+    compare(WindowGeometry.snapToDevicePixels(15.4, 0), 15)
+    compare(WindowGeometry.snapToDevicePixels(15.4, -1), 15)
+    compare(WindowGeometry.snapToDevicePixels(15.4, null), 15)
+    compare(WindowGeometry.snapToDevicePixels(NaN, 1), 0)
+  }
 }
