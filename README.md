@@ -8,6 +8,59 @@ and dragging windows between workspaces.
 
 https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 
+## Install
+
+Install through Omarchy:
+
+```bash
+omarchy plugin add https://github.com/sanjyay/Mirador.git
+```
+
+Alternatively, install it manually by cloning this repository into your
+Omarchy plugins directory:
+
+```bash
+mkdir -p ~/.config/omarchy/plugins
+git clone https://github.com/sanjyay/Mirador.git \
+  ~/.config/omarchy/plugins/mirador
+omarchy-shell shell rescanPlugins
+```
+
+## Optional background blur
+
+Mirador provides a transparent LayerShell surface with the namespace
+`omarchy-workspace-overview`. Background blur is performed by Hyprland, not by
+Mirador itself, and is not enabled automatically when the plugin is installed.
+
+Current Omarchy installations may have Hyprland's global blur engine disabled.
+To enable Mirador blur, add the following to a user-owned Hyprland Lua config,
+such as `~/.config/hypr/looknfeel.lua`:
+
+```lua
+hl.config({
+  decoration = {
+    blur = {
+      enabled = true,
+    },
+  },
+})
+
+hl.layer_rule({
+  name = "mirador-blur",
+  match = { namespace = "^omarchy-workspace-overview$" },
+  blur = true,
+})
+```
+
+Mirador does not modify Hyprland configuration automatically. Do not add this
+override to vendor-managed Omarchy files. Enabling the global blur engine makes
+Hyprland's blur functionality available system-wide, while the anchored layer
+rule matches only Mirador. Apply and validate the user override with:
+
+```bash
+hyprctl reload
+hyprctl configerrors
+```
 
 
 ## What's new in version 2.2.0
@@ -103,59 +156,6 @@ https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 
 </details>
 
-## Install
-
-Install through Omarchy:
-
-```bash
-omarchy plugin add https://github.com/sanjyay/Mirador.git
-```
-
-Alternatively, install it manually by cloning this repository into your
-Omarchy plugins directory:
-
-```bash
-mkdir -p ~/.config/omarchy/plugins
-git clone https://github.com/sanjyay/Mirador.git \
-  ~/.config/omarchy/plugins/mirador
-omarchy-shell shell rescanPlugins
-```
-
-## Optional background blur
-
-Mirador provides a transparent LayerShell surface with the namespace
-`omarchy-workspace-overview`. Background blur is performed by Hyprland, not by
-Mirador itself, and is not enabled automatically when the plugin is installed.
-
-Current Omarchy installations may have Hyprland's global blur engine disabled.
-To enable Mirador blur, add the following to a user-owned Hyprland Lua config,
-such as `~/.config/hypr/looknfeel.lua`:
-
-```lua
-hl.config({
-  decoration = {
-    blur = {
-      enabled = true,
-    },
-  },
-})
-
-hl.layer_rule({
-  name = "mirador-blur",
-  match = { namespace = "^omarchy-workspace-overview$" },
-  blur = true,
-})
-```
-
-Mirador does not modify Hyprland configuration automatically. Do not add this
-override to vendor-managed Omarchy files. Enabling the global blur engine makes
-Hyprland's blur functionality available system-wide, while the anchored layer
-rule matches only Mirador. Apply and validate the user override with:
-
-```bash
-hyprctl reload
-hyprctl configerrors
-```
 
 ## Launching the overview
 
