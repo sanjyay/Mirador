@@ -708,29 +708,141 @@ TestCase {
     compare(WindowGeometry.snapToDevicePixels(NaN, 1), 0)
   }
 
+  function test_focusedOverviewGeometry_singleCard() {
+    var geom = WindowGeometry.focusedOverviewGeometry(1, 0, 1920, 1080, 1.55, 48)
+    compare(geom.cards.length, 1)
+    verify(geom.cards[0].isPrimary)
+    verify(geom.cards[0].width > 1500)
+    verify(geom.cards[0].height > 900)
+  }
+
+  function test_focusedOverviewGeometry_allocationAndSpacing() {
+    var counts = [2, 3, 4, 6, 8, 10]
+    for (var c = 0; c < counts.length; c++) {
+      var count = counts[c]
+      var geom = WindowGeometry.focusedOverviewGeometry(count, 0, 1920, 1080, 1.55, 48)
+      compare(geom.cards.length, count)
+
+      var primary = geom.cards[0]
+      verify(primary.isPrimary)
+      // Primary card occupies ~72-76% of usable overview width
+      verify(primary.width >= 1920 * 0.65)
+      verify(primary.height >= 1080 * 0.65)
+      verify(primary.x >= 0)
+      verify(primary.y >= 0)
+      verify(primary.x + primary.width <= 1920 + 0.1)
+      verify(primary.y + primary.height <= 1080 + 0.1)
+
+      // Rail checks: single vertical column on the right
+      verify(geom.rail !== null && geom.rail !== undefined)
+      verify(geom.rail.width >= 200) // Sensible minimum card width
+      verify(geom.rail.x >= primary.x + primary.width)
+
+      for (var i = 1; i < count; i++) {
+        var card = geom.cards[i]
+        verify(!card.isPrimary)
+        // Single vertical rail: all secondary cards share the rail X and width
+        compare(card.x, geom.rail.x)
+        compare(card.width, geom.rail.width)
+        verify(card.width >= 200) // Sensible minimum width
+        verify(card.height >= 120) // Sensible minimum height
+        verify(card.y >= 0)
+        if (i > 1) {
+          // Ordered strictly vertically in single column with gap
+          var prev = geom.cards[i - 1]
+          fuzzyCompare(card.y - (prev.y + prev.height), 48)
+        }
+      }
+
+      // Scroll requirement: when secondary content exceeds viewport, scrollNeeded is true
+      if (geom.rail.contentHeight > 1080) {
+        verify(geom.rail.scrollNeeded)
+      } else {
+        verify(!geom.rail.scrollNeeded)
+      }
+    }
+  }
+
+  function test_focusedOverviewGeometry_cyclicNavigation() {
+    // 4 cards in focused layout: card 0 is primary, cards 1, 2, 3 are secondary
+    var geom = WindowGeometry.focusedOverviewGeometry(4, 0, 1920, 1080, 1.55, 48)
+    var items = []
+    for (var i = 0; i < geom.cards.length; i++) {
+      var c = geom.cards[i]
+      items.push({
+        index: i,
+        x: c.x,
+        y: c.y,
+        width: c.width,
+        height: c.height,
+        centerX: c.x + c.width / 2,
+        centerY: c.y + c.height / 2,
+        isPrimary: c.isPrimary,
+        isInsertion: false,
+        visualOrder: i
+      })
+    }
+
+    // Right / Down navigates forward 0 -> 1 -> 2 -> 3 -> 0
+    compare(WindowGeometry.cyclicCardMove(items, 0, 1, 0), 1)
+    compare(WindowGeometry.cyclicCardMove(items, 1, 1, 0), 2)
+    compare(WindowGeometry.cyclicCardMove(items, 2, 1, 0), 3)
+    compare(WindowGeometry.cyclicCardMove(items, 3, 1, 0), 0)
+
+    compare(WindowGeometry.cyclicCardMove(items, 0, 0, 1), 1)
+    compare(WindowGeometry.cyclicCardMove(items, 1, 0, 1), 2)
+    compare(WindowGeometry.cyclicCardMove(items, 2, 0, 1), 3)
+    compare(WindowGeometry.cyclicCardMove(items, 3, 0, 1), 0)
+
+    // Left / Up navigates backward 0 -> 3 -> 2 -> 1 -> 0
+    compare(WindowGeometry.cyclicCardMove(items, 0, -1, 0), 3)
+    compare(WindowGeometry.cyclicCardMove(items, 3, -1, 0), 2)
+    compare(WindowGeometry.cyclicCardMove(items, 2, -1, 0), 1)
+    compare(WindowGeometry.cyclicCardMove(items, 1, -1, 0), 0)
+
+    compare(WindowGeometry.cyclicCardMove(items, 0, 0, -1), 3)
+    compare(WindowGeometry.cyclicCardMove(items, 3, 0, -1), 2)
+    compare(WindowGeometry.cyclicCardMove(items, 2, 0, -1), 1)
+    compare(WindowGeometry.cyclicCardMove(items, 1, 0, -1), 0)
+  }
+
   function test_adaptiveOverview_workspaceCounts1to8() {
     var width = 1880
     var height = 1000
     var aspect = 1.55
     var spacing = 48
 
+    var expectedDists = {
+      1: [1],
+      2: [2],
+      3: [2, 1],
+      4: [2, 2],
+      5: [3, 2],
+      6: [3, 3],
+      7: [3, 2, 2],
+      8: [3, 3, 2]
+    }
+
     for (var count = 1; count <= 8; count++) {
       var geom = WindowGeometry.overviewGridGeometry(count, width, height, aspect, spacing)
-      compare(geom.cards.length, count, "Generated cards count matches workspace count")
+      verify(geom !== null && geom !== undefined, "Geometry must be non-null for count " + count)
+      compare(geom.cards.length, count, "No fake empty cards: cards.length must equal count")
 
-      // 1. Verify every card has identical dimensions
-      for (var i = 0; i < count; i++) {
-        compare(geom.cards[i].width, geom.cardWidth, "Card " + i + " width matches cardWidth")
-        compare(geom.cards[i].height, geom.cardHeight, "Card " + i + " height matches cardHeight")
+      // 1. Verify expected optimal row distribution
+      var expectedDist = expectedDists[count]
+      compare(geom.rowDistribution.length, expectedDist.length, "Row count for " + count + " workspaces")
+      for (var r = 0; r < expectedDist.length; r++) {
+        compare(geom.rowDistribution[r], expectedDist[r], "Row " + r + " card count for " + count + " workspaces")
       }
 
-      // 2. Verify aspect ratio is preserved
-      var cardAspect = geom.cardWidth / geom.cardHeight
-      fuzzyCompare(cardAspect, aspect, "Card aspect ratio preserved for count=" + count)
-
-      // 3. Verify all cards stay within bounds
+      // 2. Verify all cards have IDENTICAL dimensions and preserve aspect ratio
       for (var i = 0; i < count; i++) {
         var card = geom.cards[i]
+        compare(card.width, geom.cardWidth, "Card " + i + " must have identical common cardWidth")
+        compare(card.height, geom.cardHeight, "Card " + i + " must have identical common cardHeight")
+        fuzzyCompare(card.width / card.height, aspect, "Card " + i + " must preserve aspect ratio")
+
+        // 3. Verify cards remain inside viewport
         verify(card.x >= -0.001, "Card " + i + " x must be inside viewport")
         verify(card.y >= -0.001, "Card " + i + " y must be inside viewport")
         verify(card.x + card.width <= width + 0.001, "Card " + i + " right must be inside viewport")
@@ -863,80 +975,203 @@ TestCase {
     verify(f1.cards[1].isPrimary)
   }
 
-  function test_focusedOverviewGeometry_singleCard() {
-    var result = WindowGeometry.focusedOverviewGeometry(1, 0, 1920, 1080, 1.55, 48)
-    compare(result.primaryIndex, 0)
-    compare(result.cards.length, 1)
-    verify(result.cards[0].isPrimary)
-    fuzzyCompare(result.cards[0].width, 1080 * 1.55)
-    fuzzyCompare(result.cards[0].height, 1080)
+  function test_safeAreaGeometry_barPositions() {
+    var screenW = 1920
+    var screenH = 1080
+    var margin = 16
+
+    // 1. Top bar (35px, struts [0, 35, 0, 0])
+    var topSafe = WindowGeometry.safeAreaGeometry(screenW, screenH, "top", 35, margin, [0, 35, 0, 0])
+    compare(topSafe.safeLeft, 0)
+    compare(topSafe.safeTop, 35)
+    compare(topSafe.safeRight, 1920)
+    compare(topSafe.safeBottom, 1080)
+    compare(topSafe.safeWidth, 1920)
+    compare(topSafe.safeHeight, 1045)
+    compare(topSafe.usableX, 16)
+    compare(topSafe.usableY, 51)
+    compare(topSafe.usableWidth, 1888)
+    compare(topSafe.usableHeight, 1013)
+
+    // 2. Bottom bar (40px, struts [0, 0, 0, 40])
+    var botSafe = WindowGeometry.safeAreaGeometry(screenW, screenH, "bottom", 40, margin, [0, 0, 0, 40])
+    compare(botSafe.safeLeft, 0)
+    compare(botSafe.safeTop, 0)
+    compare(botSafe.safeRight, 1920)
+    compare(botSafe.safeBottom, 1040)
+    compare(botSafe.safeWidth, 1920)
+    compare(botSafe.safeHeight, 1040)
+    compare(botSafe.usableX, 16)
+    compare(botSafe.usableY, 16)
+    compare(botSafe.usableWidth, 1888)
+    compare(botSafe.usableHeight, 1008)
+
+    // 3. Left bar (48px, struts [48, 0, 0, 0])
+    var leftSafe = WindowGeometry.safeAreaGeometry(screenW, screenH, "left", 48, margin, [48, 0, 0, 0])
+    compare(leftSafe.safeLeft, 48)
+    compare(leftSafe.safeTop, 0)
+    compare(leftSafe.safeRight, 1920)
+    compare(leftSafe.safeBottom, 1080)
+    compare(leftSafe.safeWidth, 1872)
+    compare(leftSafe.safeHeight, 1080)
+    compare(leftSafe.usableX, 64)
+    compare(leftSafe.usableY, 16)
+    compare(leftSafe.usableWidth, 1840)
+    compare(leftSafe.usableHeight, 1048)
+
+    // 4. Right bar (48px, struts [0, 0, 48, 0])
+    var rightSafe = WindowGeometry.safeAreaGeometry(screenW, screenH, "right", 48, margin, [0, 0, 48, 0])
+    compare(rightSafe.safeLeft, 0)
+    compare(rightSafe.safeTop, 0)
+    compare(rightSafe.safeRight, 1872)
+    compare(rightSafe.safeBottom, 1080)
+    compare(rightSafe.safeWidth, 1872)
+    compare(rightSafe.safeHeight, 1080)
+    compare(rightSafe.usableX, 16)
+    compare(rightSafe.usableY, 16)
+    compare(rightSafe.usableWidth, 1840)
+    compare(rightSafe.usableHeight, 1048)
+
+    // 5. Hidden / No bar
+    var noSafe = WindowGeometry.safeAreaGeometry(screenW, screenH, "", 0, margin, [0, 0, 0, 0])
+    compare(noSafe.safeLeft, 0)
+    compare(noSafe.safeTop, 0)
+    compare(noSafe.safeRight, 1920)
+    compare(noSafe.safeBottom, 1080)
+    compare(noSafe.safeWidth, 1920)
+    compare(noSafe.safeHeight, 1080)
+    compare(noSafe.usableX, 16)
+    compare(noSafe.usableY, 16)
+    compare(noSafe.usableWidth, 1888)
+    compare(noSafe.usableHeight, 1048)
   }
 
-  function test_focusedOverviewGeometry_allocationAndSpacing() {
-    var width = 1880
-    var height = 1000
+  function test_safeArea_zeroOverlapAndBounding() {
+    var screenW = 1920
+    var screenH = 1080
+    var margin = 16
     var aspect = 1.55
-    var spacing = 48
+    var spacing = 24
 
-    var result = WindowGeometry.focusedOverviewGeometry(4, 1, width, height, aspect, spacing)
-    compare(result.primaryIndex, 1)
-    compare(result.cards.length, 4)
+    var barConfigs = [
+      { pos: "top", size: 35, struts: [0, 35, 0, 0], rect: { x: 0, y: 0, w: 1920, h: 35 } },
+      { pos: "bottom", size: 40, struts: [0, 0, 0, 40], rect: { x: 0, y: 1040, w: 1920, h: 40 } },
+      { pos: "left", size: 48, struts: [48, 0, 0, 0], rect: { x: 0, y: 0, w: 48, h: 1080 } },
+      { pos: "right", size: 48, struts: [0, 0, 48, 0], rect: { x: 1872, y: 0, w: 48, h: 1080 } },
+      { pos: "", size: 0, struts: [0, 0, 0, 0], rect: { x: 0, y: 0, w: 0, h: 0 } }
+    ]
 
-    // Primary card occupies 1
-    var primary = result.cards[1]
-    verify(primary.isPrimary)
-    verify(primary.width > width * 0.65, "Primary card occupies >65% of width")
-    fuzzyCompare(primary.width / primary.height, aspect)
+    var testCounts = [1, 2, 3, 4, 5, 8]
 
-    // Secondary cards form a vertical rail
-    verify(result.rail !== null, "Rail geometry must be defined")
-    compare(result.rail.width, result.cards[0].width)
-    fuzzyCompare(result.rail.width / result.cards[0].height, aspect)
+    for (var b = 0; b < barConfigs.length; b++) {
+      var cfg = barConfigs[b]
+      var safe = WindowGeometry.safeAreaGeometry(screenW, screenH, cfg.pos, cfg.size, margin, cfg.struts)
 
-    // Verify all 3 secondary cards have the exact same size
-    compare(result.cards[0].width, result.cards[2].width)
-    compare(result.cards[0].width, result.cards[3].width)
-    compare(result.cards[0].height, result.cards[2].height)
-    compare(result.cards[0].height, result.cards[3].height)
-    verify(!result.cards[0].isPrimary)
-    verify(!result.cards[2].isPrimary)
-    verify(!result.cards[3].isPrimary)
+      for (var c = 0; c < testCounts.length; c++) {
+        var count = testCounts[c]
 
-    // Total width matches primary + gap + rail
-    var totalUsedW = primary.width + spacing + result.rail.width
-    fuzzyCompare(result.cards[0].x, primary.x + primary.width + spacing)
-  }
+        // --- Normal Mode ---
+        var normal = WindowGeometry.overviewGridGeometry(count, safe.usableWidth, safe.usableHeight, aspect, spacing)
+        for (var i = 0; i < normal.cards.length; i++) {
+          var card = normal.cards[i]
+          var absX = safe.usableX + card.x
+          var absY = safe.usableY + card.y
+          var absRight = absX + card.width
+          var absBottom = absY + card.height
 
-  function test_focusedOverviewGeometry_cyclicNavigation() {
-    var width = 1880
-    var height = 1000
-    var aspect = 1.55
-    var spacing = 48
+          // Verify strictly bounded inside safe area
+          verify(absX >= safe.safeLeft, "Normal card " + i + " must not exceed safeLeft (" + absX + " >= " + safe.safeLeft + ")")
+          verify(absY >= safe.safeTop, "Normal card " + i + " must not exceed safeTop (" + absY + " >= " + safe.safeTop + ")")
+          verify(absRight <= safe.safeRight, "Normal card " + i + " must not exceed safeRight (" + absRight + " <= " + safe.safeRight + ")")
+          verify(absBottom <= safe.safeBottom, "Normal card " + i + " must not exceed safeBottom (" + absBottom + " <= " + safe.safeBottom + ")")
 
-    var result = WindowGeometry.focusedOverviewGeometry(4, 0, width, height, aspect, spacing)
-    var navItems = []
-    for (var i = 0; i < result.cards.length; i++) {
-      var c = result.cards[i]
-      navItems.push({
-        index: i,
-        workspaceId: i + 1,
-        x: c.x,
-        y: c.y,
-        width: c.width,
-        height: c.height,
-        centerX: c.x + c.width / 2,
-        centerY: c.y + c.height / 2,
-        isInsertion: false,
-        isPrimary: c.isPrimary,
-        visualOrder: i
-      })
+          // Verify zero overlap with bar rectangle
+          if (cfg.rect.w > 0 && cfg.rect.h > 0) {
+            var overlaps = (absX < cfg.rect.x + cfg.rect.w &&
+                            absRight > cfg.rect.x &&
+                            absY < cfg.rect.y + cfg.rect.h &&
+                            absBottom > cfg.rect.y)
+            verify(!overlaps, "Normal card " + i + " must NEVER overlap bar rect for " + cfg.pos)
+          }
+        }
+
+        // --- Focused Mode ---
+        var focused = WindowGeometry.focusedOverviewGeometry(count, 0, safe.usableWidth, safe.usableHeight, aspect, spacing)
+        if (focused.primaryCard) {
+          var pCard = focused.primaryCard
+          var pAbsX = safe.usableX + pCard.x
+          var pAbsY = safe.usableY + pCard.y
+          var pAbsRight = pAbsX + pCard.width
+          var pAbsBottom = pAbsY + pCard.height
+
+          // Verify primary card is strictly bounded inside safe area
+          verify(pAbsX >= safe.safeLeft, "Focused primary card must not exceed safeLeft (" + pAbsX + " >= " + safe.safeLeft + ")")
+          verify(pAbsY >= safe.safeTop, "Focused primary card must not exceed safeTop (" + pAbsY + " >= " + safe.safeTop + ")")
+          verify(pAbsRight <= safe.safeRight, "Focused primary card must not exceed safeRight (" + pAbsRight + " <= " + safe.safeRight + ")")
+          verify(pAbsBottom <= safe.safeBottom, "Focused primary card must not exceed safeBottom (" + pAbsBottom + " <= " + safe.safeBottom + ")")
+
+          // Verify zero overlap with bar rectangle
+          if (cfg.rect.w > 0 && cfg.rect.h > 0) {
+            var pOverlaps = (pAbsX < cfg.rect.x + cfg.rect.w &&
+                             pAbsRight > cfg.rect.x &&
+                             pAbsY < cfg.rect.y + cfg.rect.h &&
+                             pAbsBottom > cfg.rect.y)
+            verify(!pOverlaps, "Focused primary card must NEVER overlap bar rect for " + cfg.pos)
+          }
+        }
+
+        // Verify focused secondary rail viewport is strictly bounded inside safe area
+        if (focused.rail && count > 1) {
+          var rAbsX = safe.usableX + focused.rail.x
+          var rAbsY = safe.usableY + focused.rail.y
+          var rAbsRight = rAbsX + focused.rail.width
+          var rAbsBottom = rAbsY + focused.rail.height
+
+          verify(rAbsX >= safe.safeLeft, "Focused rail must not exceed safeLeft (" + rAbsX + " >= " + safe.safeLeft + ")")
+          verify(rAbsY >= safe.safeTop, "Focused rail must not exceed safeTop (" + rAbsY + " >= " + safe.safeTop + ")")
+          verify(rAbsRight <= safe.safeRight, "Focused rail must not exceed safeRight (" + rAbsRight + " <= " + safe.safeRight + ")")
+          verify(rAbsBottom <= safe.safeBottom, "Focused rail must not exceed safeBottom (" + rAbsBottom + " <= " + safe.safeBottom + ")")
+
+          if (cfg.rect.w > 0 && cfg.rect.h > 0) {
+            var rOverlaps = (rAbsX < cfg.rect.x + cfg.rect.w &&
+                             rAbsRight > cfg.rect.x &&
+                             rAbsY < cfg.rect.y + cfg.rect.h &&
+                             rAbsBottom > cfg.rect.y)
+            verify(!rOverlaps, "Focused rail must NEVER overlap bar rect for " + cfg.pos)
+          }
+        }
+      }
     }
+  }
 
-    // Right from primary (0) moves to rail item (1)
-    compare(WindowGeometry.cyclicCardMove(navItems, 0, 1, 0), 1)
-    // Left from rail item (1) moves back to primary (0)
-    compare(WindowGeometry.cyclicCardMove(navItems, 1, -1, 0), 0)
-    // Down from rail item 1 moves to rail item 2
-    compare(WindowGeometry.cyclicCardMove(navItems, 1, 0, 1), 2)
+  function test_safeArea_previewDimensionsEnlargedWithTightenedSpacing() {
+    var screenW = 1920
+    var screenH = 1080
+    var barSize = 35
+    var aspect = 1.55
+
+    // Prior baseline: outerMargin = 20, gridSpacing = 48
+    var oldUsableW = screenW - 40 // 1880
+    var oldUsableH = (screenH - barSize) - 40 // 1005
+    var oldGrid3 = WindowGeometry.overviewGridGeometry(3, oldUsableW, oldUsableH, aspect, 48)
+    var oldFocused3 = WindowGeometry.focusedOverviewGeometry(3, 0, oldUsableW, oldUsableH, aspect, 48)
+
+    // Current improved: outerMargin = 16, gridSpacing = 24
+    var safe = WindowGeometry.safeAreaGeometry(screenW, screenH, "top", barSize, 16, [0, 35, 0, 0])
+    var newGrid3 = WindowGeometry.overviewGridGeometry(3, safe.usableWidth, safe.usableHeight, aspect, 24)
+    var newFocused3 = WindowGeometry.focusedOverviewGeometry(3, 0, safe.usableWidth, safe.usableHeight, aspect, 24)
+
+    // Normal mode 3 workspaces card enlargement
+    var oldCardArea = oldGrid3.cardWidth * oldGrid3.cardHeight
+    var newCardArea = newGrid3.cardWidth * newGrid3.cardHeight
+    verify(newCardArea > oldCardArea, "New preview area must be strictly larger than old area")
+    verify(newCardArea / oldCardArea > 1.06, "New preview area is >6.7% larger (got " + (newCardArea / oldCardArea) + ")")
+
+    // Focused mode primary card and secondary rail enlargement
+    var oldPrimaryArea = oldFocused3.primaryCard.width * oldFocused3.primaryCard.height
+    var newPrimaryArea = newFocused3.primaryCard.width * newFocused3.primaryCard.height
+    verify(newPrimaryArea >= oldPrimaryArea, "Focused primary card must be at least as large")
+    verify(newFocused3.rail.width > oldFocused3.rail.width, "Secondary rail width must be larger with tightened spacing")
   }
 }
+

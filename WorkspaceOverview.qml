@@ -117,28 +117,70 @@ Item {
     }
   }
 
-  // ── Bar geometry ────────────────────────────────────────────────────────────
-  // `shell.bar` is the live Bar plugin instance injected by the shell loader.
-  // It exposes `position` ("top"/"bottom"/"left"/"right"), `barSize` (pixels),
-  // and `barHidden` (bool). We read these reactively — any change automatically
-  // re-evaluates the derived usable-area properties below.
-  //
-  // Fallback: if the bar object is not yet available, all insets stay 0 and the
-  // overview uses its normal outer margin across the full panel.
+  // ── Bar geometry & Safe Viewport ────────────────────────────────────────────
+  // Authoritative multi-tier bar detection:
+  // 1. Live Omarchy `shell.bar` (exposes position, barSize, barHidden)
+  // 2. Shell configuration `shell.barConfig` (position)
+  // 3. Hyprland monitor IPC `reserved` struts ([left, top, right, bottom])
   readonly property var activeBar: shell ? shell.bar : null
-  readonly property string barPosition: (activeBar && !activeBar.barHidden)
-    ? String(activeBar.position || "top")
-    : ""
-  readonly property int barPixels: (activeBar && !activeBar.barHidden && activeBar.barSize > 0)
-    ? activeBar.barSize
-    : 0
+  readonly property string configuredBarPosition: {
+    if (activeBar && activeBar.position) return String(activeBar.position)
+    if (shell && shell.barConfig && shell.barConfig.position) return String(shell.barConfig.position)
+    return "top"
+  }
+  readonly property bool isBarHidden: activeBar ? Boolean(activeBar.barHidden) : false
 
-  // Inset for each edge in logical pixels, derived entirely from the bar's own
-  // exported geometry — no hardcoded heights, no heuristics.
-  readonly property int barInsetTop:    barPosition === "top"    ? barPixels : 0
-  readonly property int barInsetBottom: barPosition === "bottom" ? barPixels : 0
-  readonly property int barInsetLeft:   barPosition === "left"   ? barPixels : 0
-  readonly property int barInsetRight:  barPosition === "right"  ? barPixels : 0
+  readonly property var targetMonitor: {
+    var m = Hyprland.focusedMonitor
+    if (m && root.targetScreen && m.name === root.targetScreen.name) return m
+    var monValues = Hyprland.monitors ? Hyprland.monitors.values : []
+    for (var i = 0; i < monValues.length; i++) {
+      if (monValues[i] && root.targetScreen && monValues[i].name === root.targetScreen.name)
+        return monValues[i]
+    }
+    return m
+  }
+
+  readonly property var monitorReserved: {
+    var mon = root.targetMonitor
+    if (mon && mon.lastIpcObject && mon.lastIpcObject.reserved && mon.lastIpcObject.reserved.length >= 4) {
+      return mon.lastIpcObject.reserved
+    }
+    return [0, 0, 0, 0]
+  }
+
+  // Authoritative bar position & thickness resolution
+  readonly property string barPosition: {
+    if (root.isBarHidden) return ""
+    var resL = root.monitorReserved[0] || 0
+    var resT = root.monitorReserved[1] || 0
+    var resR = root.monitorReserved[2] || 0
+    var resB = root.monitorReserved[3] || 0
+    if (resT > 0 && resT >= resB && resT >= resL && resT >= resR) return "top"
+    if (resB > 0 && resB >= resT && resB >= resL && resB >= resR) return "bottom"
+    if (resL > 0 && resL >= resR && resL >= resT && resL >= resB) return "left"
+    if (resR > 0 && resR >= resL && resR >= resT && resR >= resB) return "right"
+    return root.configuredBarPosition
+  }
+
+  readonly property int barPixels: {
+    if (root.isBarHidden) return 0
+    var pos = root.barPosition
+    var monPixels = 0
+    if (pos === "top") monPixels = root.monitorReserved[1] || 0
+    else if (pos === "bottom") monPixels = root.monitorReserved[3] || 0
+    else if (pos === "left") monPixels = root.monitorReserved[0] || 0
+    else if (pos === "right") monPixels = root.monitorReserved[2] || 0
+
+    var shellBarSize = (activeBar && activeBar.barSize > 0) ? activeBar.barSize : 0
+    return Math.max(shellBarSize, monPixels)
+  }
+
+  // Inset for each edge in logical pixels, derived entirely from authoritative geometry
+  readonly property int barInsetTop:    barPosition === "top"    ? barPixels : (root.monitorReserved[1] || 0)
+  readonly property int barInsetBottom: barPosition === "bottom" ? barPixels : (root.monitorReserved[3] || 0)
+  readonly property int barInsetLeft:   barPosition === "left"   ? barPixels : (root.monitorReserved[0] || 0)
+  readonly property int barInsetRight:  barPosition === "right"  ? barPixels : (root.monitorReserved[2] || 0)
 
   // ── Layout calculation ──────────────────────────────────────────────────────
   readonly property var workspaceModel: root.workspaceIds()
@@ -151,18 +193,19 @@ Item {
   readonly property int cardCount: overviewCardModel.length
   readonly property real cardAspectRatio: 1.55
 
-  // Mirador's own outer margin, applied on top of the bar inset so there is
-  // always a small breathing gap between cards and the bar (or monitor edge).
-  readonly property real outerMargin: Math.max(Style.gapsOut, Style.spacing.panelPadding)
-  readonly property real gridSpacing: Style.space(48)
+  // Optimized breathing outer margin & inter-card spacing to maximize preview dimensions
+  readonly property real outerMargin: Math.max(16, Style.space(16))
+  readonly property real gridSpacing: Style.space(24)
 
-  // Usable panel area after subtracting bar-reserved edges.
-  readonly property real usableX:      barInsetLeft   + outerMargin
-  readonly property real usableY:      barInsetTop    + outerMargin
-  readonly property real usableWidth:  Math.max(1, panel.width
-    - barInsetLeft - barInsetRight - outerMargin * 2)
-  readonly property real usableHeight: Math.max(1, panel.height
-    - barInsetTop - barInsetBottom - outerMargin * 2)
+  // Safe area geometry calculation across any bar position (top/bottom/left/right)
+  readonly property var safeArea: WindowGeometry.safeAreaGeometry(
+    panel.width, panel.height, root.barPosition, root.barPixels, root.outerMargin, root.monitorReserved)
+
+  // Usable panel area strictly bounded inside the safe rectangle
+  readonly property real usableX:      safeArea.usableX
+  readonly property real usableY:      safeArea.usableY
+  readonly property real usableWidth:  safeArea.usableWidth
+  readonly property real usableHeight: safeArea.usableHeight
 
   // Usable grid area across full usable panel
   readonly property real usableGridY: root.usableY
@@ -360,9 +403,9 @@ Item {
 
   function focusedCardGeom(idx) {
     if (root.overviewMode !== "focused" || idx < 0) return null
-    if (!root.focusedGeometry || !root.focusedGeometry.cards) return null
-    if (idx < root.focusedGeometry.cards.length) {
-      return root.focusedGeometry.cards[idx]
+    var fg = root.focusedGeometry
+    if (fg && fg.cards && idx < fg.cards.length) {
+      return fg.cards[idx]
     }
     return null
   }
@@ -436,7 +479,6 @@ Item {
       var gy = root.slotY(slotIdx)
       var width = root.slotWidth(slotIdx)
       var height = root.slotHeight(slotIdx)
-
       var isPrimary = (root.overviewMode === "focused" && slotIdx === (root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0))
 
       items.push({
@@ -832,22 +874,23 @@ Item {
             required property int index
 
             readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
-            readonly property bool isPrimaryFocusedCard: root.overviewMode === "focused" && slotIndex === (root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0)
-            readonly property bool isRailSecondary: root.overviewMode === "focused" && !isPrimaryFocusedCard
 
             x: root.slotX(slotIndex)
             y: root.slotY(slotIndex)
             width: root.slotWidth(slotIndex)
             height: root.slotHeight(slotIndex)
+            visible: {
+              if (root.overviewMode !== "focused") return true
+              if (slotIndex === (root.selectedCardIndex >= 0 ? root.selectedCardIndex : 0)) return true
+              var cy = y
+              var ch = height
+              return (cy + ch > -root.gridSpacing && cy < root.usableGridHeight + root.gridSpacing)
+            }
 
             overview: root
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
-            livePreviews: {
-              if (!root.opened || !panel.visible) return false
-              if (root.overviewMode !== "focused") return true
-              return isPrimaryFocusedCard || (y + height >= root.usableGridY && y <= root.usableGridY + root.usableGridHeight)
-            }
+            livePreviews: root.opened && panel.visible
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
             focused: Hyprland.focusedWorkspace !== null
