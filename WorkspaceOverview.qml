@@ -926,6 +926,11 @@ Item {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
+    onVisibleChanged: {
+      if (visible) {
+        Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      }
+    }
 
     Rectangle {
       anchors.fill: parent

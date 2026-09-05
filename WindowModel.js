@@ -222,13 +222,13 @@ function specialWorkspaceName(ws) {
   if (ws === null || ws === undefined) return "scratchpad"
   if (typeof ws === "string") {
     if (ws.indexOf("special:") === 0) return ws.slice(8)
-    if (ws === "special") return "scratchpad"
+    if (ws === "special") return ""
     return ws
   }
   if (ws.specialName) return String(ws.specialName)
   var name = String(ws.name || "")
   if (name.indexOf("special:") === 0) return name.slice(8)
-  if (name === "special") return "scratchpad"
+  if (name === "special") return ""
   return name || "scratchpad"
 }
 
