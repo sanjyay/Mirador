@@ -139,7 +139,12 @@ TestCase {
   }
 
   function computeInsertionTargets(workspaceIds) {
-    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
+    var raw = workspaceIds || []
+    var ids = []
+    for (var k = 0; k < raw.length; k++) {
+      if (raw[k] > 0) ids.push(raw[k])
+    }
+    ids.sort(function(a, b) { return a - b })
     if (ids.length === 0) return []
 
     var targets = []
@@ -158,24 +163,34 @@ TestCase {
   }
 
   function test_insertionDropZoneTargets() {
-    // [1, 3, 5] -> insertion targets [2, 4, 6]
-    var targets135 = computeInsertionTargets([1, 3, 5])
-    compare(targets135.length, 3)
-    compare(targets135[0], 2)
-    compare(targets135[1], 4)
-    compare(targets135[2], 6)
+    // Basic contiguous [1, 2, 3] -> only append target [4]
+    var t1 = computeInsertionTargets([1, 2, 3])
+    compare(t1.length, 1)
+    compare(t1[0], 4)
 
-    // [3, 5] -> insertion targets [2, 4, 6]
-    var targets35 = computeInsertionTargets([3, 5])
-    compare(targets35.length, 3)
-    compare(targets35[0], 2)
-    compare(targets35[1], 4)
-    compare(targets35[2], 6)
+    // With leading gap [3, 4] -> prepend target [2] and append [5]
+    var t2 = computeInsertionTargets([3, 4])
+    compare(t2.length, 2)
+    compare(t2[0], 2)
+    compare(t2[1], 5)
 
-    // [1, 2, 3] -> insertion target [4]
-    var targets123 = computeInsertionTargets([1, 2, 3])
-    compare(targets123.length, 1)
-    compare(targets123[0], 4)
+    // With middle gap [1, 3, 5] -> targets [2, 4, 6]
+    var t3 = computeInsertionTargets([1, 3, 5])
+    compare(t3.length, 3)
+    compare(t3[0], 2)
+    compare(t3[1], 4)
+    compare(t3[2], 6)
+
+    // Single workspace [1] -> target [2]
+    var t4 = computeInsertionTargets([1])
+    compare(t4.length, 1)
+    compare(t4[0], 2)
+
+    // Single workspace > 1 [2] -> targets [1, 3]
+    var t5 = computeInsertionTargets([2])
+    compare(t5.length, 2)
+    compare(t5[0], 1)
+    compare(t5[1], 3)
   }
 
   function test_insertionWorkspaceCardStructure() {
@@ -190,32 +205,57 @@ TestCase {
   }
 
   function buildOverviewItems(workspaceIds, isDragging) {
-    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
-    if (ids.length === 0) return []
+    var raw = workspaceIds || []
+    if (raw.length === 0) return []
+
+    var numericIds = []
+    var specialIds = []
+    for (var i = 0; i < raw.length; i++) {
+      var id = raw[i]
+      if (id > 0) numericIds.push(id)
+      else specialIds.push(id)
+    }
+    numericIds.sort(function(a, b) { return a - b })
 
     if (!isDragging) {
       var items = []
-      for (var i = 0; i < ids.length; i++) {
-        items.push({ workspaceId: ids[i], isInsertion: false })
+      for (var n = 0; n < numericIds.length; n++) {
+        items.push({ workspaceId: numericIds[n], isInsertion: false, isScratchpad: false })
+      }
+      for (var s = 0; s < specialIds.length; s++) {
+        items.push({ workspaceId: specialIds[s], isInsertion: false, isScratchpad: true })
       }
       return items
     }
 
     var items = []
-    if (ids[0] > 1) {
-      items.push({ workspaceId: ids[0] - 1, isInsertion: true })
+    // 1. Before first workspace (if first > 1)
+    if (numericIds.length > 0 && numericIds[0] > 1) {
+      items.push({ workspaceId: numericIds[0] - 1, isInsertion: true, isScratchpad: false })
     }
 
-    for (var i = 0; i < ids.length; i++) {
-      items.push({ workspaceId: ids[i], isInsertion: false })
-      if (i < ids.length - 1) {
-        if (ids[i + 1] > ids[i] + 1) {
-          items.push({ workspaceId: ids[i] + 1, isInsertion: true })
+    for (var j = 0; j < numericIds.length; j++) {
+      // Add the real workspace
+      items.push({ workspaceId: numericIds[j], isInsertion: false, isScratchpad: false })
+
+      // If there is a gap before the next workspace, insert target (cur + 1)
+      if (j < numericIds.length - 1) {
+        if (numericIds[j + 1] > numericIds[j] + 1) {
+          items.push({ workspaceId: numericIds[j] + 1, isInsertion: true, isScratchpad: false })
         }
       }
     }
 
-    items.push({ workspaceId: ids[ids.length - 1] + 1, isInsertion: true })
+    // 3. After last numeric workspace
+    if (numericIds.length > 0) {
+      items.push({ workspaceId: numericIds[numericIds.length - 1] + 1, isInsertion: true, isScratchpad: false })
+    }
+
+    // 4. Scratchpad cards appended at the end without insertion targets
+    for (var k = 0; k < specialIds.length; k++) {
+      items.push({ workspaceId: specialIds[k], isInsertion: false, isScratchpad: true })
+    }
+
     return items
   }
 
@@ -558,7 +598,145 @@ TestCase {
     verify(/cardsContainer[\s\S]*clip\s*:\s*true/.test(source),
       "cardsContainer must clip content so nothing ever renders outside safe viewport")
   }
+
+  function test_scratchpadIntegrationAndPresence() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // 1. WindowModel import in WorkspaceOverview.qml
+    verify(/import\s+"WindowModel\.js"\s+as\s+WindowModel/.test(source),
+      "WorkspaceOverview must import WindowModel.js")
+
+    // 2. Special workspace discovery and window count functions
+    verify(/function\s+isSpecialWorkspace\(ws\)/.test(source),
+      "WorkspaceOverview must declare isSpecialWorkspace helper")
+    verify(/function\s+specialWorkspaceName\(ws\)/.test(source),
+      "WorkspaceOverview must declare specialWorkspaceName helper")
+    verify(/function\s+workspaceWindowCount\(ws\)/.test(source),
+      "WorkspaceOverview must declare workspaceWindowCount helper")
+    verify(/function\s+specialWorkspaces\(\)/.test(source),
+      "WorkspaceOverview must declare specialWorkspaces helper")
+    verify(/function\s+toggleSpecialWorkspace\(specialName\)/.test(source),
+      "WorkspaceOverview must declare toggleSpecialWorkspace helper")
+
+    // 3. Scratchpad disappearance when empty: specialWorkspaces only includes workspaces with window count > 0
+    verify(/workspaceWindowCount\(ws\)\s*>\s*0/.test(source),
+      "specialWorkspaces must filter only special workspaces holding windows (> 0)")
+
+    // 4. Scratchpad card property and badge label in WorkspaceCard.qml
+    verify(/readonly\s+property\s+bool\s+isScratchpad\s*:/.test(cardSource),
+      "WorkspaceCard must declare isScratchpad property")
+    verify(/WindowModel\.workspaceBadgeText\(root\.workspaceId,\s*root\.isScratchpad\)/.test(cardSource),
+      "WorkspaceCard badge must display badge text via WindowModel.workspaceBadgeText")
+
+    // 5. Valid drop target accepts scratchpad
+    verify(/\(workspaceId\s*>\s*0\s*\|\|\s*root\.isScratchpad\)/.test(cardSource),
+      "WorkspaceCard must allow drop targeting when isScratchpad is true")
+  }
+
+  function test_scratchpadBuildOverviewItemsAndInsertionTargets() {
+    // 1. Resting state: [1, 2, -98] -> 3 items, numeric first, scratchpad appended with isScratchpad === true
+    var resting = buildOverviewItems([1, 2, -98], false)
+    compare(resting.length, 3)
+    compare(resting[0].workspaceId, 1)
+    compare(resting[0].isInsertion, false)
+    compare(resting[0].isScratchpad, false)
+    compare(resting[1].workspaceId, 2)
+    compare(resting[1].isInsertion, false)
+    compare(resting[1].isScratchpad, false)
+    compare(resting[2].workspaceId, -98)
+    compare(resting[2].isInsertion, false)
+    compare(resting[2].isScratchpad, true)
+
+    // 2. Drag state: [1, 2, -98] -> insertion targets ONLY for numeric workspaces
+    // Numeric: [1, 2] -> [1, 2, 3 (ins)]
+    // Scratchpad: [-98] -> appended at end without insertion targets
+    var dragging = buildOverviewItems([1, 2, -98], true)
+    compare(dragging.length, 4)
+    compare(dragging[0].workspaceId, 1)
+    compare(dragging[0].isInsertion, false)
+    compare(dragging[1].workspaceId, 2)
+    compare(dragging[1].isInsertion, false)
+    compare(dragging[2].workspaceId, 3)
+    compare(dragging[2].isInsertion, true)
+    compare(dragging[3].workspaceId, -98)
+    compare(dragging[3].isInsertion, false)
+    compare(dragging[3].isScratchpad, true)
+
+    // 3. computeInsertionTargets ignores negative special workspace IDs
+    var targets = computeInsertionTargets([1, 2, -98])
+    compare(targets.length, 1)
+    compare(targets[0], 3)
+
+    var targetsWithGap = computeInsertionTargets([1, 4, -98])
+    compare(targetsWithGap.length, 2)
+    compare(targetsWithGap[0], 2)
+    compare(targetsWithGap[1], 5)
+  }
+
+  function test_scratchpadActivationAndWindowMovement() {
+    var source = workspaceOverviewSource()
+
+    // 1. activateWorkspace toggles special workspace when ID < 0 or isSpecialWorkspace
+    var actWsMatch = source.match(/function\s+activateWorkspace\(workspace,\s*workspaceId,\s*occupied\)[\s\S]*?\n  \}/)
+    verify(actWsMatch && /toggleSpecialWorkspace/.test(actWsMatch[0]),
+      "activateWorkspace must call toggleSpecialWorkspace for scratchpad")
+    verify(actWsMatch && /Qt\.callLater\(root\.dismiss\)/.test(actWsMatch[0]),
+      "activateWorkspace must dismiss overview when scratchpad is toggled")
+
+    // 2. activateSelectedCard toggles special workspace when selected card is scratchpad
+    var actSelMatch = source.match(/function\s+activateSelectedCard\(\)[\s\S]*?\n  \}/)
+    verify(actSelMatch && /toggleSpecialWorkspace/.test(actSelMatch[0]),
+      "activateSelectedCard must call toggleSpecialWorkspace for scratchpad")
+
+    // 3. moveWindowToWorkspace supports negative target workspace IDs (scratchpad)
+    var moveMatch = source.match(/function\s+moveWindowToWorkspace\(toplevel,\s*workspaceId\)[\s\S]*?\n  \}/)
+    verify(moveMatch && /isTargetSpecial/.test(moveMatch[0]),
+      "moveWindowToWorkspace must identify special targets")
+    verify(moveMatch && /special:scratchpad/.test(moveMatch[0]),
+      "moveWindowToWorkspace must resolve special:scratchpad target name")
+    verify(moveMatch && /MOVE\s*→\s*SCRATCHPAD/.test(moveMatch[0]),
+      "moveWindowToWorkspace must show SCRATCHPAD demo hint when moving to scratchpad")
+  }
+
+  function test_scratchpadSpaceAndKeyNavigationInvariants() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // 1. Space key always invokes toggleOverviewMode(), NEVER activates scratchpad
+    // onActivateRequested in PanelKeyCatcher triggers root.toggleOverviewMode()
+    verify(/onActivateRequested\s*:\s*\{[\s\S]*root\.toggleOverviewMode\(\)/.test(source),
+      "Space must ALWAYS toggle between Normal and Focused mode")
+    verify(!/onActivateRequested[\s\S]*toggleSpecialWorkspace/.test(source),
+      "Space must NEVER call toggleSpecialWorkspace")
+
+    // 2. Only Enter/Return (onReturnRequested) or mouse activation triggers scratchpad activation
+    verify(/onReturnRequested\s*:\s*\{[\s\S]*root\.activateSelectedCard\(\)/.test(source),
+      "Return/Enter must trigger activateSelectedCard")
+
+    // 3. WorkspaceCard explicitly receives isSpecial from overviewItem
+    verify(/isSpecial\s*:\s*Boolean\(overviewItem\s*&&\s*overviewItem\.isScratchpad\)/.test(source),
+      "WorkspaceOverview must explicitly bind isSpecial to WorkspaceCard from overviewItem")
+    verify(/property\s+bool\s+isSpecial\s*:\s*false/.test(cardSource),
+      "WorkspaceCard must declare isSpecial property")
+
+    // 4. In Focused mode with Scratchpad selected (e.g. index 2 in [1, 2, -98]),
+    // scratchpad is promoted to primary card (isPrimary: true)
+    var items = [
+      { workspaceId: 1, isInsertion: false, isScratchpad: false },
+      { workspaceId: 2, isInsertion: false, isScratchpad: false },
+      { workspaceId: -98, isInsertion: false, isScratchpad: true }
+    ]
+    var scratchpadIndex = 2
+    var focusedGeom = WindowGeometry.focusedOverviewGeometry(
+      items.length, scratchpadIndex, 1920, 1080, 16 / 9, 24)
+    compare(focusedGeom.primaryIndex, scratchpadIndex)
+    compare(focusedGeom.cards.length, 3)
+    verify(focusedGeom.cards[scratchpadIndex].isPrimary === true,
+      "Scratchpad card must be primary when selected in focused mode")
+    verify(focusedGeom.cards[0].isPrimary === false,
+      "Numeric card 0 must be in secondary rail")
+    verify(focusedGeom.cards[1].isPrimary === false,
+      "Numeric card 1 must be in secondary rail")
+  }
 }
-
-
-

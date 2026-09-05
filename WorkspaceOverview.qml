@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "GestureHelper.js" as GestureHelper
+import "WindowModel.js" as WindowModel
 
 Item {
   id: root
@@ -268,39 +269,120 @@ Item {
   }
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
+  function isSpecialWorkspace(ws) {
+    return WindowModel.isSpecialWorkspace(ws)
+  }
+
+  function specialWorkspaceName(ws) {
+    return WindowModel.specialWorkspaceName(ws)
+  }
+
+  function workspaceWindowCount(ws) {
+    if (!ws) return 0
+    if (ws.toplevels && ws.toplevels.values && ws.toplevels.values.length > 0)
+      return ws.toplevels.values.length
+    if (ws.lastIpcObject && typeof ws.lastIpcObject.windows === "number")
+      return ws.lastIpcObject.windows
+    var count = 0
+    var toplevels = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var i = 0; i < toplevels.length; i++) {
+      var t = toplevels[i]
+      if (t && t.workspace && t.workspace.id === ws.id) {
+        count++
+      }
+    }
+    return count
+  }
+
+  function specialWorkspaces() {
+    var specials = []
+    var seenIds = {}
+    var wsValues = Hyprland.workspaces ? Hyprland.workspaces.values : []
+    for (var i = 0; i < wsValues.length; i++) {
+      var ws = wsValues[i]
+      if (!ws) continue
+      if (root.isSpecialWorkspace(ws) && root.workspaceWindowCount(ws) > 0) {
+        if (!seenIds[ws.id]) {
+          seenIds[ws.id] = true
+          specials.push(ws)
+        }
+      }
+    }
+
+    var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var j = 0; j < tops.length; j++) {
+      var tws = tops[j] ? tops[j].workspace : null
+      if (tws && root.isSpecialWorkspace(tws) && !seenIds[tws.id]) {
+        seenIds[tws.id] = true
+        specials.push(tws)
+      }
+    }
+
+    return specials
+  }
+
+  function toggleSpecialWorkspace(specialName) {
+    var name = root.specialWorkspaceName(specialName)
+    if (Hyprland.usingLua) {
+      if (name.length > 0) {
+        Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + name + "\")")
+      } else {
+        Hyprland.dispatch("hl.dsp.workspace.toggle_special()")
+      }
+    } else {
+      if (name.length > 0) {
+        Hyprland.dispatch("togglespecialworkspace " + name)
+      } else {
+        Hyprland.dispatch("togglespecialworkspace")
+      }
+    }
+  }
+
   function workspaceById(id) {
     var values = Hyprland.workspaces ? Hyprland.workspaces.values : []
     for (var i = 0; i < values.length; i++) {
-      if (values[i] && values[i].id === id) return values[i]
+      if (values[i] && (values[i].id === id || values[i].name === id)) return values[i]
+    }
+    var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var j = 0; j < tops.length; j++) {
+      var tws = tops[j] ? tops[j].workspace : null
+      if (tws && (tws.id === id || tws.name === id)) return tws
     }
     return null
   }
 
   function workspaceIds() {
-    var ids = []
+    var numericIds = []
     var values = Hyprland.workspaces ? Hyprland.workspaces.values : []
 
     for (var i = 0; i < values.length; i++) {
       var ws = values[i]
       if (!ws) continue
       var id = Number(ws.id)
-      if (id > 0 && ids.indexOf(id) === -1) {
-        ids.push(id)
+      if (id > 0 && numericIds.indexOf(id) === -1) {
+        numericIds.push(id)
       }
     }
 
-    if (ids.length === 0) {
+    if (numericIds.length === 0) {
       var focused = Hyprland.focusedWorkspace
-      if (focused && focused.id > 0) ids.push(focused.id)
-      else ids.push(1)
+      if (focused && focused.id > 0) numericIds.push(focused.id)
+      else numericIds.push(1)
     }
 
-    ids.sort(function(left, right) { return left - right })
-    return ids
+    numericIds.sort(function(left, right) { return left - right })
+
+    var specials = root.specialWorkspaces()
+    var result = numericIds.slice()
+    for (var s = 0; s < specials.length; s++) {
+      result.push(Number(specials[s].id))
+    }
+    return result
   }
 
   function contextualNextWorkspaceId(currentId, existingIds) {
     var c = Number(currentId) || 1
+    if (c < 1) c = 1
     var existing = existingIds || []
 
     for (var d = 1; d <= 100; d++) {
@@ -319,48 +401,76 @@ Item {
   function nextWorkspaceId() {
     var currentId = (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id > 0)
       ? Hyprland.focusedWorkspace.id
-      : (root.workspaceModel.length > 0 ? root.workspaceModel[0] : 1)
+      : (root.workspaceModel.length > 0 && root.workspaceModel[0] > 0 ? root.workspaceModel[0] : 1)
     return contextualNextWorkspaceId(currentId, root.workspaceModel)
   }
 
   function buildOverviewItems(workspaceIds, isDragging) {
-    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
-    if (ids.length === 0) return []
+    var raw = workspaceIds || []
+    if (raw.length === 0) return []
+
+    var numericIds = []
+    var specialIds = []
+    for (var i = 0; i < raw.length; i++) {
+      var id = raw[i]
+      var ws = root.workspaceById(id)
+      if (root.isSpecialWorkspace(ws) || (typeof id === "number" && id < 0)) {
+        specialIds.push(id)
+      } else {
+        numericIds.push(id)
+      }
+    }
+    numericIds.sort(function(a, b) { return a - b })
 
     if (!isDragging) {
       var items = []
-      for (var i = 0; i < ids.length; i++) {
-        items.push({ workspaceId: ids[i], isInsertion: false })
+      for (var n = 0; n < numericIds.length; n++) {
+        items.push({ workspaceId: numericIds[n], isInsertion: false, isScratchpad: false })
+      }
+      for (var s = 0; s < specialIds.length; s++) {
+        items.push({ workspaceId: specialIds[s], isInsertion: false, isScratchpad: true })
       }
       return items
     }
 
     var items = []
     // 1. Before first workspace (if first > 1)
-    if (ids[0] > 1) {
-      items.push({ workspaceId: ids[0] - 1, isInsertion: true })
+    if (numericIds.length > 0 && numericIds[0] > 1) {
+      items.push({ workspaceId: numericIds[0] - 1, isInsertion: true, isScratchpad: false })
     }
 
-    for (var i = 0; i < ids.length; i++) {
+    for (var j = 0; j < numericIds.length; j++) {
       // Add the real workspace
-      items.push({ workspaceId: ids[i], isInsertion: false })
+      items.push({ workspaceId: numericIds[j], isInsertion: false, isScratchpad: false })
 
       // If there is a gap before the next workspace, insert target (cur + 1)
-      if (i < ids.length - 1) {
-        if (ids[i + 1] > ids[i] + 1) {
-          items.push({ workspaceId: ids[i] + 1, isInsertion: true })
+      if (j < numericIds.length - 1) {
+        if (numericIds[j + 1] > numericIds[j] + 1) {
+          items.push({ workspaceId: numericIds[j] + 1, isInsertion: true, isScratchpad: false })
         }
       }
     }
 
-    // 3. After last workspace
-    items.push({ workspaceId: ids[ids.length - 1] + 1, isInsertion: true })
+    // 3. After last numeric workspace
+    if (numericIds.length > 0) {
+      items.push({ workspaceId: numericIds[numericIds.length - 1] + 1, isInsertion: true, isScratchpad: false })
+    }
+
+    // 4. Scratchpad cards appended at the end without insertion targets
+    for (var k = 0; k < specialIds.length; k++) {
+      items.push({ workspaceId: specialIds[k], isInsertion: false, isScratchpad: true })
+    }
 
     return items
   }
 
   function computeInsertionTargets(workspaceIds) {
-    var ids = (workspaceIds || []).slice().sort(function(a, b) { return a - b })
+    var raw = workspaceIds || []
+    var ids = []
+    for (var k = 0; k < raw.length; k++) {
+      if (raw[k] > 0) ids.push(raw[k])
+    }
+    ids.sort(function(a, b) { return a - b })
     if (ids.length === 0) return []
 
     var targets = []
@@ -540,12 +650,20 @@ Item {
     var item = root.overviewCardModel[index]
     var workspaceId = typeof item === "object" ? item.workspaceId : item
     var isInsertion = typeof item === "object" ? Boolean(item.isInsertion) : false
+    var ws = root.workspaceById(workspaceId)
+    var isScratch = (typeof item === "object" && Boolean(item.isScratchpad))
+                    || root.isSpecialWorkspace(ws)
+                    || (typeof workspaceId === "number" && workspaceId < 0)
+
     if (isInsertion) {
       root.dispatchWorkspace(workspaceId)
       Hyprland.refreshWorkspaces()
       Hyprland.refreshToplevels()
+    } else if (isScratch) {
+      root.showDemoHint("TOGGLE SCRATCHPAD", false)
+      var specialName = (ws && ws.name) ? ws.name : "scratchpad"
+      root.toggleSpecialWorkspace(specialName)
     } else {
-      var ws = root.workspaceById(workspaceId)
       if (ws) ws.activate()
       else root.dispatchWorkspace(workspaceId)
     }
@@ -675,9 +793,26 @@ Item {
   }
 
   // Workspace activation: switches Hyprland active workspace.
-  // When clicking inside an empty workspace, transports to that workspace and closes Mirador.
+  // When clicking inside an empty workspace or scratchpad, transports/toggles that workspace and closes Mirador.
   // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
   function activateWorkspace(workspace, workspaceId, occupied) {
+    var isSpecial = root.isSpecialWorkspace(workspace)
+      || (function() {
+        for (var i = 0; i < root.overviewCardModel.length; i++) {
+          var it = root.overviewCardModel[i]
+          if (it && it.workspaceId === workspaceId) return Boolean(it.isScratchpad)
+        }
+        return typeof workspaceId === "number" && workspaceId < 0
+      })()
+
+    if (isSpecial) {
+      root.showDemoHint("TOGGLE SCRATCHPAD", false)
+      var specialName = (workspace && workspace.name) ? workspace.name : "scratchpad"
+      root.toggleSpecialWorkspace(specialName)
+      Qt.callLater(root.dismiss)
+      return
+    }
+
     root.showDemoHint("SWITCH → WS " + workspaceId, false)
     if (workspace) workspace.activate()
     else root.dispatchWorkspace(workspaceId)
@@ -718,25 +853,46 @@ Item {
     Qt.callLater(root.dismiss) // WINDOW ACTIVATION CLOSES MIRADOR
   }
 
-  // Drag-and-drop window move: moves window to workspace AND KEEPS MIRADOR OPEN
   function moveWindowToWorkspace(toplevel, workspaceId) {
     var address = root.normalizedAddress(toplevel)
     var sourceId = root.sourceWorkspaceId(toplevel)
-    if (!address || workspaceId <= 0 || sourceId === workspaceId) {
+    var targetWs = root.workspaceById(workspaceId)
+    var isTargetSpecial = root.isSpecialWorkspace(targetWs)
+      || (function() {
+        for (var i = 0; i < root.overviewCardModel.length; i++) {
+          var it = root.overviewCardModel[i]
+          if (it && it.workspaceId === workspaceId) return Boolean(it.isScratchpad)
+        }
+        return typeof workspaceId === "number" && workspaceId < 0
+      })()
+
+    if (!address || (!isTargetSpecial && workspaceId <= 0) || sourceId === workspaceId) {
       if (demoOverlay) demoOverlay.hideHint()
       return false
     }
 
     var app = root.appNameFor(toplevel)
-    var label = app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId)
-    root.showDemoHint(label, false)
+    var targetStr = ""
+
+    if (isTargetSpecial) {
+      var targetWs = root.workspaceById(workspaceId)
+      var specialName = (targetWs && targetWs.name) ? targetWs.name : "special:scratchpad"
+      if (specialName.indexOf("special:") !== 0 && specialName !== "special") {
+        specialName = "special:" + specialName
+      }
+      targetStr = specialName
+      root.showDemoHint(app ? (app + " → SCRATCHPAD") : "MOVE → SCRATCHPAD", false)
+    } else {
+      targetStr = String(workspaceId)
+      root.showDemoHint(app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId), false)
+    }
 
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
-      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + workspaceId
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + targetStr
         + "\", window = \"address:" + address + "\", follow = false })")
     } else {
-      Hyprland.dispatch("movetoworkspacesilent " + workspaceId + ",address:" + address)
+      Hyprland.dispatch("movetoworkspacesilent " + targetStr + ",address:" + address)
     }
     Hyprland.refreshWorkspaces()
     Hyprland.refreshToplevels()
@@ -874,6 +1030,7 @@ Item {
             required property int index
 
             readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+            readonly property var overviewItem: (slotIndex >= 0 && slotIndex < root.overviewCardModel.length) ? root.overviewCardModel[slotIndex] : null
 
             x: root.slotX(slotIndex)
             y: root.slotY(slotIndex)
@@ -890,6 +1047,7 @@ Item {
             overview: root
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
+            isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
             livePreviews: root.opened && panel.visible
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex

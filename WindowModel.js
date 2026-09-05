@@ -195,3 +195,48 @@ function visibleWorkspaceWindows(clients, activeAddress) {
   }
   return result
 }
+
+// Check whether a workspace object or ID represents a special/scratchpad workspace.
+// Prioritizes explicit name and type checks (e.g. "special:scratchpad", isSpecial, isScratchpad)
+// while retaining negative IDs as compositor fallback metadata.
+function isSpecialWorkspace(ws) {
+  if (ws === null || ws === undefined) return false
+  if (typeof ws === "string") {
+    return ws === "special" || ws.indexOf("special:") === 0
+  }
+  if (typeof ws === "object") {
+    if (ws.isSpecial !== undefined && ws.isSpecial !== null) return Boolean(ws.isSpecial)
+    if (ws.isScratchpad !== undefined && ws.isScratchpad !== null) return Boolean(ws.isScratchpad)
+    var name = String(ws.name || "")
+    if (name === "special" || name.indexOf("special:") === 0) return true
+    var idNum = Number(ws.id)
+    if (!isNaN(idNum) && idNum < 0) return true
+    return false
+  }
+  if (typeof ws === "number") return ws < 0
+  return false
+}
+
+// Extract the target name for Hyprland dispatchers (e.g. "scratchpad" for togglespecialworkspace)
+function specialWorkspaceName(ws) {
+  if (ws === null || ws === undefined) return "scratchpad"
+  if (typeof ws === "string") {
+    if (ws.indexOf("special:") === 0) return ws.slice(8)
+    if (ws === "special") return "scratchpad"
+    return ws
+  }
+  if (ws.specialName) return String(ws.specialName)
+  var name = String(ws.name || "")
+  if (name.indexOf("special:") === 0) return name.slice(8)
+  if (name === "special") return "scratchpad"
+  return name || "scratchpad"
+}
+
+// Compute the badge display label for any workspace card ("S" for scratchpads, "0" for 10)
+function workspaceBadgeText(workspaceId, isScratchpad) {
+  if (isScratchpad || (typeof workspaceId === "number" && workspaceId < 0)) return "S"
+  var idNum = Number(workspaceId)
+  if (idNum === 10) return "0"
+  return String(workspaceId !== undefined && workspaceId !== null ? workspaceId : "")
+}
+
