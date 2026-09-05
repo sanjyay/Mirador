@@ -294,12 +294,15 @@ function fallbackGeometry(index, count, areaWidth, areaHeight, spacing) {
 // Computes next selected workspace index using rendered 2D geometry with wrap-around.
 //
 // Rules:
-// - Left on leftmost workspace wraps to rightmost in the same row.
-// - Right on rightmost workspace wraps to leftmost in the same row.
-// - Up from top row wraps to bottom row.
-// - Down from bottom row wraps to top row.
-// - Vertical movement chooses the workspace whose horizontal center is closest
-//   to the current workspace.
+// - Left / Right = one continuous global cycle across all visual rows:
+//   Workspaces are ordered in visual reading order (top row left-to-right, then second row left-to-right, etc.).
+//   Right advances to the next workspace in the global visual sequence; from the very last workspace, wraps to the very first.
+//   Left moves to the previous workspace in the global visual sequence; from the very first workspace, wraps to the very last.
+//   Left / Right do NOT wrap inside the current row.
+// - Up / Down = spatial row navigation:
+//   Moves between visual rows (dy > 0 next row down, dy < 0 next row up).
+//   Up from top row wraps to bottom row; Down from bottom row wraps to top row.
+//   Chooses the workspace in the target row whose horizontal center (centerX) is closest to the current workspace's horizontal center.
 // - Operates purely on rendered geometry (x, y, width, height, centerX, centerY),
 //   never on workspace IDs.
 // - Ignores insertion cards (isInsertion === true) and non-workspace elements.
@@ -391,42 +394,53 @@ function cyclicCardMove(items, currentIndex, dx, dy) {
     rows[r].items.sort(function(a, b) { return a.centerX - b.centerX })
   }
 
-  // Locate current row and column indices
-  var currentRowIndex = -1
-  var currentColIndex = -1
+  // Flatten rows into a continuous global visual sequence (reading order)
+  var orderedItems = []
   for (var r = 0; r < rows.length; r++) {
     for (var c = 0; c < rows[r].items.length; c++) {
-      if (rows[r].items[c] === currentItem) {
-        currentRowIndex = r
-        currentColIndex = c
-        break
-      }
+      orderedItems.push(rows[r].items[c])
     }
-    if (currentRowIndex !== -1) break
   }
 
-  if (currentRowIndex === -1) {
-    currentRowIndex = 0
-    currentColIndex = 0
+  // Locate current item in orderedItems and in rows
+  var currentGlobalIndex = -1
+  for (var i = 0; i < orderedItems.length; i++) {
+    if (orderedItems[i] === currentItem) {
+      currentGlobalIndex = i
+      break
+    }
   }
+  if (currentGlobalIndex === -1) currentGlobalIndex = 0
 
-  // Horizontal cyclic navigation within the same row
+  // 1. Horizontal navigation: one continuous global cycle
+  // Left / Right ignores row boundaries completely.
   if (dx !== 0) {
-    var rowItems = rows[currentRowIndex].items
-    var rowLen = rowItems.length
-    if (rowLen <= 1) return rowItems[0].index
+    var total = orderedItems.length
+    if (total <= 1) return orderedItems[0].index
 
-    var nextCol = currentColIndex
-    if (dx < 0) {
-      nextCol = (currentColIndex - 1 + rowLen) % rowLen
-    } else if (dx > 0) {
-      nextCol = (currentColIndex + 1) % rowLen
+    var nextGlobalIndex = currentGlobalIndex
+    if (dx > 0) {
+      nextGlobalIndex = (currentGlobalIndex + 1) % total
+    } else if (dx < 0) {
+      nextGlobalIndex = (currentGlobalIndex - 1 + total) % total
     }
-    return rowItems[nextCol].index
+    return orderedItems[nextGlobalIndex].index
   }
 
-  // Vertical cyclic navigation with horizontal center proximity matching
+  // 2. Vertical navigation: spatial row navigation with wrapping
   if (dy !== 0) {
+    var currentRowIndex = -1
+    for (var r = 0; r < rows.length; r++) {
+      for (var c = 0; c < rows[r].items.length; c++) {
+        if (rows[r].items[c] === currentItem) {
+          currentRowIndex = r
+          break
+        }
+      }
+      if (currentRowIndex !== -1) break
+    }
+    if (currentRowIndex === -1) currentRowIndex = 0
+
     var numRows = rows.length
     if (numRows <= 1) return currentItem.index
 

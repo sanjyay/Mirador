@@ -319,10 +319,10 @@ TestCase {
       { index: 4, x: 100, y: 100, width: 80, height: 60 },
       { index: 5, x: 200, y: 100, width: 80, height: 60 }
     ]
-    // Left on leftmost in row 0 (index 0) wraps to rightmost in row 0 (index 2)
-    compare(WindowGeometry.cyclicCardMove(grid, 0, -1, 0), 2)
-    // Left on leftmost in row 1 (index 3) wraps to rightmost in row 1 (index 5)
-    compare(WindowGeometry.cyclicCardMove(grid, 3, -1, 0), 5)
+    // Left from first workspace (index 0) wraps to very last workspace (index 5)
+    compare(WindowGeometry.cyclicCardMove(grid, 0, -1, 0), 5)
+    // Left from first in row 1 (index 3) moves to last in row 0 (index 2)
+    compare(WindowGeometry.cyclicCardMove(grid, 3, -1, 0), 2)
   }
 
   function test_cyclicNavigation_rightWrap() {
@@ -334,10 +334,77 @@ TestCase {
       { index: 4, x: 100, y: 100, width: 80, height: 60 },
       { index: 5, x: 200, y: 100, width: 80, height: 60 }
     ]
-    // Right on rightmost in row 0 (index 2) wraps to leftmost in row 0 (index 0)
-    compare(WindowGeometry.cyclicCardMove(grid, 2, 1, 0), 0)
-    // Right on rightmost in row 1 (index 5) wraps to leftmost in row 1 (index 3)
-    compare(WindowGeometry.cyclicCardMove(grid, 5, 1, 0), 3)
+    // Right from last in row 0 (index 2) moves to first in row 1 (index 3)
+    compare(WindowGeometry.cyclicCardMove(grid, 2, 1, 0), 3)
+    // Right from very last workspace (index 5) wraps to first workspace (index 0)
+    compare(WindowGeometry.cyclicCardMove(grid, 5, 1, 0), 0)
+  }
+
+  function test_cyclicNavigation_userExampleLayout() {
+    // Current layout:
+    // [1] [4]
+    // [5]
+    // Note: indices here represent workspace IDs or card indices
+    var layout = [
+      { index: 1, x: 0, y: 0, width: 80, height: 60 },
+      { index: 4, x: 100, y: 0, width: 80, height: 60 },
+      { index: 5, x: 0, y: 100, width: 80, height: 60 }
+    ]
+    // Right: 1 -> 4 -> 5 -> 1
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 1, 0), 4)
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 1, 0), 5)
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 1, 0), 1)
+
+    // Left: 1 -> 5 -> 4 -> 1
+    compare(WindowGeometry.cyclicCardMove(layout, 1, -1, 0), 5)
+    compare(WindowGeometry.cyclicCardMove(layout, 5, -1, 0), 4)
+    compare(WindowGeometry.cyclicCardMove(layout, 4, -1, 0), 1)
+
+    // Vertical: 1 ↓ -> 5, 4 ↓ -> 5, 5 ↑ -> 1
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 0, 1), 5)
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 0, 1), 5)
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 0, -1), 1)
+
+    // Vertical wrap: 5 ↓ -> 1 (closest center), 1 ↑ -> 5
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 0, 1), 1)
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 0, -1), 5)
+  }
+
+  function test_cyclicNavigation_threeRowExample() {
+    // [1] [2] [3]
+    // [4]     [5]
+    //     [6]
+    var layout = [
+      { index: 1, x: 0, y: 0, width: 80, height: 60 },
+      { index: 2, x: 100, y: 0, width: 80, height: 60 },
+      { index: 3, x: 200, y: 0, width: 80, height: 60 },
+      { index: 4, x: 0, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 },
+      { index: 6, x: 100, y: 200, width: 80, height: 60 }
+    ]
+
+    // Right: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 1
+    var rightSeq = [1, 2, 3, 4, 5, 6, 1]
+    for (var i = 0; i < rightSeq.length - 1; i++) {
+      compare(WindowGeometry.cyclicCardMove(layout, rightSeq[i], 1, 0), rightSeq[i + 1])
+    }
+
+    // Left: 1 -> 6 -> 5 -> 4 -> 3 -> 2 -> 1
+    var leftSeq = [1, 6, 5, 4, 3, 2, 1]
+    for (var j = 0; j < leftSeq.length - 1; j++) {
+      compare(WindowGeometry.cyclicCardMove(layout, leftSeq[j], -1, 0), leftSeq[j + 1])
+    }
+
+    // Vertical navigation:
+    // From 4 (x 0, row 1) down -> row 2 (only 6 exists)
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 0, 1), 6)
+    // From 5 (x 200, row 1) down -> row 2 (only 6 exists)
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 0, 1), 6)
+    // From 6 (cx 140, row 2) up -> row 1: 4 is cx 40 (|140-40|=100), 5 is cx 240 (|140-240|=100) -> picks 4 or 5
+    var upFrom6 = WindowGeometry.cyclicCardMove(layout, 6, 0, -1)
+    verify(upFrom6 === 4 || upFrom6 === 5)
+    // From 6 down wraps to row 0: closest to cx 140 is 2 (cx 140)
+    compare(WindowGeometry.cyclicCardMove(layout, 6, 0, 1), 2)
   }
 
   function test_cyclicNavigation_topWrap() {
@@ -384,10 +451,10 @@ TestCase {
     compare(WindowGeometry.cyclicCardMove(ragged, 2, 0, -1), 4)
     // Moving Down from index 4 (cx 140) wraps to Row 0: index 1 (cx 140)
     compare(WindowGeometry.cyclicCardMove(ragged, 4, 0, 1), 1)
-    // Left on leftmost in Row 1 (index 3) wraps to rightmost in Row 1 (index 4)
-    compare(WindowGeometry.cyclicCardMove(ragged, 3, -1, 0), 4)
-    // Right on rightmost in Row 1 (index 4) wraps to leftmost in Row 1 (index 3)
-    compare(WindowGeometry.cyclicCardMove(ragged, 4, 1, 0), 3)
+    // Left on leftmost in Row 1 (index 3) moves to rightmost in Row 0 (index 2)
+    compare(WindowGeometry.cyclicCardMove(ragged, 3, -1, 0), 2)
+    // Right on rightmost in Row 1 (index 4) wraps to leftmost in Row 0 (index 0)
+    compare(WindowGeometry.cyclicCardMove(ragged, 4, 1, 0), 0)
   }
 
   function test_cyclicNavigation_singleItemRows() {
@@ -396,9 +463,9 @@ TestCase {
       { index: 1, x: 100, y: 0, width: 80, height: 60 },
       { index: 2, x: 50, y: 100, width: 80, height: 60 }
     ]
-    // Left and Right on single-item row wrap to itself
-    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, -1, 0), 2)
-    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, 1, 0), 2)
+    // Left and Right on singleItemRow follow global cycle: 0 -> 1 -> 2 -> 0
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, 1, 0), 0)
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, -1, 0), 1)
 
     // Vertical move from single-item row to row 0
     var fromSingle = WindowGeometry.cyclicCardMove(singleItemRow, 2, 0, -1)
@@ -425,17 +492,17 @@ TestCase {
       { index: 4, x: 100, y: 100, width: 80, height: 60 },
       { index: 5, x: 200, y: 100, width: 80, height: 60 }
     ]
-    // Repeated right navigation cycles across row
+    // Repeated right navigation cycles across all cards in global order
     var cur = 0
-    var expectedRight = [1, 2, 0, 1, 2, 0, 1]
+    var expectedRight = [1, 2, 3, 4, 5, 0, 1, 2]
     for (var i = 0; i < expectedRight.length; i++) {
       cur = WindowGeometry.cyclicCardMove(grid, cur, 1, 0)
       compare(cur, expectedRight[i])
     }
 
-    // Repeated left navigation cycles across row
+    // Repeated left navigation cycles across all cards in reverse global order
     cur = 0
-    var expectedLeft = [2, 1, 0, 2, 1, 0, 2]
+    var expectedLeft = [5, 4, 3, 2, 1, 0, 5, 4]
     for (var j = 0; j < expectedLeft.length; j++) {
       cur = WindowGeometry.cyclicCardMove(grid, cur, -1, 0)
       compare(cur, expectedLeft[j])
