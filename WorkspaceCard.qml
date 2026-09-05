@@ -126,12 +126,7 @@ BorderSurface {
     : (occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
   borderSpec: Border.none()
   clip: true
-  scale: (root.isCurrent || root.highlighted) ? 1.008 : 1.0
   opacity: root.cardOpacity
-
-  Behavior on scale {
-    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
-  }
 
   Behavior on opacity {
     NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
@@ -277,10 +272,14 @@ BorderSurface {
             : WindowGeometry.fallbackGeometry(index, root.windowCount,
               spatialPreview.width, spatialPreview.height, root.previewSpacing)
 
-          x: displayGeometry.x
-          y: displayGeometry.y
-          width: Math.max(1, displayGeometry.width)
-          height: Math.max(1, displayGeometry.height)
+          readonly property real dpr: (targetMonitor && targetMonitor.scale > 0)
+            ? targetMonitor.scale
+            : ((targetScreen && targetScreen.devicePixelRatio) ? targetScreen.devicePixelRatio : 1.0)
+
+          x: WindowGeometry.snapToDevicePixels(displayGeometry.x, dpr)
+          y: WindowGeometry.snapToDevicePixels(displayGeometry.y, dpr)
+          width: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.width, dpr))
+          height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
           z: index + 1
           toplevel: previewToplevel
           isGroup: Boolean(modelData && modelData.isGroup)
