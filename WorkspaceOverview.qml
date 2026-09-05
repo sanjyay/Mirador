@@ -223,7 +223,42 @@ Item {
     return Math.round(root.usableGridY + root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
 
+  function workspaceNavigationItems() {
+    var items = []
+    var isDragging = root.draggedToplevel !== null
+    var wsIds = root.workspaceModel || []
+    var width = Math.round(root.cardWidth)
+    var height = Math.round(root.cardHeight)
+
+    for (var i = 0; i < wsIds.length; i++) {
+      var wsId = wsIds[i]
+      var slotIdx = root.slotIndexForWorkspace(wsId, isDragging)
+      if (slotIdx < 0) continue
+
+      var gx = root.slotX(slotIdx)
+      var gy = root.slotY(slotIdx)
+
+      items.push({
+        index: slotIdx,
+        workspaceId: wsId,
+        x: gx,
+        y: gy,
+        width: width,
+        height: height,
+        centerX: gx + width / 2,
+        centerY: gy + height / 2,
+        isInsertion: false
+      })
+    }
+    return items
+  }
+
   function cardIndexAfterMove(index, dx, dy, count, columnCount) {
+    var navItems = root.workspaceNavigationItems()
+    if (navItems && navItems.length > 0) {
+      return WindowGeometry.cyclicCardMove(navItems, index, dx, dy)
+    }
+
     if (count <= 0) return -1
     var current = Math.max(0, Math.min(index, count - 1))
     var cols = Math.max(1, columnCount)

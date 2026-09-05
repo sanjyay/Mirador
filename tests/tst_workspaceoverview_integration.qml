@@ -281,4 +281,12 @@ TestCase {
     verify(/root\.isCurrent\s*\?\s*1\.0\s*:/.test(source))
     verify(/0\.90/.test(source))
   }
+
+  function test_workspaceCyclicNavigationIntegration() {
+    var source = workspaceOverviewSource()
+    // Overview must define workspaceNavigationItems and delegate cardIndexAfterMove to WindowGeometry.cyclicCardMove
+    verify(/function workspaceNavigationItems\(\)/.test(source))
+    verify(/WindowGeometry\.cyclicCardMove/.test(source))
+    verify(/isInsertion\s*:\s*false/.test(source))
+  }
 }

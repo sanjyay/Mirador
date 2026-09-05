@@ -309,4 +309,164 @@ TestCase {
     verify(isFinite(constrained.cardWidth))
     verify(isFinite(constrained.cardHeight))
   }
+
+  function test_cyclicNavigation_leftWrap() {
+    var grid = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 }
+    ]
+    // Left on leftmost in row 0 (index 0) wraps to rightmost in row 0 (index 2)
+    compare(WindowGeometry.cyclicCardMove(grid, 0, -1, 0), 2)
+    // Left on leftmost in row 1 (index 3) wraps to rightmost in row 1 (index 5)
+    compare(WindowGeometry.cyclicCardMove(grid, 3, -1, 0), 5)
+  }
+
+  function test_cyclicNavigation_rightWrap() {
+    var grid = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 }
+    ]
+    // Right on rightmost in row 0 (index 2) wraps to leftmost in row 0 (index 0)
+    compare(WindowGeometry.cyclicCardMove(grid, 2, 1, 0), 0)
+    // Right on rightmost in row 1 (index 5) wraps to leftmost in row 1 (index 3)
+    compare(WindowGeometry.cyclicCardMove(grid, 5, 1, 0), 3)
+  }
+
+  function test_cyclicNavigation_topWrap() {
+    var grid = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 }
+    ]
+    // Up from top row (0, 1, 2) wraps to bottom row (3, 4, 5) aligning horizontal centers
+    compare(WindowGeometry.cyclicCardMove(grid, 0, 0, -1), 3)
+    compare(WindowGeometry.cyclicCardMove(grid, 1, 0, -1), 4)
+    compare(WindowGeometry.cyclicCardMove(grid, 2, 0, -1), 5)
+  }
+
+  function test_cyclicNavigation_bottomWrap() {
+    var grid = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 }
+    ]
+    // Down from bottom row (3, 4, 5) wraps to top row (0, 1, 2) aligning horizontal centers
+    compare(WindowGeometry.cyclicCardMove(grid, 3, 0, 1), 0)
+    compare(WindowGeometry.cyclicCardMove(grid, 4, 0, 1), 1)
+    compare(WindowGeometry.cyclicCardMove(grid, 5, 0, 1), 2)
+  }
+
+  function test_cyclicNavigation_raggedRows() {
+    var ragged = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 }
+    ]
+    // Moving Down from index 2 (cx 240) selects closest in Row 1: index 4 (cx 140)
+    compare(WindowGeometry.cyclicCardMove(ragged, 2, 0, 1), 4)
+    // Moving Up from index 2 (cx 240) wraps to Row 1: index 4 (cx 140)
+    compare(WindowGeometry.cyclicCardMove(ragged, 2, 0, -1), 4)
+    // Moving Down from index 4 (cx 140) wraps to Row 0: index 1 (cx 140)
+    compare(WindowGeometry.cyclicCardMove(ragged, 4, 0, 1), 1)
+    // Left on leftmost in Row 1 (index 3) wraps to rightmost in Row 1 (index 4)
+    compare(WindowGeometry.cyclicCardMove(ragged, 3, -1, 0), 4)
+    // Right on rightmost in Row 1 (index 4) wraps to leftmost in Row 1 (index 3)
+    compare(WindowGeometry.cyclicCardMove(ragged, 4, 1, 0), 3)
+  }
+
+  function test_cyclicNavigation_singleItemRows() {
+    var singleItemRow = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 50, y: 100, width: 80, height: 60 }
+    ]
+    // Left and Right on single-item row wrap to itself
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, -1, 0), 2)
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 2, 1, 0), 2)
+
+    // Vertical move from single-item row to row 0
+    var fromSingle = WindowGeometry.cyclicCardMove(singleItemRow, 2, 0, -1)
+    verify(fromSingle === 0 || fromSingle === 1)
+
+    // Vertical move from row 0 to single-item row
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 0, 0, 1), 2)
+    compare(WindowGeometry.cyclicCardMove(singleItemRow, 1, 0, 1), 2)
+
+    // Single item total: all directions wrap to itself
+    var singleTotal = [{ index: 42, x: 10, y: 10, width: 100, height: 80 }]
+    compare(WindowGeometry.cyclicCardMove(singleTotal, 42, -1, 0), 42)
+    compare(WindowGeometry.cyclicCardMove(singleTotal, 42, 1, 0), 42)
+    compare(WindowGeometry.cyclicCardMove(singleTotal, 42, 0, -1), 42)
+    compare(WindowGeometry.cyclicCardMove(singleTotal, 42, 0, 1), 42)
+  }
+
+  function test_cyclicNavigation_repeatedCyclicNavigation() {
+    var grid = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 2, x: 200, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 },
+      { index: 5, x: 200, y: 100, width: 80, height: 60 }
+    ]
+    // Repeated right navigation cycles across row
+    var cur = 0
+    var expectedRight = [1, 2, 0, 1, 2, 0, 1]
+    for (var i = 0; i < expectedRight.length; i++) {
+      cur = WindowGeometry.cyclicCardMove(grid, cur, 1, 0)
+      compare(cur, expectedRight[i])
+    }
+
+    // Repeated left navigation cycles across row
+    cur = 0
+    var expectedLeft = [2, 1, 0, 2, 1, 0, 2]
+    for (var j = 0; j < expectedLeft.length; j++) {
+      cur = WindowGeometry.cyclicCardMove(grid, cur, -1, 0)
+      compare(cur, expectedLeft[j])
+    }
+
+    // Repeated down navigation cycles vertically
+    cur = 1
+    var expectedDown = [4, 1, 4, 1]
+    for (var k = 0; k < expectedDown.length; k++) {
+      cur = WindowGeometry.cyclicCardMove(grid, cur, 0, 1)
+      compare(cur, expectedDown[k])
+    }
+
+    // Repeated up navigation cycles vertically
+    cur = 1
+    var expectedUp = [4, 1, 4, 1]
+    for (var m = 0; m < expectedUp.length; m++) {
+      cur = WindowGeometry.cyclicCardMove(grid, cur, 0, -1)
+      compare(cur, expectedUp[m])
+    }
+  }
+
+  function test_cyclicNavigation_ignoresInsertionCards() {
+    var mixed = [
+      { index: 0, x: 0, y: 0, width: 80, height: 60, isInsertion: false },
+      { index: 99, x: 50, y: 0, width: 80, height: 60, isInsertion: true },
+      { index: 1, x: 100, y: 0, width: 80, height: 60, isInsertion: false }
+    ]
+    // Right from 0 should skip insertion card (99) and select workspace 1
+    compare(WindowGeometry.cyclicCardMove(mixed, 0, 1, 0), 1)
+    // Right from 1 should wrap to workspace 0
+    compare(WindowGeometry.cyclicCardMove(mixed, 1, 1, 0), 0)
+  }
 }
