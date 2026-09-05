@@ -141,7 +141,16 @@ BorderSurface {
     cursorShape: Qt.PointingHandCursor
     onClicked: root.workspaceActivated(root.occupied)
     onWheel: function(wheel) {
-      if (root.overview && typeof root.overview.scrollRail === "function") {
+      var isTouchpadScroll = Boolean(wheel.pixelDelta && (wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0))
+      var isRailSecondary = Boolean(root.overview && root.overview.overviewMode === "focused" && !root.isPrimary)
+
+      if (isRailSecondary && (isTouchpadScroll || (root.overview && root.overview.railScrollNeeded))) {
+        if (root.overview && typeof root.overview.scrollRail === "function") {
+          root.overview.scrollRail(wheel.angleDelta.y)
+        }
+      } else if (root.overview && typeof root.overview.handleCardWheel === "function") {
+        root.overview.handleCardWheel(root.isPrimary, wheel.angleDelta.x, wheel.angleDelta.y)
+      } else if (root.overview && typeof root.overview.scrollRail === "function") {
         root.overview.scrollRail(wheel.angleDelta.y)
       }
     }

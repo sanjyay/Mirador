@@ -8,6 +8,8 @@ show_help() {
 Usage:
   mirador            Toggle Mirador
   mirador --focused  Open Mirador directly in focused workspace overview mode
+  mirador --summon   Summon/open Mirador
+  mirador --dismiss  Dismiss/close Mirador
   mirador --demo     Open Mirador with demo input overlay
   mirador --help     Show this help
   mirador --version  Show version information
@@ -20,6 +22,12 @@ case "${1:-}" in
     ;;
   --focused | -f )
     exec omarchy-shell shell summon mirador '{"focused":true}'
+    ;;
+  --summon | summon )
+    exec omarchy-shell shell summon mirador '{}'
+    ;;
+  --dismiss | dismiss | --hide | hide )
+    exec omarchy-shell shell hide mirador
     ;;
   --demo )
     exec omarchy-shell shell summon mirador '{"demo":true}'

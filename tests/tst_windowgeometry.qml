@@ -370,6 +370,153 @@ TestCase {
     compare(WindowGeometry.cyclicCardMove(layout, 1, 0, -1), 5)
   }
 
+  function test_wheelNavigationMatchesArrowKeysDirectly() {
+    // Layout:
+    // [1] [4]
+    // [5]
+    var layout = [
+      { index: 1, x: 0, y: 0, width: 80, height: 60 },
+      { index: 4, x: 100, y: 0, width: 80, height: 60 },
+      { index: 5, x: 0, y: 100, width: 80, height: 60 }
+    ]
+
+    var workspaces = [1, 4, 5]
+
+    for (var i = 0; i < workspaces.length; i++) {
+      var ws = workspaces[i]
+
+      // 1. Wheel Down must match Down arrow (dy = 1) exactly
+      var wheelDownTarget = WindowGeometry.cyclicCardMove(layout, ws, 0, 1)
+      var downArrowTarget = WindowGeometry.cyclicCardMove(layout, ws, 0, 1)
+      compare(wheelDownTarget, downArrowTarget, "Wheel down from WS " + ws + " must match Down arrow")
+
+      // 2. Wheel Up must match Up arrow (dy = -1) exactly
+      var wheelUpTarget = WindowGeometry.cyclicCardMove(layout, ws, 0, -1)
+      var upArrowTarget = WindowGeometry.cyclicCardMove(layout, ws, 0, -1)
+      compare(wheelUpTarget, upArrowTarget, "Wheel up from WS " + ws + " must match Up arrow")
+
+      // 3. Wheel Right must match Right arrow (dx = 1) exactly
+      var wheelRightTarget = WindowGeometry.cyclicCardMove(layout, ws, 1, 0)
+      var rightArrowTarget = WindowGeometry.cyclicCardMove(layout, ws, 1, 0)
+      compare(wheelRightTarget, rightArrowTarget, "Wheel right from WS " + ws + " must match Right arrow")
+
+      // 4. Wheel Left must match Left arrow (dx = -1) exactly
+      var wheelLeftTarget = WindowGeometry.cyclicCardMove(layout, ws, -1, 0)
+      var leftArrowTarget = WindowGeometry.cyclicCardMove(layout, ws, -1, 0)
+      compare(wheelLeftTarget, leftArrowTarget, "Wheel left from WS " + ws + " must match Left arrow")
+    }
+
+    // Specific assertions matching user's expected mapping:
+    // From WS1:
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 0, 1), 5, "From WS1 wheel down -> WS5")
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 0, -1), 5, "From WS1 wheel up -> WS5")
+
+    // From WS4:
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 0, 1), 5, "From WS4 wheel down -> WS5")
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 0, -1), 5, "From WS4 wheel up -> WS5")
+
+    // From WS5:
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 0, -1), 1, "From WS5 wheel up -> WS1")
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 0, 1), 1, "From WS5 wheel down -> WS1")
+
+    // Horizontal global cycle:
+    // wheel right: 1 -> 4 -> 5 -> 1
+    compare(WindowGeometry.cyclicCardMove(layout, 1, 1, 0), 4, "From WS1 wheel right -> WS4")
+    compare(WindowGeometry.cyclicCardMove(layout, 4, 1, 0), 5, "From WS4 wheel right -> WS5")
+    compare(WindowGeometry.cyclicCardMove(layout, 5, 1, 0), 1, "From WS5 wheel right -> WS1")
+
+    // wheel left: 1 -> 5 -> 4 -> 1
+    compare(WindowGeometry.cyclicCardMove(layout, 1, -1, 0), 5, "From WS1 wheel left -> WS5")
+    compare(WindowGeometry.cyclicCardMove(layout, 5, -1, 0), 4, "From WS5 wheel left -> WS4")
+    compare(WindowGeometry.cyclicCardMove(layout, 4, -1, 0), 1, "From WS4 wheel left -> WS1")
+  }
+
+  function test_normalModeWheelGlobalCycle_4WorkspaceGrid() {
+    // 4-workspace grid in Normal mode:
+    // [1] [2]
+    // [3] [4]
+    var grid4 = [
+      { index: 1, x: 0, y: 0, width: 80, height: 60 },
+      { index: 2, x: 100, y: 0, width: 80, height: 60 },
+      { index: 3, x: 0, y: 100, width: 80, height: 60 },
+      { index: 4, x: 100, y: 100, width: 80, height: 60 }
+    ]
+
+    // Normal mode Wheel Down reuses Right arrow / l (dx: 1, dy: 0):
+    // Expected cycle: 1 -> 2 -> 3 -> 4 -> 1 -> 2
+    var cur = 1
+    var expectedDown = [2, 3, 4, 1, 2]
+    for (var i = 0; i < expectedDown.length; i++) {
+      cur = WindowGeometry.cyclicCardMove(grid4, cur, 1, 0)
+      compare(cur, expectedDown[i], "Normal mode wheel down step " + i)
+    }
+
+    // Normal mode Wheel Up reuses Left arrow / h (dx: -1, dy: 0):
+    // Expected cycle: 1 -> 4 -> 3 -> 2 -> 1 -> 4
+    cur = 1
+    var expectedUp = [4, 3, 2, 1, 4]
+    for (var j = 0; j < expectedUp.length; j++) {
+      cur = WindowGeometry.cyclicCardMove(grid4, cur, -1, 0)
+      compare(cur, expectedUp[j], "Normal mode wheel up step " + j)
+    }
+
+    // If currently selected workspace is 4:
+    // wheel down: 4 -> 1 -> 2 -> 3 -> 4 -> 1
+    cur = 4
+    var from4Down = [1, 2, 3, 4, 1]
+    for (var k = 0; k < from4Down.length; k++) {
+      cur = WindowGeometry.cyclicCardMove(grid4, cur, 1, 0)
+      compare(cur, from4Down[k], "From WS4 wheel down step " + k)
+    }
+
+    // Horizontal wheel / tilt equivalence:
+    // wheel right == wheel down (dx: 1, dy: 0)
+    // wheel left == wheel up (dx: -1, dy: 0)
+    compare(WindowGeometry.cyclicCardMove(grid4, 1, 1, 0), 2)
+    compare(WindowGeometry.cyclicCardMove(grid4, 1, -1, 0), 4)
+  }
+
+  function test_normalModeWheelIrregularIds() {
+    // Irregular non-contiguous workspace IDs:
+    // [1]  [4]
+    // [7]  [10]
+    var irregular = [
+      { index: 1, x: 0, y: 0, width: 80, height: 60 },
+      { index: 4, x: 100, y: 0, width: 80, height: 60 },
+      { index: 7, x: 0, y: 100, width: 80, height: 60 },
+      { index: 10, x: 100, y: 100, width: 80, height: 60 }
+    ]
+
+    // Wheel Down: cycles strictly by visual position: 1 -> 4 -> 7 -> 10 -> 1 -> 4
+    var cur = 1
+    var expectedDown = [4, 7, 10, 1, 4]
+    for (var i = 0; i < expectedDown.length; i++) {
+      cur = WindowGeometry.cyclicCardMove(irregular, cur, 1, 0)
+      compare(cur, expectedDown[i], "Irregular IDs wheel down step " + i)
+    }
+
+    // Wheel Up: cycles strictly in reverse visual position: 1 -> 10 -> 7 -> 4 -> 1 -> 10
+    cur = 1
+    var expectedUp = [10, 7, 4, 1, 10]
+    for (var j = 0; j < expectedUp.length; j++) {
+      cur = WindowGeometry.cyclicCardMove(irregular, cur, -1, 0)
+      compare(cur, expectedUp[j], "Irregular IDs wheel up step " + j)
+    }
+
+    // Also verify with explicit visualOrder (as supplied by WorkspaceOverview):
+    var withVisualOrder = [
+      { index: 1, visualOrder: 0, x: 0, y: 0, width: 80, height: 60 },
+      { index: 4, visualOrder: 1, x: 100, y: 0, width: 80, height: 60 },
+      { index: 7, visualOrder: 2, x: 0, y: 100, width: 80, height: 60 },
+      { index: 10, visualOrder: 3, x: 100, y: 100, width: 80, height: 60 }
+    ]
+    cur = 1
+    for (var m = 0; m < expectedDown.length; m++) {
+      cur = WindowGeometry.cyclicCardMove(withVisualOrder, cur, 1, 0)
+      compare(cur, expectedDown[m], "With visualOrder wheel down step " + m)
+    }
+  }
+
   function test_cyclicNavigation_threeRowExample() {
     // [1] [2] [3]
     // [4]     [5]

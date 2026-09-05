@@ -38,15 +38,18 @@ mirador/
 ├── InsertionWorkspaceCard.qml # Drag-and-drop workspace insertion placeholder
 ├── WindowGeometry.js          # Pure JS: multi-monitor scaling, 2D cyclic move, pixel snapping
 ├── WindowModel.js             # Pure JS: Hyprland group resolution, address normalization
+├── GestureHelper.js           # Pure JS: pinch gesture threshold and one-shot debounce logic
+├── mirador.gestures.lua       # Hyprland 3-finger swipe gesture configuration snippet
 ├── DemoInputOverlay.qml       # Session-scoped demo recording HUD
 ├── bin/
-│   └── mirador                # CLI launcher script (toggle, --demo, --version)
+│   └── mirador                # CLI launcher script (toggle, --summon, --dismiss, --focused, --demo)
 ├── docs/
 │   ├── architecture.md        # Deep architecture & Wayland protocol specifications
 │   └── testing.md             # Automated & manual test procedures
 └── tests/
     ├── tst_windowgeometry.qml # Geometry & cyclic navigation unit tests
     ├── tst_windowmodel.qml    # Window group & deduplication unit tests
+    ├── tst_gesturehelper.qml  # Pinch gesture threshold & debounce unit tests
     ├── tst_windowpreview_security.qml # Security & capture release tests
     ├── tst_workspaceoverview_integration.qml # Integration & UI tests
     └── tst_demo_overlay.qml   # Demo overlay unit tests

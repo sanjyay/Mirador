@@ -400,4 +400,114 @@ TestCase {
       compare(secondaryCount, 4, "Remaining workspaces are secondary rail items")
     }
   }
+
+  function test_pinchGestureIntegrationAndStateConvergence() {
+    var source = workspaceOverviewSource()
+
+    // 1. GestureHelper import
+    verify(/import\s+"GestureHelper\.js"\s+as\s+GestureHelper/.test(source),
+      "WorkspaceOverview must import GestureHelper.js")
+
+    // 2. Pinch threshold and triggered state properties
+    verify(/readonly\s+property\s+real\s+pinchThreshold\s*:\s*GestureHelper\.PINCH_THRESHOLD/.test(source),
+      "WorkspaceOverview must declare pinchThreshold referencing GestureHelper.PINCH_THRESHOLD")
+    verify(/property\s+bool\s+pinchTriggered\s*:\s*false/.test(source),
+      "WorkspaceOverview must declare pinchTriggered boolean property")
+
+    // 3. Mode state machine convergence (setOverviewMode & toggleOverviewMode)
+    verify(/function\s+setOverviewMode\(mode\)/.test(source),
+      "WorkspaceOverview must define unified setOverviewMode(mode)")
+    verify(/function\s+toggleOverviewMode\(\)/.test(source),
+      "WorkspaceOverview must define toggleOverviewMode()")
+    verify(/root\.setOverviewMode\("normal"\)/.test(source),
+      "toggleOverviewMode must delegate to setOverviewMode('normal')")
+    verify(/root\.setOverviewMode\("focused"\)/.test(source),
+      "toggleOverviewMode must delegate to setOverviewMode('focused')")
+
+    // 4. Pinch event handling functions
+    verify(/function\s+handlePinchScale\(scale\)/.test(source),
+      "WorkspaceOverview must declare handlePinchScale(scale)")
+    verify(/function\s+handlePinchActiveChanged\(active\)/.test(source),
+      "WorkspaceOverview must declare handlePinchActiveChanged(active)")
+
+    // 5. One-shot debounce guard in handlePinchScale
+    verify(/if\s*\(root\.pinchTriggered\)\s*return/.test(source),
+      "handlePinchScale must bail out early if pinchTriggered is already true")
+    verify(/GestureHelper\.shouldTriggerTransition/.test(source),
+      "handlePinchScale must delegate transition decision to GestureHelper")
+
+    // 6. Reset on active == false
+    verify(/if\s*\(!active\)\s*\{\s*root\.pinchTriggered\s*=\s*false\s*\}/.test(source),
+      "handlePinchActiveChanged must reset pinchTriggered when fingers are lifted (active == false)")
+
+    // 7. Reset on open(), close(), dismiss()
+    var openMatch = source.match(/function\s+open\(payloadJson\)[\s\S]*?\n  \}/)
+    verify(openMatch && /root\.pinchTriggered\s*=\s*false/.test(openMatch[0]),
+      "open() must reset pinchTriggered to false")
+    var closeMatch = source.match(/function\s+close\(\)[\s\S]*?\n  \}/)
+    verify(closeMatch && /root\.pinchTriggered\s*=\s*false/.test(closeMatch[0]),
+      "close() must reset pinchTriggered to false")
+    var dismissMatch = source.match(/function\s+dismiss\(\)[\s\S]*?\n  \}/)
+    verify(dismissMatch && /root\.pinchTriggered\s*=\s*false/.test(dismissMatch[0]),
+      "dismiss() must reset pinchTriggered to false")
+
+    // 8. PinchHandler declaration inside PanelWindow / keyCatcher
+    verify(/PinchHandler\s*\{/.test(source),
+      "WorkspaceOverview must declare a native PinchHandler")
+    verify(/target\s*:\s*null/.test(source),
+      "PinchHandler must set target: null to prevent continuous rescaling blur")
+    verify(/grabPermissions\s*:\s*PointerHandler\.CanTakeOverFromAnything/.test(source),
+      "PinchHandler must declare grabPermissions")
+    verify(/onActiveChanged\s*:\s*\{\s*root\.handlePinchActiveChanged\(active\)\s*\}/.test(source),
+      "PinchHandler must wire onActiveChanged to root.handlePinchActiveChanged")
+  }
+
+  function test_wheelNavigationArrowKeyDirectMappingAndTouchpadDistinction() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // 1. Wheel accumulators and navigation function
+    verify(/property\s+real\s+wheelDeltaAccumulatorX\s*:\s*0/.test(source),
+      "WorkspaceOverview must declare wheelDeltaAccumulatorX")
+    verify(/property\s+real\s+wheelDeltaAccumulatorY\s*:\s*0/.test(source),
+      "WorkspaceOverview must declare wheelDeltaAccumulatorY")
+    verify(/function\s+handleWheelNavigation\(deltaX,\s*deltaY\)/.test(source),
+      "WorkspaceOverview must define handleWheelNavigation(deltaX, deltaY)")
+
+    // 2. Mode-specific wheel navigation branching:
+    // Normal mode: endless visual cycle
+    // - Wheel down -> Right arrow / l -> moveCardSelection(1, 0)
+    // - Wheel up   -> Left arrow / h  -> moveCardSelection(-1, 0)
+    // Focused mode: spatial row navigation
+    // - Wheel down -> Down arrow / j -> moveCardSelection(0, 1)
+    // - Wheel up   -> Up arrow / k   -> moveCardSelection(0, -1)
+    verify(/if\s*\(root\.overviewMode\s*===\s*"normal"\)/.test(source),
+      "handleWheelNavigation must branch based on overviewMode === 'normal'")
+    verify(/root\.moveCardSelection\(1,\s*0\)/.test(source),
+      "Normal mode wheel down & horizontal right must call moveCardSelection(1, 0)")
+    verify(/root\.moveCardSelection\(-1,\s*0\)/.test(source),
+      "Normal mode wheel up & horizontal left must call moveCardSelection(-1, 0)")
+    verify(/root\.moveCardSelection\(0,\s*1\)/.test(source),
+      "Focused mode wheel down must call moveCardSelection(0, 1)")
+    verify(/root\.moveCardSelection\(0,\s*-1\)/.test(source),
+      "Focused mode wheel up must call moveCardSelection(0, -1)")
+
+    // 3. One wheel detent threshold (60)
+    verify(/var\s+threshold\s*=\s*60/.test(source),
+      "handleWheelNavigation must use a 60-unit accumulator threshold for 1-detent mapping")
+
+    // 4. Background MouseArea and keyCatcher WheelHandler wiring
+    verify(/MouseArea[\s\S]*onWheel\s*:\s*function\(wheel\)\s*\{\s*root\.handleWheelNavigation\(wheel\.angleDelta\.x,\s*wheel\.angleDelta\.y\)/.test(source),
+      "Background MouseArea must forward wheel events to handleWheelNavigation")
+    verify(/WheelHandler[\s\S]*id\s*:\s*catcherWheelHandler/.test(source),
+      "keyCatcher must include catcherWheelHandler for overview-wide wheel reception")
+
+    // 5. Touchpad scroll distinction in WorkspaceCard.qml
+    verify(/isTouchpadScroll\s*=\s*Boolean\(wheel\.pixelDelta/.test(cardSource),
+      "WorkspaceCard must inspect wheel.pixelDelta to distinguish touchpad two-finger scroll from mouse wheel")
+    verify(/isRailSecondary\s*&&/.test(cardSource),
+      "WorkspaceCard must preserve two-finger scrolling in focused secondary rail")
+    verify(/root\.overview\.handleCardWheel/.test(cardSource),
+      "WorkspaceCard must delegate normal mode and primary card wheel to handleCardWheel")
+  }
 }
