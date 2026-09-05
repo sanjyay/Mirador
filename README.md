@@ -10,14 +10,57 @@ https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 
 
 
-## What's new in version 2.1.1
+## What's new in version 2.2.0
+
+### Adaptive Normal Overview
+* **Equal-Sized Peer Workspaces**: Workspace cards dynamically scale to maximize preview area based on the active workspace count and available screen space, without any dominant cards, side rails, or size distortion.
+* **Horizontally Centered Rows**: Incomplete rows are automatically centered, making efficient use of display space and avoiding wasted rigid grid cells:
+  ```text
+  [ 1 ] [ 2 ]
+
+     [ 3 ]
+  ```
+* **Rock-Solid Layout Stability**: Workspace card geometry remains fixed and stable during keyboard or mouse navigation—cards never resize, jump, or reflow when the selection moves.
+
+### Focused Overview Mode
+* **Deep Workspace Inspection**: Press `Space` or pinch to enter Focused mode, where the selected workspace expands into a primary view occupying ~74% of the usable screen width.
+* **Vertical Scrollable Rail**: Secondary workspaces stack neatly in a single column along the right edge.
+* **Smooth Rail Scrolling**: Scroll through secondary workspaces using the mouse wheel or touchpad with edge clamping and auto-scroll keeping the active selection in view.
+* **Direct Launcher Flag**: Open directly into focused view via `mirador --focused`.
+
+### Natural Gestures & Wheel Navigation
+* **Touchpad Gestures**:
+  * 3-finger swipe up to summon Mirador; 3-finger swipe down to dismiss.
+  * 2-finger pinch in / out to smoothly toggle between Normal and Focused modes.
+* **Endless Mouse-Wheel Cycling (Normal Mode)**:
+  * `Wheel Down`: advances to the next workspace in global visual read order (`1 → 2 → 3 → 1...`).
+  * `Wheel Up`: cycles to the previous workspace in global visual read order (`1 → 3 → 2 → 1...`).
+  * Endlessly wraps around edges without getting stuck at row boundaries.
+* **Focused-Mode Wheel Navigation**: Wheel scrolling traverses spatial rows or smoothly scrolls the secondary rail.
+
+### Bar-Aware Safe Viewport
+* Dynamically detects the Omarchy Bar's geometry on any edge—top, bottom, left, or right.
+* Computes an authoritative safe rectangle before laying out cards, ensuring workspace previews expand as large as possible while never rendering under, behind, or overlapping the bar.
+
+### Dedicated Scratchpad Section
+* Stashed applications in `special:scratchpad` appear in the overview with a distinct `"S"` badge whenever the scratchpad holds windows, and automatically disappear when empty.
+* Parked windows display live spatial previews and can be activated or dragged to and from normal numeric workspaces without disrupting workspace numbering.
+
+### Razor-Sharp Preview Fidelity
+* Computes preview boundaries aligned directly to physical device pixels (`WindowGeometry.snapToDevicePixels`).
+* Completely eliminates fractional scaling matrices and transform blur for razor-sharp terminal fonts, text, and window borders across standard and HiDPI displays.
+
+## Previous releases
+
+<details>
+<summary><b>Version 2.1.1 — click to reveal all changes</b></summary>
 
 * **Cyclic & Wrap-Around Keyboard Navigation**: Smooth continuous navigation across workspaces using arrow keys or Vim bindings (`h`, `j`, `k`, `l`):
   * **Horizontal Continuous Global Cycling (`Left`/`h`, `Right`/`l`)**: Navigates cards in visual reading order across all rows without getting trapped at row boundaries, wrapping seamlessly from the last workspace back to the first, and vice versa.
   * **Vertical Spatial Row Navigation & Wrapping (`Up`/`k`, `Down`/`j`)**: Moves directly between visual rows, jumping to the card in the target row whose horizontal center is geometrically closest to the current card. Moving Up from the top row wraps around to the bottom row, and moving Down from the bottom row wraps to the top row.
 * **Focused Workspace Dimming Contrast**: Inactive workspaces are subtly dimmed (0.90 opacity) while the active workspace stays fully opaque (1.0) with an accent border, keeping all window previews clear and readable while instantly identifying which workspace is currently active.
 
-## What's new in version 2.1.0
+</details>
 
 <details>
 <summary><b>Version 2.1.0 — click to reveal all changes</b></summary>
@@ -29,8 +72,6 @@ https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
 * **Crisp, Content-Independent Card Borders**: Dedicated topmost border overlay (`z: 100`) with integer pixel-aligned layout ensures complete, uniform 4-sided borders around all inactive workspaces regardless of dark terminal backgrounds or child preview contents.
 
 </details>
-
-## What's new in version 2
 
 <details>
 <summary><b>Version 2 — click to reveal all changes</b></summary>
@@ -119,7 +160,8 @@ hyprctl configerrors
 ## Launching the overview
 
 The overview can be opened with `Shift+Tab` or a three-finger swipe up on the
-touchpad. A three-finger swipe down closes it.
+touchpad. A three-finger swipe down closes it. Pressing `Space` or performing a
+two-finger pinch on the touchpad toggles between Normal and Focused overview modes.
 
 Add the keyboard binding to `~/.config/hypr/bindings.lua`:
 
@@ -196,19 +238,22 @@ omarchy menu keybindings --print
 | :--- | :--- |
 | `Left` / `h`, `Right` / `l` | Continuous global cycling across workspaces in visual reading order (wraps around) |
 | `Up` / `k`, `Down` / `j` | Move selection between visual rows to closest card by center, wrapping top/bottom |
-| `Enter` / `Return` / `Space` | Activate the selected workspace and dismiss Mirador |
+| `Space` | Toggle between Normal and Focused overview modes (or 2-finger pinch) |
+| `Enter` / `Return` | Activate the selected workspace (or scratchpad) and dismiss Mirador |
+| `Mouse Wheel` | Endless visual cycle in Normal mode; spatial row move / rail scroll in Focused mode |
 | `+` / `=` | Create next contextual workspace |
 | `Escape` | Dismiss Mirador |
-| `Click workspace card` | Switch to workspace (empty cards dismiss overview) |
+| `Click workspace card` | Switch to workspace (in Focused mode, clicking a rail card promotes it to primary) |
 | `Click window preview` | Focus window and dismiss overview |
-| `Drag window preview` | Move window to target workspace or drop onto insertion card to create new workspace |
+| `Drag window preview` | Move window to target workspace, scratchpad, or drop onto insertion card |
 
 ## CLI and demo recording mode
 
 Mirador includes a `mirador` CLI command:
 
 ```bash
-mirador            # Toggle Mirador overview
+mirador            # Toggle Mirador overview (Normal mode)
+mirador --focused  # Open directly in Focused overview mode
 mirador --demo     # Open Mirador with on-screen input overlay for demo recordings
 mirador --help     # Show command-line help
 mirador --version  # Show version information
