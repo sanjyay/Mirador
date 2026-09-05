@@ -195,3 +195,31 @@ function visibleWorkspaceWindows(clients, activeAddress) {
   }
   return result
 }
+
+// Check whether a workspace object or ID represents a special/scratchpad workspace
+function isSpecialWorkspace(ws) {
+  if (ws === null || ws === undefined) return false
+  if (typeof ws === "number") return ws < 0
+  var id = Number(ws.id)
+  if (!isNaN(id) && id < 0) return true
+  var name = String(ws.name || "")
+  return name === "special" || name.indexOf("special:") === 0
+}
+
+// Extract the target name for Hyprland dispatchers (e.g. "scratchpad" for togglespecialworkspace)
+function specialWorkspaceName(ws) {
+  if (ws === null || ws === undefined) return "scratchpad"
+  var name = typeof ws === "string" ? ws : String(ws.name || "")
+  if (name.indexOf("special:") === 0) return name.slice(8)
+  if (name === "special") return ""
+  return name || "scratchpad"
+}
+
+// Compute the badge display label for any workspace card ("S" for scratchpads, "0" for 10)
+function workspaceBadgeText(workspaceId, isScratchpad) {
+  if (isScratchpad || (typeof workspaceId === "number" && workspaceId < 0)) return "S"
+  var idNum = Number(workspaceId)
+  if (idNum === 10) return "0"
+  return String(workspaceId !== undefined && workspaceId !== null ? workspaceId : "")
+}
+

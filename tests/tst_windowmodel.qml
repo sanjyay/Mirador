@@ -285,4 +285,56 @@ TestCase {
     compare(previews[1].activeMember, d)
     compare(previews[1].members.length, 2)
   }
+
+  function test_isSpecialWorkspace() {
+    // Objects with negative ID or special name prefix
+    verify(WindowModel.isSpecialWorkspace({ id: -98, name: "special:scratchpad" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -99, name: "special" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -1, name: "special:term" }))
+    verify(WindowModel.isSpecialWorkspace({ id: 0, name: "special:custom" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -98 }))
+    verify(WindowModel.isSpecialWorkspace({ name: "special:scratchpad" }))
+
+    // Numbers
+    verify(WindowModel.isSpecialWorkspace(-98))
+    verify(WindowModel.isSpecialWorkspace(-1))
+    verify(!WindowModel.isSpecialWorkspace(1))
+    verify(!WindowModel.isSpecialWorkspace(0))
+
+    // Normal numeric workspaces
+    verify(!WindowModel.isSpecialWorkspace({ id: 1, name: "1" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: 2, name: "2" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: 10, name: "10" }))
+
+    // Null and undefined
+    verify(!WindowModel.isSpecialWorkspace(null))
+    verify(!WindowModel.isSpecialWorkspace(undefined))
+  }
+
+  function test_specialWorkspaceName() {
+    compare(WindowModel.specialWorkspaceName({ name: "special:scratchpad" }), "scratchpad")
+    compare(WindowModel.specialWorkspaceName("special:scratchpad"), "scratchpad")
+    compare(WindowModel.specialWorkspaceName({ name: "special" }), "")
+    compare(WindowModel.specialWorkspaceName("special"), "")
+    compare(WindowModel.specialWorkspaceName({ name: "special:notes" }), "notes")
+    compare(WindowModel.specialWorkspaceName(null), "scratchpad")
+    compare(WindowModel.specialWorkspaceName(undefined), "scratchpad")
+  }
+
+  function test_workspaceBadgeText() {
+    // Scratchpad workspaces show "S"
+    compare(WindowModel.workspaceBadgeText(-98, true), "S")
+    compare(WindowModel.workspaceBadgeText(-98, false), "S")
+    compare(WindowModel.workspaceBadgeText(1, true), "S")
+
+    // Normal numeric workspaces show their number
+    compare(WindowModel.workspaceBadgeText(1, false), "1")
+    compare(WindowModel.workspaceBadgeText(2, false), "2")
+    compare(WindowModel.workspaceBadgeText(5, false), "5")
+    compare(WindowModel.workspaceBadgeText(9, false), "9")
+
+    // Workspace 10 shows "0"
+    compare(WindowModel.workspaceBadgeText(10, false), "0")
+  }
 }
+
