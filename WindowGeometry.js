@@ -9,6 +9,15 @@ function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(value, maximum))
 }
 
+// Snap a coordinate or dimension to the nearest physical device pixel to ensure
+// crisp rendering and eliminate bilinear subpixel interpolation blur.
+function snapToDevicePixels(value, dpr) {
+  var num = finiteNumber(value)
+  if (isNaN(num)) return 0
+  var scale = (finiteNumber(dpr) > 0) ? Number(dpr) : 1.0
+  return Math.round(num * scale) / scale
+}
+
 // Return a nearly edge-to-edge canvas without ever producing negative sizes
 // on extremely small cards. Workspace badges and window title pills overlay
 // this rectangle and therefore do not reduce it.
