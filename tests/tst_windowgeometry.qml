@@ -560,4 +560,151 @@ TestCase {
     compare(WindowGeometry.snapToDevicePixels(15.4, null), 15)
     compare(WindowGeometry.snapToDevicePixels(NaN, 1), 0)
   }
+
+  function test_adaptiveOverview_workspaceCounts1to8() {
+    var width = 1880
+    var height = 1000
+    var aspect = 1.55
+    var spacing = 48
+
+    for (var count = 1; count <= 8; count++) {
+      var geom = WindowGeometry.overviewGridGeometry(count, width, height, aspect, spacing)
+      compare(geom.cards.length, count, "Generated cards count matches workspace count")
+
+      // 1. Verify every card has identical dimensions
+      for (var i = 0; i < count; i++) {
+        compare(geom.cards[i].width, geom.cardWidth, "Card " + i + " width matches cardWidth")
+        compare(geom.cards[i].height, geom.cardHeight, "Card " + i + " height matches cardHeight")
+      }
+
+      // 2. Verify aspect ratio is preserved
+      var cardAspect = geom.cardWidth / geom.cardHeight
+      fuzzyCompare(cardAspect, aspect, "Card aspect ratio preserved for count=" + count)
+
+      // 3. Verify all cards stay within bounds
+      for (var i = 0; i < count; i++) {
+        var card = geom.cards[i]
+        verify(card.x >= -0.001, "Card " + i + " x must be inside viewport")
+        verify(card.y >= -0.001, "Card " + i + " y must be inside viewport")
+        verify(card.x + card.width <= width + 0.001, "Card " + i + " right must be inside viewport")
+        verify(card.y + card.height <= height + 0.001, "Card " + i + " bottom must be inside viewport")
+      }
+
+      // 4. Verify no overlap between any two cards
+      for (var a = 0; a < count; a++) {
+        for (var b = a + 1; b < count; b++) {
+          var ca = geom.cards[a]
+          var cb = geom.cards[b]
+          var separated = (ca.x + ca.width <= cb.x + 0.001)
+            || (cb.x + cb.width <= ca.x + 0.001)
+            || (ca.y + ca.height <= cb.y + 0.001)
+            || (cb.y + cb.height <= ca.y + 0.001)
+          verify(separated, "Cards " + a + " and " + b + " must not overlap")
+        }
+      }
+
+      // 5. Verify every row is centered independently
+      var cardIdx = 0
+      for (var rowIdx = 0; rowIdx < geom.rows; rowIdx++) {
+        var numInRow = geom.rowDistribution[rowIdx]
+        var firstInRow = geom.cards[cardIdx]
+        var lastInRow = geom.cards[cardIdx + numInRow - 1]
+        var rowLeftMargin = firstInRow.x
+        var rowRightMargin = width - (lastInRow.x + lastInRow.width)
+        fuzzyCompare(rowLeftMargin, rowRightMargin, "Row " + rowIdx + " must be centered horizontally")
+        cardIdx += numInRow
+      }
+    }
+  }
+
+  function test_adaptiveOverview_threeWorkspacesComparison() {
+    var width = 1880
+    var height = 1000
+    var aspect = 1.55
+    var spacing = 48
+
+    // New adaptive solver
+    var adaptive = WindowGeometry.overviewGridGeometry(3, width, height, aspect, spacing)
+    compare(adaptive.cards.length, 3, "Exactly 3 cards rendered, no fake empty cells")
+    compare(adaptive.rows, 2, "3 cards arranged in 2 rows")
+    compare(adaptive.rowDistribution[0], 2, "Row 0 has 2 cards")
+    compare(adaptive.rowDistribution[1], 1, "Row 1 has 1 card")
+
+    // All 3 cards have identical dimensions
+    compare(adaptive.cards[0].width, adaptive.cardWidth)
+    compare(adaptive.cards[1].width, adaptive.cardWidth)
+    compare(adaptive.cards[2].width, adaptive.cardWidth)
+    compare(adaptive.cards[0].height, adaptive.cardHeight)
+    compare(adaptive.cards[1].height, adaptive.cardHeight)
+    compare(adaptive.cards[2].height, adaptive.cardHeight)
+
+    // The single card in row 1 is centered horizontally
+    var card2 = adaptive.cards[2]
+    var card2CenterX = card2.x + card2.width / 2
+    fuzzyCompare(card2CenterX, width / 2, "Row 1 single card must be centered horizontally at viewport center")
+
+    // Card 2 is centered between Card 0 and Card 1
+    var card0 = adaptive.cards[0]
+    var card1 = adaptive.cards[1]
+    var row0CenterX = (card0.x + card1.x + card1.width) / 2
+    fuzzyCompare(card2CenterX, row0CenterX, "Row 1 card center matches Row 0 center")
+
+    // Compare with old rigid grid with 520 cap
+    var oldRigid = WindowGeometry.overviewGridGeometry(3, width, height, aspect, 520, spacing)
+    compare(oldRigid.cardWidth, 520, "Old rigid grid capped cards at 520")
+    verify(adaptive.cardWidth > oldRigid.cardWidth * 1.35, "Adaptive card width is >35% larger than old rigid 520 capped grid")
+  }
+
+  function test_adaptiveOverview_viewportShapes() {
+    var spacing = 48
+
+    // 1. 16:9 widescreen
+    var w16_9 = WindowGeometry.overviewGridGeometry(3, 1880, 1000, 1.7778, spacing)
+    compare(w16_9.rowDistribution[0], 2)
+    compare(w16_9.rowDistribution[1], 1)
+
+    // 2. 16:10
+    var w16_10 = WindowGeometry.overviewGridGeometry(3, 1880, 1120, 1.6, spacing)
+    compare(w16_10.rowDistribution[0], 2)
+    compare(w16_10.rowDistribution[1], 1)
+
+    // 3. Ultrawide (3440x1440)
+    var uw = WindowGeometry.overviewGridGeometry(2, 3400, 1360, 2.38, spacing)
+    compare(uw.rows, 1, "Ultrawide places 2 workspaces side by side")
+    compare(uw.rowDistribution[0], 2)
+
+    // 4. Portrait (1080x1920)
+    var portrait = WindowGeometry.overviewGridGeometry(2, 1040, 1880, 0.56, spacing)
+    compare(portrait.rows, 2, "Portrait places 2 workspaces vertically [1, 1]")
+    compare(portrait.rowDistribution[0], 1)
+    compare(portrait.rowDistribution[1], 1)
+    compare(portrait.cards[0].width, portrait.cards[1].width)
+    compare(portrait.cards[0].height, portrait.cards[1].height)
+
+    // Verify portrait 5 workspaces uses 3 rows [2, 2, 1]
+    var p5 = WindowGeometry.overviewGridGeometry(5, 1040, 1880, 0.56, spacing)
+    compare(p5.rows, 3)
+    compare(p5.rowDistribution[0], 2)
+    compare(p5.rowDistribution[1], 2)
+    compare(p5.rowDistribution[2], 1)
+  }
+
+  function test_adaptiveOverview_selectionDoesNotAffectGeometry() {
+    var width = 1880
+    var height = 1000
+    var aspect = 1.55
+    var spacing = 48
+
+    // Normal mode overviewGridGeometry is deterministic and independent of selection
+    var g1 = WindowGeometry.overviewGridGeometry(5, width, height, aspect, spacing)
+    var g2 = WindowGeometry.overviewGridGeometry(5, width, height, aspect, spacing)
+    compare(g1.cardWidth, g2.cardWidth)
+    compare(g1.cardHeight, g2.cardHeight)
+    for (var i = 0; i < 5; i++) {
+      compare(g1.cards[i].x, g2.cards[i].x)
+      compare(g1.cards[i].y, g2.cards[i].y)
+      compare(g1.cards[i].width, g2.cards[i].width)
+      compare(g1.cards[i].height, g2.cards[i].height)
+    }
+  }
 }
