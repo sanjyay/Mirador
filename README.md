@@ -6,7 +6,10 @@ activation, spatial previews that reflect each window's compositor geometry,
 and dragging windows between workspaces.
 
 
-https://github.com/user-attachments/assets/3bfd7c50-175f-442e-aae8-73df010d05e7
+
+
+https://github.com/user-attachments/assets/ea80d328-4e02-4a49-9d36-7638c6312665
+
 
 ## Install
 
