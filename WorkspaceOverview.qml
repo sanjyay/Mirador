@@ -639,6 +639,14 @@ Item {
     return root.cardCount > 0 ? 0 : -1
   }
 
+  function scratchpadCardIndex() {
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      if (item && item.isScratchpad) return i
+    }
+    return -1
+  }
+
   function moveCardSelection(dx, dy) {
     root.selectedCardIndex = root.cardIndexAfterMove(
       root.selectedCardIndex, dx, dy, root.cardCount, root.columns)
@@ -981,6 +989,13 @@ Item {
         if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.text === "+" || event.text === "=") {
           event.accepted = true
           root.createNewWorkspace()
+        }
+        if (event.key === Qt.Key_S || event.text === "s" || event.text === "S") {
+          var sIdx = root.scratchpadCardIndex()
+          if (sIdx >= 0) {
+            event.accepted = true
+            root.selectedCardIndex = sIdx
+          }
         }
       }
 
