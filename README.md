@@ -19,16 +19,6 @@ Install through Omarchy:
 omarchy plugin add https://github.com/sanjyay/Mirador.git
 ```
 
-Alternatively, install it manually by cloning this repository into your
-Omarchy plugins directory:
-
-```bash
-mkdir -p ~/.config/omarchy/plugins
-git clone https://github.com/sanjyay/Mirador.git \
-  ~/.config/omarchy/plugins/mirador
-omarchy-shell shell rescanPlugins
-```
-
 ## Optional background blur
 
 Mirador provides a transparent LayerShell surface with the namespace
