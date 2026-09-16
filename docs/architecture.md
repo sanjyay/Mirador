@@ -50,7 +50,12 @@ This document details the architectural layout, Wayland protocol interactions, Q
 * Sets `WlrLayershell.namespace: "omarchy-workspace-overview"`.
 * Sets `WlrLayershell.layer: WlrLayer.Overlay` and `WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive`.
 * Owns `gridGeometry` via `WindowGeometry.overviewGridGeometry(...)`.
-* Manages `selectedCardIndex`, keyboard shortcuts (arrows, vim keys `h/j/k/l`, `+`, `=`, `Esc`, `Enter`), and drag-and-drop state.
+* Manages workspace selection (`selectedCardIndex`), explicit carousel window selection (`selectedWindowAddress`), keyboard shortcuts, and drag-and-drop state. Close and workspace-move bindings resolve this address instead of relying on compositor focus while the exclusive overlay is open.
+* Defers release-to-commit for 250 ms so asynchronously launched Hyprland bindings can consume the explicit carousel window selection before the overlay clears it.
+* Retains the selected address for a two-second, single-use handoff when release wins the race. A late workspace-move IPC resolves that address directly and never falls back to the compositor's stale active window.
+* Treats `Super+Shift+number` as an addressed move chord in carousel mode, preventing the number key from simultaneously navigating the carousel to the destination workspace and erasing the source selection.
+* Overrides both key-symbol and physical-keycode forms of Omarchy's workspace-move bindings; the stock bindings use `code:10` through `code:19`, so overriding symbols alone leaves a destructive duplicate action.
+* In cycle mode, the carousel selection is authoritative. Compositor workspace events are treated as echoes and cannot bounce selection back to the previously focused workspace while an addressed action is in flight.
 * Renders existing workspaces using `workspaceModel` and dynamic creation slots using `insertionModel`.
 
 ### 2. `WorkspaceCard.qml`

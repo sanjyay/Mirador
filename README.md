@@ -56,7 +56,43 @@ hyprctl configerrors
 ```
 
 
-## What's new in version 2.2.0
+## What's new
+
+<details>
+<summary><b>Version 2.3 — click to reveal all changes</b></summary>
+
+### Carousel Cycle View (Super + Tab)
+* **Horizontal workspace strip**: Pressing `Super + Tab` opens a clean horizontal carousel showing only your real open workspaces — no virtual or duplicate slots.
+* **Target-first focus**: The *next* workspace (where you are heading) is immediately centered and large when you open the carousel. From workspace 2, workspace 3 is focused right away.
+* **Center + side layout**: The selected workspace is rendered large in the center; adjacent workspaces are scaled down and dimmed on either side for spatial context.
+* **Workspace number badge**: Each card shows its workspace number badge (1, 2, 3, S…) in the top-left, highlighted in accent colour for the focused card.
+* **Selected-window cue**: Window labels stay hidden until selected; the highlighted preview receives an accent border and title so `Super+W` has an unambiguous target.
+* **Spatial window navigation**: `Super+Arrow` moves the highlight between applications in the centered workspace using their rendered 2D positions.
+* **Bottom indicator strip**: A compact pill row (`1 [2] 3`) at the bottom of the screen shows all workspace numbers and highlights the current selection.
+* **Direct number navigation**: Press `Super + <workspace number>` (or `1`–`9`, `0` for 10, `S` for scratchpad) while in the carousel to jump directly to that workspace card.
+* **Release to switch**: Releasing `Super` while the carousel is open switches to the highlighted workspace and closes Mirador.
+* **Escape to cancel**: Pressing `Escape` closes the carousel without switching.
+
+### Shift + Tab Full Overview
+* **Overview binding**: `Shift + Tab` opens the existing full workspace grid (all workspaces, normal Mirador layout) via `mirador --full`.
+* **Toggle behaviour**: Press once to open; press again or `Escape` to close — Mirador stays open until explicitly dismissed.
+* **All v2.2 features preserved**: Focused mode, drag-and-drop, gestures, wheel navigation, scratchpad, and keyboard controls all work exactly as before.
+
+### Settings
+* `cycleUI` field added to `settings.json` — accepts `"full"`, `"compact"`, or `"carousel"`.
+
+</details>
+
+## Previous releases
+
+<details>
+<summary><b>Version 2.2.1 — click to reveal all changes</b></summary>
+
+### Opt-in Alt+Tab-Style Hold-to-Cycle Mode
+* **Hold Modifier & Step**: Summon and step through workspaces by holding `Super` (or `Alt`/`Ctrl`) and pressing `Tab` (`step: 1`) or `Shift + Tab` (`step: -1`).
+* **Release-to-Commit**: Releasing the modifier immediately switches to the selected workspace and dismisses Mirador.
+* **Auto-Enabling Payload**: Triggering with `{"step": 1}` or `{"step": -1}` automatically activates cycle mode, or it can be permanently configured via `keybindMode: "cycle"` in `settings.json`.
+* **Safe Cancellation**: Pressing `Escape` at any time cancels cycle navigation and dismisses Mirador without switching workspaces.
 
 ### Adaptive Normal Overview
 * **Equal-Sized Peer Workspaces**: Workspace cards dynamically scale to maximize preview area based on the active workspace count and available screen space, without any dominant cards, side rails, or size distortion.
@@ -96,7 +132,50 @@ hyprctl configerrors
 * Computes preview boundaries aligned directly to physical device pixels (`WindowGeometry.snapToDevicePixels`).
 * Completely eliminates fractional scaling matrices and transform blur for razor-sharp terminal fonts, text, and window borders across standard and HiDPI displays.
 
-## Previous releases
+</details>
+
+<details>
+<summary><b>Version 2.2.0 — click to reveal all changes</b></summary>
+
+### Adaptive Normal Overview
+* **Equal-Sized Peer Workspaces**: Workspace cards dynamically scale to maximize preview area based on the active workspace count and available screen space, without any dominant cards, side rails, or size distortion.
+* **Horizontally Centered Rows**: Incomplete rows are automatically centered, making efficient use of display space and avoiding wasted rigid grid cells:
+  ```text
+  [ 1 ] [ 2 ]
+
+     [ 3 ]
+  ```
+* **Rock-Solid Layout Stability**: Workspace card geometry remains fixed and stable during keyboard or mouse navigation—cards never resize, jump, or reflow when the selection moves.
+
+### Focused Overview Mode
+* **Deep Workspace Inspection**: Press `Space` or pinch to enter Focused mode, where the selected workspace expands into a primary view occupying ~74% of the usable screen width.
+* **Vertical Scrollable Rail**: Secondary workspaces stack neatly in a single column along the right edge.
+* **Smooth Rail Scrolling**: Scroll through secondary workspaces using the mouse wheel or touchpad with edge clamping and auto-scroll keeping the active selection in view.
+* **Direct Launcher Flag**: Open directly into focused view via `mirador --focused`.
+
+### Natural Gestures & Wheel Navigation
+* **Touchpad Gestures**:
+  * 3-finger swipe up to summon Mirador; 3-finger swipe down to dismiss.
+  * 2-finger pinch in / out to smoothly toggle between Normal and Focused modes.
+* **Endless Mouse-Wheel Cycling (Normal Mode)**:
+  * `Wheel Down`: advances to the next workspace in global visual read order (`1 → 2 → 3 → 1...`).
+  * `Wheel Up`: cycles to the previous workspace in global visual read order (`1 → 3 → 2 → 1...`).
+  * Endlessly wraps around edges without getting stuck at row boundaries.
+* **Focused-Mode Wheel Navigation**: Wheel scrolling traverses spatial rows or smoothly scrolls the secondary rail.
+
+### Bar-Aware Safe Viewport
+* Dynamically detects the Omarchy Bar's geometry on any edge—top, bottom, left, or right.
+* Computes an authoritative safe rectangle before laying out cards, ensuring workspace previews expand as large as possible while never rendering under, behind, or overlapping the bar.
+
+### Dedicated Scratchpad Section
+* Stashed applications in `special:scratchpad` appear in the overview with a distinct `"S"` badge whenever the scratchpad holds windows, and automatically disappear when empty.
+* Parked windows display live spatial previews and can be activated or dragged to and from normal numeric workspaces without disrupting workspace numbering.
+
+### Razor-Sharp Preview Fidelity
+* Computes preview boundaries aligned directly to physical device pixels (`WindowGeometry.snapToDevicePixels`).
+* Completely eliminates fractional scaling matrices and transform blur for razor-sharp terminal fonts, text, and window borders across standard and HiDPI displays.
+
+</details>
 
 <details>
 <summary><b>Version 2.1.1 — click to reveal all changes</b></summary>
@@ -166,33 +245,55 @@ o.bind(
 )
 ```
 
-Add the touchpad gestures to `~/.config/hypr/input.lua`:
+### v2.3 bindings: Carousel cycle + Shift+Tab full overview
+
+Add these to `~/.config/hypr/bindings.lua` to use the v2.3 carousel and Shift+Tab full overview:
 
 ```lua
-hl.gesture({
-  fingers = 3,
-  direction = "up",
-  action = function()
-    hl.dispatch(hl.dsp.exec_cmd("omarchy-shell shell summon mirador '{}'"))
-  end,
-})
+-- Super+Tab — carousel cycle
+hl.unbind("SUPER + TAB")
+hl.unbind("SUPER + SHIFT + TAB")
 
-hl.gesture({
-  fingers = 3,
-  direction = "down",
-  action = function()
-    hl.dispatch(hl.dsp.exec_cmd("omarchy-shell shell hide mirador"))
-  end,
-})
+o.bind("SUPER + TAB", "Workspace carousel next", "mirador --cycle-next")
+o.bind("SUPER + SHIFT + TAB", "Workspace carousel prev", "mirador --cycle-prev")
+
+-- Required for closing the highlighted window while Mirador owns exclusive
+-- keyboard focus. Outside Mirador this retains the normal close behavior.
+hl.unbind("SUPER + W")
+o.bind("SUPER + W", "Close window", "mirador --close-window")
+
+-- Inside the carousel these select a window by its rendered position.
+-- Outside Mirador they retain Hyprland's normal directional focus behavior.
+hl.unbind("SUPER + LEFT")
+hl.unbind("SUPER + RIGHT")
+hl.unbind("SUPER + UP")
+hl.unbind("SUPER + DOWN")
+o.bind("SUPER + LEFT", "Focus left window", "mirador --window-left")
+o.bind("SUPER + RIGHT", "Focus right window", "mirador --window-right")
+o.bind("SUPER + UP", "Focus upper window", "mirador --window-up")
+o.bind("SUPER + DOWN", "Focus lower window", "mirador --window-down")
+
+-- Move the highlighted carousel window to workspaces 1-10. Outside Mirador,
+-- these preserve Omarchy's normal move-and-follow behavior.
+for workspace = 1, 10 do
+  local key = workspace == 10 and "0" or tostring(workspace)
+  local keycode = "code:" .. tostring(workspace + 9)
+  hl.unbind("SUPER + SHIFT + " .. key)
+  hl.unbind("SUPER + SHIFT + " .. keycode)
+  o.bind("SUPER + SHIFT + " .. keycode, "Move selected Mirador window to workspace " .. workspace,
+    "mirador --move-window-to-workspace " .. workspace)
+end
+
+-- Shift+Tab — full overview
+o.bind("SHIFT + TAB", "Workspace full overview", "mirador --full")
 ```
 
-Hyprland reloads these files automatically. You can also apply and validate the
-configuration manually:
-
-```bash
-hyprctl reload
-hyprctl configerrors
-```
+The close override is required because Hyprland executes and consumes its
+compositor-side close binding before an exclusive layer-shell surface can
+receive `Super+W`. Mirador therefore cannot safely discover and intercept an
+arbitrary existing close binding from QML. You can alternatively load the
+included [`mirador.bindings.lua`](mirador.bindings.lua) after the default
+Omarchy bindings.
 
 ### Changing the keyboard binding
 
@@ -225,17 +326,48 @@ To inspect existing shortcuts before choosing one, run:
 omarchy menu keybindings --print
 ```
 
+Add the touchpad gestures to `~/.config/hypr/input.lua`:
+
+```lua
+hl.gesture({
+  fingers = 3,
+  direction = "up",
+  action = function()
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-shell shell summon mirador '{\"cycleUI\":\"full\",\"keybindMode\":\"normal\"}'"))
+  end,
+})
+
+hl.gesture({
+  fingers = 3,
+  direction = "down",
+  action = function()
+    hl.dispatch(hl.dsp.exec_cmd("omarchy-shell shell hide mirador"))
+  end,
+})
+```
+
+Hyprland reloads these files automatically. You can also apply and validate the
+configuration manually:
+
+```bash
+hyprctl reload
+hyprctl configerrors
+```
+
 ## Keyboard navigation and controls
 
 | Key / Action | Description |
 | :--- | :--- |
+| `Tab` / `Shift+Tab` | Step forward / backward in carousel cycle mode (hold Super, release to commit) |
+| `Super+Arrow keys` | In carousel mode, move the highlighted window within the selected workspace; otherwise use normal Hyprland directional focus |
+| `Super+Shift+1…9` (`0` for 10) | Move the highlighted carousel window to that workspace; otherwise move the active desktop window and follow it |
 | `Left` / `h`, `Right` / `l` | Continuous global cycling across workspaces in visual reading order (wraps around) |
 | `Up` / `k`, `Down` / `j` | Move selection between visual rows to closest card by center, wrapping top/bottom |
 | `Space` | Toggle between Normal and Focused overview modes (or 2-finger pinch) |
 | `Enter` / `Return` | Activate the selected workspace (or scratchpad) and dismiss Mirador |
 | `Mouse Wheel` | Endless visual cycle in Normal mode; spatial row move / rail scroll in Focused mode |
 | `+` / `=` | Create next contextual workspace |
-| `Escape` | Dismiss Mirador |
+| `Escape` | Dismiss Mirador (cancels cycle without activation) |
 | `Click workspace card` | Switch to workspace (in Focused mode, clicking a rail card promotes it to primary) |
 | `Click window preview` | Focus window and dismiss overview |
 | `Drag window preview` | Move window to target workspace, scratchpad, or drop onto insertion card |
@@ -245,11 +377,18 @@ omarchy menu keybindings --print
 Mirador includes a `mirador` CLI command:
 
 ```bash
-mirador            # Toggle Mirador overview (Normal mode)
-mirador --focused  # Open directly in Focused overview mode
-mirador --demo     # Open Mirador with on-screen input overlay for demo recordings
-mirador --help     # Show command-line help
-mirador --version  # Show version information
+mirador              # Toggle Mirador overview (Normal mode)
+mirador --full       # Toggle Mirador full workspace overview
+mirador --cycle-next # Step forward in carousel cycle mode (Super+Tab)
+mirador --cycle-prev # Step backward in carousel cycle mode (Super+Shift+Tab)
+mirador --focused    # Open directly in Focused overview mode
+mirador --cycle      # Open in cycle mode (step forward)
+mirador --compact    # Open in compact cycle mode (experimental)
+mirador --carousel   # Open in continuous carousel cycle mode (experimental)
+mirador --move-window-to-workspace 5 # Move selected/active window to workspace 5
+mirador --demo       # Open Mirador with on-screen input overlay for demo recordings
+mirador --help       # Show command-line help
+mirador --version    # Show version information (2.3)
 ```
 
 ### Demo recording mode
