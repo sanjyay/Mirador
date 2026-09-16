@@ -127,6 +127,10 @@ TestCase {
       "bin/mirador must support addressed workspace movement")
     verify(/moveWindowToWorkspace/.test(source) && /workspace/.test(source),
       "bin/mirador must send an explicit workspace move action")
+    verify(/--workspace\s*\)/.test(source),
+      "bin/mirador must support deterministic numeric workspace navigation")
+    verify(/navigateWorkspace/.test(source),
+      "bin/mirador must send numeric navigation through Mirador IPC")
 
     // --full
     verify(/--full/.test(source), "bin/mirador must support --full flag")
@@ -153,6 +157,22 @@ TestCase {
       "Mirador bindings must remove Omarchy's physical-keycode workspace move")
     verify(/o\.bind\([\s\S]*?"SUPER \+ SHIFT \+ " \..*keycode/.test(bindings),
       "Mirador workspace moves must use the same physical keycodes as Omarchy")
+  }
+
+  function test_carouselDeterministicNumericWorkspaceBindings() {
+    var overview = readSource("../WorkspaceOverview.qml")
+    var bindings = readSource("../mirador.bindings.lua")
+
+    verify(/payload\.action\s*===\s*"navigateWorkspace"/.test(overview),
+      "WorkspaceOverview must handle numeric workspace IPC actions")
+    verify(/navigateWorkspace[\s\S]*?root\.opened[\s\S]*?navigateToWorkspaceNumber\(workspaceTarget\)/.test(overview),
+      "An open carousel must navigate its selected card")
+    verify(/navigateWorkspace[\s\S]*?else[\s\S]*?dispatchWorkspace\(workspaceTarget\)/.test(overview),
+      "A closed carousel must preserve normal desktop workspace switching")
+    verify(/hl\.unbind\("SUPER \+ " \.\. keycode\)/.test(bindings),
+      "Mirador bindings must remove Omarchy physical-keycode workspace navigation")
+    verify(/o\.bind\([\s\S]*?"SUPER \+ " \.\. keycode[\s\S]*?mirador --workspace/.test(bindings),
+      "Numeric workspace bindings must route through Mirador IPC")
   }
 
   function test_availableWorkspacesLinearStrip() {

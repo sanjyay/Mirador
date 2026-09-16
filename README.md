@@ -69,7 +69,7 @@ hyprctl configerrors
 * **Selected-window cue**: Window labels stay hidden until selected; the highlighted preview receives an accent border and title so `Super+W` has an unambiguous target.
 * **Spatial window navigation**: `Super+Arrow` moves the highlight between applications in the centered workspace using their rendered 2D positions.
 * **Bottom indicator strip**: A compact pill row (`1 [2] 3`) at the bottom of the screen shows all workspace numbers and highlights the current selection.
-* **Direct number navigation**: Press `Super + <workspace number>` (or `1`–`9`, `0` for 10, `S` for scratchpad) while in the carousel to jump directly to that workspace card.
+* **Direct number navigation**: Press `Super + <workspace number>` (or `1`–`9`, `0` for 10, `S` for scratchpad) while in the carousel to jump directly to that workspace card. The Mirador-aware numeric bindings route this through IPC so Hyprland cannot consume the key first.
 * **Release to switch**: Releasing `Super` while the carousel is open switches to the highlighted workspace and closes Mirador.
 * **Escape to cancel**: Pressing `Escape` closes the carousel without switching.
 
@@ -360,6 +360,7 @@ hyprctl configerrors
 | :--- | :--- |
 | `Tab` / `Shift+Tab` | Step forward / backward in carousel cycle mode (hold Super, release to commit) |
 | `Super+Arrow keys` | In carousel mode, move the highlighted window within the selected workspace; otherwise use normal Hyprland directional focus |
+| `Super+1…9` (`0` for 10) | Navigate the carousel directly; otherwise switch to that desktop workspace normally |
 | `Super+Shift+1…9` (`0` for 10) | Move the highlighted carousel window to that workspace; otherwise move the active desktop window and follow it |
 | `Left` / `h`, `Right` / `l` | Continuous global cycling across workspaces in visual reading order (wraps around) |
 | `Up` / `k`, `Down` / `j` | Move selection between visual rows to closest card by center, wrapping top/bottom |
@@ -385,6 +386,7 @@ mirador --focused    # Open directly in Focused overview mode
 mirador --cycle      # Open in cycle mode (step forward)
 mirador --compact    # Open in compact cycle mode (experimental)
 mirador --carousel   # Open in continuous carousel cycle mode (experimental)
+mirador --workspace 5 # Navigate carousel/switch desktop to workspace 5
 mirador --move-window-to-workspace 5 # Move selected/active window to workspace 5
 mirador --demo       # Open Mirador with on-screen input overlay for demo recordings
 mirador --help       # Show command-line help

@@ -27,8 +27,15 @@ o.bind("SUPER + DOWN", "Focus lower window", "mirador --window-down")
 for workspace = 1, 10 do
   local key = workspace == 10 and "0" or tostring(workspace)
   local keycode = "code:" .. tostring(workspace + 9)
+  hl.unbind("SUPER + " .. key)
+  hl.unbind("SUPER + " .. keycode)
   hl.unbind("SUPER + SHIFT + " .. key)
   hl.unbind("SUPER + SHIFT + " .. keycode)
+  o.bind(
+    "SUPER + " .. keycode,
+    "Navigate Mirador to workspace " .. workspace,
+    "mirador --workspace " .. workspace
+  )
   o.bind(
     "SUPER + SHIFT + " .. keycode,
     "Move selected Mirador window to workspace " .. workspace,

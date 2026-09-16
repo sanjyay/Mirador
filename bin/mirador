@@ -21,6 +21,7 @@ Usage:
   mirador --window-right Move carousel window selection right
   mirador --window-up    Move carousel window selection up
   mirador --window-down  Move carousel window selection down
+  mirador --workspace N Navigate to workspace N in Mirador, or switch normally
   mirador --move-window-to-workspace N Move the selected window to workspace N
   mirador --demo       Open Mirador with demo input overlay
   mirador --help       Show this help
@@ -73,6 +74,14 @@ case "${1:-}" in
     ;;
   --window-down )
     exec omarchy-shell shell summon mirador '{"action":"navigateWindow","dx":0,"dy":1}'
+    ;;
+  --workspace )
+    workspace="${2:-}"
+    if [[ ! "$workspace" =~ ^([1-9]|10)$ ]]; then
+      echo "Error: --workspace requires a workspace from 1 to 10" >&2
+      exit 1
+    fi
+    exec omarchy-shell shell summon mirador "{\"action\":\"navigateWorkspace\",\"workspace\":${workspace}}"
     ;;
   --move-window-to-workspace )
     workspace="${2:-}"

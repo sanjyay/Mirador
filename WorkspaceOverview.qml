@@ -1044,6 +1044,22 @@ Item {
       payload = null
     }
 
+    // Global compositor bindings can be consumed before an exclusive
+    // layer-shell client receives the matching key event. Route numeric
+    // workspace navigation through IPC so carousel selection is deterministic,
+    // while retaining normal desktop workspace switching when Mirador is shut.
+    if (payload && payload.action === "navigateWorkspace") {
+      var workspaceTarget = Number(payload.workspace)
+      if (!isFinite(workspaceTarget) || workspaceTarget < 1 || workspaceTarget > 10
+          || Math.floor(workspaceTarget) !== workspaceTarget) return
+      if (root.opened) {
+        root.navigateToWorkspaceNumber(workspaceTarget)
+      } else {
+        root.dispatchWorkspace(workspaceTarget)
+      }
+      return
+    }
+
     // Compositor close bindings are consumed before an exclusive layer-shell
     // client receives the key event. Route the binding through this action so
     // carousel closes always use an explicit address and normal desktop closes
