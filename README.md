@@ -19,6 +19,33 @@ Install through Omarchy:
 omarchy plugin add https://github.com/sanjyay/Mirador.git
 ```
 
+### Add the keyboard bindings
+
+Add the following to `~/.config/hypr/bindings.lua` after installing the
+plugin. The included binding file handles close, arrow-key window selection,
+numeric workspace navigation, and moving the selected window by address.
+
+```lua
+-- Super+Tab — carousel cycle
+hl.unbind("SUPER + TAB")
+hl.unbind("SUPER + SHIFT + TAB")
+o.bind("SUPER + TAB", "Workspace carousel next", "mirador --cycle-next")
+o.bind("SUPER + SHIFT + TAB", "Workspace carousel prev", "mirador --cycle-prev")
+
+-- Mirador-aware close, arrow, and numeric workspace actions
+dofile(os.getenv("HOME") .. "/.config/omarchy/plugins/mirador/mirador.bindings.lua")
+
+-- Shift+Tab — full overview
+o.bind("SHIFT + TAB", "Workspace full overview", "mirador --full")
+```
+
+Reload Hyprland and confirm that the configuration is valid:
+
+```bash
+hyprctl reload
+hyprctl configerrors
+```
+
 ## Optional background blur
 
 Mirador provides a transparent LayerShell surface with the namespace
@@ -278,8 +305,12 @@ o.bind("SUPER + DOWN", "Focus lower window", "mirador --window-down")
 for workspace = 1, 10 do
   local key = workspace == 10 and "0" or tostring(workspace)
   local keycode = "code:" .. tostring(workspace + 9)
+  hl.unbind("SUPER + " .. key)
+  hl.unbind("SUPER + " .. keycode)
   hl.unbind("SUPER + SHIFT + " .. key)
   hl.unbind("SUPER + SHIFT + " .. keycode)
+  o.bind("SUPER + " .. keycode, "Navigate Mirador to workspace " .. workspace,
+    "mirador --workspace " .. workspace)
   o.bind("SUPER + SHIFT + " .. keycode, "Move selected Mirador window to workspace " .. workspace,
     "mirador --move-window-to-workspace " .. workspace)
 end
