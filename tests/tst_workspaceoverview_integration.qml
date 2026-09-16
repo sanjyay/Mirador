@@ -795,17 +795,17 @@ TestCase {
       "Keys.onReleased must check isSummoningModifier")
     verify(/root\.activateSelectedCard\(\)/.test(source),
       "Modifier release must activate highlighted selection")
-    verify(/id\s*:\s*cycleReleaseCommitTimer/.test(source),
-      "Cycle release must provide a grace period for asynchronous compositor bindings")
-    verify(/Keys\.onReleased[\s\S]*cycleReleaseCommitTimer\.restart\(\)/.test(source),
-      "Modifier release must defer commit until addressed bindings reach Mirador")
-    verify(/cycleReleaseCommitTimer[\s\S]*root\.activateSelectedCard\(\)/.test(source),
-      "Deferred cycle release must still activate the highlighted workspace")
+    verify(!/id\s*:\s*cycleReleaseCommitTimer/.test(source),
+      "Cycle release must not wait on a grace-period timer")
+    verify(/Keys\.onReleased[\s\S]*root\.activateSelectedCard\(\)/.test(source),
+      "Modifier release must activate the highlighted workspace immediately")
     verify(/function\s+rememberPendingCarouselWindow\(\)/.test(source)
         && /pendingCarouselWindowAddress/.test(source),
       "Modifier release must retain the explicit carousel address for late IPC actions")
     verify(/Keys\.onReleased[\s\S]*rememberPendingCarouselWindow\(\)/.test(source),
       "Modifier release must snapshot the selected window before dismissing")
+    verify(/function\s+activateSelectedCard\(\)[\s\S]*root\.dismiss\(\)/.test(source),
+      "Selected-card activation must dismiss synchronously")
     verify(/payload\.action\s*===\s*"moveWindowToWorkspace"[\s\S]*takePendingCarouselWindow\(\)/.test(source),
       "Late workspace moves must consume the retained carousel address")
     verify(/isCarouselWindowMove[\s\S]*rememberPendingCarouselWindow\(\)[\s\S]*event\.accepted\s*=\s*true[\s\S]*return/.test(source),
