@@ -831,6 +831,31 @@ TestCase {
       "activateSelectedCard() must disarm cycled and stop watchdog")
   }
 
+  function test_openMapsBeforeRefreshAndScreencopyStartup() {
+    var source = workspaceOverviewSource()
+    var openMatch = source.match(/function\s+open\([^)]*\)\s*\{[\s\S]*?\n  \}/)
+    verify(openMatch !== null, "WorkspaceOverview must expose open()")
+    var openBody = openMatch[0]
+
+    var visibleIndex = openBody.indexOf("root.opened = true")
+    var refreshStartIndex = openBody.indexOf("postOpenRefreshTimer.restart()")
+    verify(visibleIndex >= 0 && refreshStartIndex > visibleIndex,
+      "open() must map the overlay before scheduling compositor refreshes")
+    verify(!/Hyprland\.refresh(?:Monitors|Workspaces|Toplevels)\(\)/.test(openBody),
+      "open() must not synchronously refresh compositor models before its first frame")
+    verify(/id\s*:\s*postOpenRefreshTimer[\s\S]*interval\s*:\s*16[\s\S]*Hyprland\.refreshMonitors\(\)[\s\S]*Hyprland\.refreshWorkspaces\(\)[\s\S]*Hyprland\.refreshToplevels\(\)/.test(source),
+      "Compositor model refreshes must run after the overlay maps")
+    verify(/property\s+bool\s+livePreviewsReady\s*:\s*false/.test(source)
+        && /id\s*:\s*livePreviewStartTimer[\s\S]*livePreviewsReady\s*=\s*true/.test(source),
+      "Live screencopy streams must start after the initial lightweight frame")
+    verify(/livePreviews:\s*root\.opened\s*&&\s*root\.livePreviewsReady/.test(source),
+      "Preview components must honor deferred screencopy startup")
+    verify(/curItem\s*!==\s*null\s*&&\s*typeof\s+curItem\s*===\s*"object"/.test(source),
+      "Carousel selection changes must tolerate the card model not being ready yet")
+    verify(!/var\s+curWsId\s*=\s*typeof\s+curItem/.test(source),
+      "No carousel selection path may dereference a null card model item")
+  }
+
   function simulateIsSummoningModifier(key, activeMod, configuredMod) {
     var Qt_Key_Meta = 0x01000022
     var Qt_Key_Super_L = 0x01000053

@@ -46,7 +46,7 @@ TestCase {
     // 5. cardsContainer visibility and livePreviews
     verify(/cardsContainer[\s\S]*visible\s*:\s*root\.activePresentation\s*!==\s*"compact"/.test(source),
       "cardsContainer must be hidden when activePresentation is compact")
-    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*!==\s*"compact"/.test(source),
+    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*root\.livePreviewsReady\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*!==\s*"compact"/.test(source),
       "cardsContainer cards must disable livePreviews in compact mode")
 
     // 6. CompactCycleView declaration
@@ -54,7 +54,7 @@ TestCase {
       "WorkspaceOverview must host CompactCycleView")
     verify(/visible\s*:\s*root\.activePresentation\s*===\s*"compact"/.test(source),
       "CompactCycleView must be visible only when activePresentation is compact")
-    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*===\s*"compact"/.test(source),
+    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*root\.livePreviewsReady\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*===\s*"compact"/.test(source),
       "CompactCycleView must receive active livePreviews only when compact is active")
   }
 

@@ -16,6 +16,7 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property bool livePreviewsReady: false
   property bool demoMode: false
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
@@ -117,6 +118,31 @@ Item {
     }
   }
 
+  // Map the lightweight carousel shell before doing compositor IPC refreshes
+  // or starting screencopy streams. This keeps the first frame responsive;
+  // fresh model data and live captures arrive immediately afterward.
+  Timer {
+    id: postOpenRefreshTimer
+    interval: 16
+    repeat: false
+    onTriggered: {
+      if (!root.opened) return
+      Hyprland.refreshMonitors()
+      Hyprland.refreshWorkspaces()
+      Hyprland.refreshToplevels()
+      livePreviewStartTimer.restart()
+    }
+  }
+
+  Timer {
+    id: livePreviewStartTimer
+    interval: 16
+    repeat: false
+    onTriggered: {
+      if (root.opened) root.livePreviewsReady = true
+    }
+  }
+
   function isSummoningModifier(key) {
     if (root.activeCycleModifier === Qt.MetaModifier) {
       return key === Qt.Key_Meta || key === Qt.Key_Super_L || key === Qt.Key_Super_R
@@ -149,7 +175,7 @@ Item {
     if (root.activePresentation === "carousel") {
       var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
         ? root.overviewCardModel[root.selectedCardIndex] : null
-      var curWsId = typeof curItem === "object" ? curItem.workspaceId : curItem
+      var curWsId = curItem !== null && typeof curItem === "object" ? curItem.workspaceId : curItem
       if (typeof curWsId === "number" && curWsId > 0) {
         if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
           root.dispatchWorkspace(curWsId)
@@ -498,7 +524,7 @@ Item {
     if (root.opened && root.activePresentation === "carousel") {
       var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
         ? root.overviewCardModel[root.selectedCardIndex] : null
-      var curWsId = typeof curItem === "object" ? curItem.workspaceId : curItem
+      var curWsId = curItem !== null && typeof curItem === "object" ? curItem.workspaceId : curItem
       if (typeof curWsId === "number" && curWsId > 0) {
         if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
           root.dispatchWorkspace(curWsId)
@@ -1149,9 +1175,6 @@ Item {
       return
     }
 
-    Hyprland.refreshMonitors()
-    Hyprland.refreshWorkspaces()
-    Hyprland.refreshToplevels()
     restoreCompositorFocusTimer.stop()
     root.pendingRestoreWorkspaceId = -1
     root.pendingRestoreWindowAddress = ""
@@ -1215,6 +1238,12 @@ Item {
       root.activePresentation = "full"
     }
 
+    // Make the layer visible before workspace activation, model refreshes, or
+    // screencopy initialization. All remaining state changes in this handler
+    // complete before Qt renders the first frame.
+    root.livePreviewsReady = false
+    root.opened = true
+
     if (root.keybindMode === "cycle" && payload && typeof payload.step === "number") {
       root.cycleStep(payload.step < 0 ? -1 : 1)
     } else if (root.keybindMode === "cycle") {
@@ -1227,8 +1256,8 @@ Item {
 
     root.resetSelectedWindowSelection()
 
-    root.opened = true
     keyCatcher.forceActiveFocus()
+    postOpenRefreshTimer.restart()
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
       if (root.demoMode && demoOverlay) {
@@ -1246,6 +1275,9 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    postOpenRefreshTimer.stop()
+    livePreviewStartTimer.stop()
+    root.livePreviewsReady = false
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
@@ -1273,6 +1305,9 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    postOpenRefreshTimer.stop()
+    livePreviewStartTimer.stop()
+    root.livePreviewsReady = false
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
@@ -1766,7 +1801,7 @@ Item {
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
             isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
-            livePreviews: root.opened && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel"
+            livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel"
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
             focused: Hyprland.focusedWorkspace !== null
@@ -1814,7 +1849,7 @@ Item {
         anchors.centerIn: parent
         visible: root.activePresentation === "compact"
         overview: root
-        livePreviews: root.opened && panel.visible && root.activePresentation === "compact"
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "compact"
       }
 
       // ── Continuous Carousel Switcher (Active in carousel cycle mode) ──────
@@ -1823,7 +1858,7 @@ Item {
         anchors.fill: parent
         visible: root.activePresentation === "carousel"
         overview: root
-        livePreviews: root.opened && panel.visible && root.activePresentation === "carousel"
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "carousel"
       }
     }
 

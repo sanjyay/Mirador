@@ -42,7 +42,7 @@ TestCase {
     // 5. cardsContainer visibility and livePreviews exclusion
     verify(/cardsContainer[\s\S]*visible\s*:\s*root\.activePresentation\s*!==\s*"compact"\s*&&\s*root\.activePresentation\s*!==\s*"carousel"/.test(source),
       "cardsContainer must be hidden when activePresentation is carousel")
-    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*!==\s*"compact"\s*&&\s*root\.activePresentation\s*!==\s*"carousel"/.test(source),
+    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*root\.livePreviewsReady\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*!==\s*"compact"\s*&&\s*root\.activePresentation\s*!==\s*"carousel"/.test(source),
       "cardsContainer cards must disable livePreviews in carousel mode")
 
     // 6. CarouselCycleView declaration
@@ -50,7 +50,7 @@ TestCase {
       "WorkspaceOverview must host CarouselCycleView")
     verify(/visible\s*:\s*root\.activePresentation\s*===\s*"carousel"/.test(source),
       "CarouselCycleView must be visible only when activePresentation is carousel")
-    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*===\s*"carousel"/.test(source),
+    verify(/livePreviews\s*:\s*root\.opened\s*&&\s*root\.livePreviewsReady\s*&&\s*panel\.visible\s*&&\s*root\.activePresentation\s*===\s*"carousel"/.test(source),
       "CarouselCycleView must receive active livePreviews only when carousel is active")
   }
 
