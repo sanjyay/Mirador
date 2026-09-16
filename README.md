@@ -21,25 +21,6 @@ omarchy plugin add https://github.com/sanjyay/Mirador.git
 
 ### Add the keyboard bindings
 
-Add the complete block below to `~/.config/hypr/bindings.lua` after installing
-the plugin and after any existing bindings for these shortcuts. This is a manual,
-user-controlled step: Mirador does not edit your configuration files.
-
-- `Super+Tab` / `Super+Shift+Tab`: cycle forward/backward through the carousel;
-  release Super to select.
-- `Alt+Tab` / `Alt+Shift+Tab`: cycle forward/backward in the full overview;
-  release Alt to select. These replace Omarchy's next/previous-window shortcuts.
-- `Super+Arrow`: select a window inside the carousel; `Super+W`: close it.
-- `Super+1…9` / `Super+0`: select workspace 1–10.
-- `Super+Shift+1…9` / `Super+Shift+0`: move the selected window to workspace 1–10.
-- `Shift+Tab`: toggle the full overview without holding a modifier.
-
-Super+Tab replaces Omarchy's next/previous-workspace shortcuts. The close, arrow,
-and number bindings replace the corresponding native desktop shortcuts with
-Mirador-aware commands. When Mirador is closed, those commands retain normal
-desktop close, directional focus, workspace switching, and move-and-follow
-behavior. They require the Omarchy shell and Mirador plugin to be available.
-
 ```lua
 -- Super+Tab — carousel cycle
 hl.unbind("SUPER + TAB")
@@ -106,10 +87,6 @@ hyprctl configerrors
 ```
 
 ## Optional background blur
-
-Mirador provides a transparent LayerShell surface with the namespace
-`omarchy-workspace-overview`. Background blur is performed by Hyprland, not by
-Mirador itself, and is not enabled automatically when the plugin is installed.
 
 Current Omarchy installations may have Hyprland's global blur engine disabled.
 To enable Mirador blur, add the following to a user-owned Hyprland Lua config,
