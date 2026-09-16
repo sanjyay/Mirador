@@ -341,6 +341,21 @@ TestCase {
     compare(WindowModel.findWorkspaceCardIndex(cardModel, 5), -1)
   }
 
+  function test_missingNumericWorkspaceBecomesSelected() {
+    var source = readSource("../WorkspaceOverview.qml")
+
+    verify(/property\s+int\s+pendingWorkspaceNavigationTarget\s*:\s*-1/.test(source),
+      "Missing numeric navigation must retain its intended workspace")
+    verify(/foundIndex\s*===\s*-1[\s\S]*pendingWorkspaceNavigationTarget\s*=\s*targetNum[\s\S]*dispatchWorkspace\(targetNum\)/.test(source),
+      "A missing workspace must be recorded before it is created")
+    verify(/function\s+resolvePendingWorkspaceNavigation\(\)[\s\S]*findWorkspaceCardIndex[\s\S]*navigateToWorkspaceNumber\(target\)/.test(source),
+      "Pending navigation must select the card once it appears")
+    verify(/onOverviewCardModelChanged[\s\S]*resolvePendingWorkspaceNavigation/.test(source),
+      "Workspace model updates must retry pending card selection")
+    verify(/function\s+activateSelectedCard\(\)[\s\S]*pendingWorkspaceNavigationTarget[\s\S]*dispatchWorkspace\(pendingWorkspaceTarget\)/.test(source),
+      "Super release must keep a not-yet-rendered workspace authoritative")
+  }
+
   function test_workspaceOverviewCompositorEventSyncIntegration() {
     var source = readSource("../WorkspaceOverview.qml")
 

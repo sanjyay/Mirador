@@ -69,7 +69,7 @@ hyprctl configerrors
 * **Selected-window cue**: Window labels stay hidden until selected; the highlighted preview receives an accent border and title so `Super+W` has an unambiguous target.
 * **Spatial window navigation**: `Super+Arrow` moves the highlight between applications in the centered workspace using their rendered 2D positions.
 * **Bottom indicator strip**: A compact pill row (`1 [2] 3`) at the bottom of the screen shows all workspace numbers and highlights the current selection.
-* **Direct number navigation**: Press `Super + <workspace number>` (or `1`–`9`, `0` for 10, `S` for scratchpad) while in the carousel to jump directly to that workspace card. The Mirador-aware numeric bindings route this through IPC so Hyprland cannot consume the key first.
+* **Direct number navigation**: Press `Super + <workspace number>` (or `1`–`9`, `0` for 10, `S` for scratchpad) while in the carousel to jump directly to that workspace card. Missing numeric workspaces are created and highlighted as soon as Hyprland publishes them. The Mirador-aware numeric bindings route this through IPC so Hyprland cannot consume the key first.
 * **Release to switch**: Releasing `Super` while the carousel is open switches to the highlighted workspace and closes Mirador immediately.
 * **Escape to cancel**: Pressing `Escape` closes the carousel without switching.
 

@@ -35,6 +35,7 @@ Item {
   property string pendingRestoreWindowAddress: ""
   property string pendingCarouselWindowAddress: ""
   property double pendingCarouselWindowExpiresAt: 0
+  property int pendingWorkspaceNavigationTarget: -1
   property bool carouselAddressedActionHandled: false
 
   Timer {
@@ -140,6 +141,7 @@ Item {
   }
 
   function cycleStep(delta) {
+    root.pendingWorkspaceNavigationTarget = -1
     root.cycled = true
     holdWatchdog.restart()
     var stepVal = delta < 0 ? -1 : 1
@@ -173,14 +175,20 @@ Item {
     if (foundIndex === -1 && !isScratch) {
       var targetNum = typeof target === "number" ? target : parseInt(target, 10)
       if (!isNaN(targetNum) && targetNum > 0) {
+        root.pendingWorkspaceNavigationTarget = targetNum
         root.dispatchWorkspace(targetNum)
         Hyprland.refreshWorkspaces()
         Hyprland.refreshToplevels()
         foundIndex = WindowModel.findWorkspaceCardIndex(root.overviewCardModel, targetNum)
+        if (foundIndex === -1) {
+          Qt.callLater(root.resolvePendingWorkspaceNavigation)
+          return true
+        }
       }
     }
 
     if (foundIndex !== -1) {
+      root.pendingWorkspaceNavigationTarget = -1
       root.selectedCardIndex = foundIndex
       // Workspace cards can be inserted or removed without changing this
       // numeric index. Always re-resolve the window for the workspace now
@@ -211,6 +219,14 @@ Item {
       return true
     }
     return false
+  }
+
+  function resolvePendingWorkspaceNavigation() {
+    var target = root.pendingWorkspaceNavigationTarget
+    if (!root.opened || target < 1) return false
+    var foundIndex = WindowModel.findWorkspaceCardIndex(root.overviewCardModel, target)
+    if (foundIndex === -1) return false
+    return root.navigateToWorkspaceNumber(target)
   }
 
   function workspaceTargetFromEvent(event) {
@@ -863,6 +879,7 @@ Item {
   }
 
   function moveCardSelection(dx, dy) {
+    root.pendingWorkspaceNavigationTarget = -1
     root.selectedCardIndex = root.cardIndexAfterMove(
       root.selectedCardIndex, dx, dy, root.cardCount, root.columns)
   }
@@ -933,6 +950,13 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    var pendingWorkspaceTarget = root.pendingWorkspaceNavigationTarget
+    if (pendingWorkspaceTarget > 0) {
+      root.pendingWorkspaceNavigationTarget = -1
+      root.dispatchWorkspace(pendingWorkspaceTarget)
+      root.dismiss()
+      return
+    }
     var index = root.selectedCardIndex
     if (index < 0 || index >= root.cardCount) return
     var item = root.overviewCardModel[index]
@@ -1134,6 +1158,7 @@ Item {
     root.closingWindowAddresses = ({})
     root.clearPendingCarouselWindow()
     root.carouselAddressedActionHandled = false
+    root.pendingWorkspaceNavigationTarget = -1
     root.selectedWindowAddress = ""
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
@@ -1225,6 +1250,7 @@ Item {
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.selectedWindowAddress = ""
+    root.pendingWorkspaceNavigationTarget = -1
     root.overviewMode = "normal"
     root.activePresentation = "full"
     root.keybindMode = "normal"
@@ -1251,6 +1277,7 @@ Item {
     root.draggedToplevel = null
     root.selectedCardIndex = -1
     root.selectedWindowAddress = ""
+    root.pendingWorkspaceNavigationTarget = -1
     root.overviewMode = "normal"
     root.activePresentation = "full"
     root.keybindMode = "normal"
@@ -1828,6 +1855,8 @@ Item {
           || name === "destroyworkspace") {
         Hyprland.refreshMonitors()
         Hyprland.refreshWorkspaces()
+        if (root.pendingWorkspaceNavigationTarget > 0)
+          Qt.callLater(root.resolvePendingWorkspaceNavigation)
       }
       if (name.indexOf("window") !== -1 || name.indexOf("group") !== -1
           || name === "fullscreen" || name === "changefloatingmode"
@@ -1891,5 +1920,10 @@ Item {
   onCardCountChanged: {
     if (root.selectedCardIndex >= root.cardCount)
       root.selectedCardIndex = root.cardCount - 1
+  }
+
+  onOverviewCardModelChanged: {
+    if (root.pendingWorkspaceNavigationTarget > 0)
+      Qt.callLater(root.resolvePendingWorkspaceNavigation)
   }
 }
