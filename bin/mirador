@@ -1,18 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="2.1.1"
+VERSION="2.3"
 
 show_help() {
   cat << 'HELP'
 Usage:
-  mirador            Toggle Mirador
-  mirador --focused  Open Mirador directly in focused workspace overview mode
-  mirador --summon   Summon/open Mirador
-  mirador --dismiss  Dismiss/close Mirador
-  mirador --demo     Open Mirador with demo input overlay
-  mirador --help     Show this help
-  mirador --version  Show version information
+  mirador              Toggle Mirador
+  mirador --full       Toggle Mirador full workspace overview
+  mirador --cycle-next Step forward in carousel cycle mode (Super+Tab)
+  mirador --cycle-prev Step backward in carousel cycle mode (Super+Shift+Tab)
+  mirador --focused    Open Mirador directly in focused workspace overview mode
+  mirador --cycle      Open Mirador in cycle mode (step forward)
+  mirador --compact    Open Mirador in compact cycle mode (experimental)
+  mirador --carousel   Open Mirador in continuous carousel cycle mode (experimental)
+  mirador --summon     Summon/open Mirador
+  mirador --dismiss    Dismiss/close Mirador
+  mirador --close-window Close the selected Mirador window, or the active desktop window
+  mirador --window-left  Move carousel window selection left
+  mirador --window-right Move carousel window selection right
+  mirador --window-up    Move carousel window selection up
+  mirador --window-down  Move carousel window selection down
+  mirador --move-window-to-workspace N Move the selected window to workspace N
+  mirador --demo       Open Mirador with demo input overlay
+  mirador --help       Show this help
+  mirador --version    Show version information
 HELP
 }
 
@@ -20,14 +32,55 @@ case "${1:-}" in
   "" )
     exec omarchy-shell shell toggle mirador '{}'
     ;;
+  --full )
+    exec omarchy-shell shell toggle mirador '{"cycleUI":"full","keybindMode":"normal"}'
+    ;;
+  --cycle-next )
+    exec omarchy-shell shell summon mirador '{"step":1,"modifier":"super","cycleUI":"carousel","keybindMode":"cycle"}'
+    ;;
+  --cycle-prev )
+    exec omarchy-shell shell summon mirador '{"step":-1,"modifier":"super","cycleUI":"carousel","keybindMode":"cycle"}'
+    ;;
   --focused | -f )
     exec omarchy-shell shell summon mirador '{"focused":true}'
+    ;;
+  --cycle | -c )
+    exec omarchy-shell shell summon mirador '{"step":1,"keybindMode":"cycle"}'
+    ;;
+  --compact )
+    exec omarchy-shell shell summon mirador '{"step":1,"keybindMode":"cycle","cycleUI":"compact"}'
+    ;;
+  --carousel )
+    exec omarchy-shell shell summon mirador '{"step":1,"keybindMode":"cycle","cycleUI":"carousel"}'
     ;;
   --summon | summon )
     exec omarchy-shell shell summon mirador '{}'
     ;;
   --dismiss | dismiss | --hide | hide )
     exec omarchy-shell shell hide mirador
+    ;;
+  --close-window )
+    exec omarchy-shell shell summon mirador '{"action":"closeWindow"}'
+    ;;
+  --window-left )
+    exec omarchy-shell shell summon mirador '{"action":"navigateWindow","dx":-1,"dy":0}'
+    ;;
+  --window-right )
+    exec omarchy-shell shell summon mirador '{"action":"navigateWindow","dx":1,"dy":0}'
+    ;;
+  --window-up )
+    exec omarchy-shell shell summon mirador '{"action":"navigateWindow","dx":0,"dy":-1}'
+    ;;
+  --window-down )
+    exec omarchy-shell shell summon mirador '{"action":"navigateWindow","dx":0,"dy":1}'
+    ;;
+  --move-window-to-workspace )
+    workspace="${2:-}"
+    if [[ ! "$workspace" =~ ^([1-9]|10)$ ]]; then
+      echo "Error: --move-window-to-workspace requires a workspace from 1 to 10" >&2
+      exit 1
+    fi
+    exec omarchy-shell shell summon mirador "{\"action\":\"moveWindowToWorkspace\",\"workspace\":${workspace}}"
     ;;
   --demo )
     exec omarchy-shell shell summon mirador '{"demo":true}'

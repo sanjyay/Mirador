@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
@@ -19,7 +20,41 @@ Item {
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
   property int selectedCardIndex: -1
+  property string selectedWindowAddress: ""
   property string overviewMode: "normal"
+  property string keybindMode: "normal"
+  property string configuredModifier: "super"
+  property string cycleUI: "full"
+  property string activePresentation: "full"
+  property bool cycled: false
+  property int activeCycleModifier: 0
+  property int initialWorkspaceId: -1
+  property string initialActiveWindowAddress: ""
+  property var closingWindowAddresses: ({})
+  property int pendingRestoreWorkspaceId: -1
+  property string pendingRestoreWindowAddress: ""
+  property string pendingCarouselWindowAddress: ""
+  property double pendingCarouselWindowExpiresAt: 0
+  property bool carouselAddressedActionHandled: false
+
+  Timer {
+    id: restoreCompositorFocusTimer
+    interval: 50
+    repeat: false
+    onTriggered: {
+      var workspaceId = root.pendingRestoreWorkspaceId
+      var address = root.pendingRestoreWindowAddress
+      root.pendingRestoreWorkspaceId = -1
+      root.pendingRestoreWindowAddress = ""
+
+      if (workspaceId > 0) root.dispatchWorkspace(workspaceId)
+      if (!address) return
+      if (Hyprland.usingLua)
+        Hyprland.dispatch("hl.dsp.focus({ window = \"address:" + address + "\" })")
+      else
+        Hyprland.dispatch("focuswindow address:" + address)
+    }
+  }
 
   function setOverviewMode(mode) {
     if (mode !== "normal" && mode !== "focused") return
@@ -39,6 +74,197 @@ Item {
     } else {
       root.setOverviewMode("focused")
     }
+  }
+
+  // ── Hold-to-cycle ("cycle" keybindMode) & Settings Probe ────────────────────
+  Process {
+    id: settingsProbe
+    running: true
+    command: ["sh", "-c",
+      'f="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/mirador/settings.json"; ' +
+      '[ ! -f "$f" ] && f="${XDG_CONFIG_HOME:-$HOME/.config}/mirador/settings.json"; ' +
+      '[ -f "$f" ] && exec timeout 2 head -c 65536 -- "$f"']
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.loadSettings(text)
+      }
+    }
+  }
+
+  function loadSettings(rawJson) {
+    if (!rawJson || root.opened) return
+    try {
+      var s = JSON.parse(String(rawJson).trim())
+      if (!root.opened) {
+        if (s.keybindMode === "normal" || s.keybindMode === "cycle")
+          root.keybindMode = s.keybindMode
+        if (s.modifier && typeof s.modifier === "string")
+          root.configuredModifier = s.modifier
+        if (s.cycleUI === "compact" || s.cycleUI === "full" || s.cycleUI === "carousel")
+          root.cycleUI = s.cycleUI
+      }
+    } catch (e) {}
+  }
+
+  Timer {
+    id: holdWatchdog
+    interval: 10000
+    repeat: false
+    onTriggered: {
+      root.cycled = false
+      root.activeCycleModifier = 0
+    }
+  }
+
+  // Hyprland launches compositor bindings asynchronously. A fast Super
+  // release can otherwise dismiss the carousel before an addressed action
+  // such as Super+Shift+5 reaches this plugin, causing the command to fall
+  // back to Hyprland's stale active window. Keep the explicit selection alive
+  // briefly, then perform the normal release-to-commit behavior.
+  Timer {
+    id: cycleReleaseCommitTimer
+    interval: 250
+    repeat: false
+    onTriggered: {
+      if (root.opened && root.keybindMode === "cycle") root.activateSelectedCard()
+    }
+  }
+
+  function isSummoningModifier(key) {
+    if (root.activeCycleModifier === Qt.MetaModifier) {
+      return key === Qt.Key_Meta || key === Qt.Key_Super_L || key === Qt.Key_Super_R
+          || key === Qt.Key_Hyper_L || key === Qt.Key_Hyper_R
+    }
+    if (root.activeCycleModifier === Qt.AltModifier) {
+      return key === Qt.Key_Alt || key === Qt.Key_AltGr
+    }
+    if (root.activeCycleModifier === Qt.ControlModifier) {
+      return key === Qt.Key_Control
+    }
+
+    var mod = String(root.configuredModifier || "super").toLowerCase()
+    if (mod === "alt") {
+      return key === Qt.Key_Alt || key === Qt.Key_AltGr
+    }
+    if (mod === "ctrl" || mod === "control") {
+      return key === Qt.Key_Control
+    }
+    return key === Qt.Key_Meta || key === Qt.Key_Super_L || key === Qt.Key_Super_R
+        || key === Qt.Key_Hyper_L || key === Qt.Key_Hyper_R
+  }
+
+  function cycleStep(delta) {
+    root.cycled = true
+    holdWatchdog.restart()
+    var stepVal = delta < 0 ? -1 : 1
+    root.moveCardSelection(stepVal, 0)
+    if (root.activePresentation === "carousel") {
+      var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
+        ? root.overviewCardModel[root.selectedCardIndex] : null
+      var curWsId = typeof curItem === "object" ? curItem.workspaceId : curItem
+      if (typeof curWsId === "number" && curWsId > 0) {
+        if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
+          root.dispatchWorkspace(curWsId)
+        }
+      }
+      if (carouselCycleView) {
+        carouselCycleView.step(stepVal)
+      }
+    }
+    if (root.demoMode && demoOverlay) {
+      root.showDemoHint(stepVal < 0 ? "CYCLE PREV" : "CYCLE NEXT", false)
+    }
+  }
+
+  function navigateToWorkspaceNumber(target) {
+    if (target === null || target === undefined) return false
+
+    var isScratch = (target === "scratchpad" || target === "special" || target === -1)
+    var foundIndex = WindowModel.findWorkspaceCardIndex(root.overviewCardModel, target)
+
+    // If target workspace is not yet in card model (e.g. not yet created in compositor),
+    // dispatch workspace in Hyprland and refresh workspaces to populate the model
+    if (foundIndex === -1 && !isScratch) {
+      var targetNum = typeof target === "number" ? target : parseInt(target, 10)
+      if (!isNaN(targetNum) && targetNum > 0) {
+        root.dispatchWorkspace(targetNum)
+        Hyprland.refreshWorkspaces()
+        Hyprland.refreshToplevels()
+        foundIndex = WindowModel.findWorkspaceCardIndex(root.overviewCardModel, targetNum)
+      }
+    }
+
+    if (foundIndex !== -1) {
+      root.selectedCardIndex = foundIndex
+      // Workspace cards can be inserted or removed without changing this
+      // numeric index. Always re-resolve the window for the workspace now
+      // represented by the selected card.
+      root.resetSelectedWindowSelection()
+      Qt.callLater(root.resetSelectedWindowSelection)
+      if (root.keybindMode === "cycle") {
+        root.cycled = true
+        holdWatchdog.restart()
+      }
+      if (root.activePresentation === "carousel") {
+        var curFoundItem = (foundIndex >= 0 && foundIndex < root.overviewCardModel.length)
+          ? root.overviewCardModel[foundIndex] : null
+        var foundWsId = typeof curFoundItem === "object" ? curFoundItem.workspaceId : curFoundItem
+        if (typeof foundWsId === "number" && foundWsId > 0) {
+          if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== foundWsId) {
+            root.dispatchWorkspace(foundWsId)
+          }
+        }
+        if (carouselCycleView) {
+          carouselCycleView.step(0)
+        }
+      }
+      if (root.demoMode && demoOverlay) {
+        var label = isScratch ? "SCRATCHPAD" : ("WS " + (target === 10 ? "10" : target))
+        root.showDemoHint("NAVIGATE → " + label, false)
+      }
+      return true
+    }
+    return false
+  }
+
+  function workspaceTargetFromEvent(event) {
+    if (!event) return null
+
+    var cleanMods = event.modifiers & ~(Qt.KeypadModifier | Qt.GroupSwitchModifier)
+    var isSuper = Boolean(cleanMods & Qt.MetaModifier)
+    var isCycleMod = Boolean(root.activeCycleModifier && (cleanMods & root.activeCycleModifier))
+    var isNoMod = (cleanMods === Qt.NoModifier)
+
+    if (root.activePresentation === "carousel") {
+      if (!isSuper && !isCycleMod && !isNoMod) return null
+    } else {
+      if (!isSuper && !isCycleMod) return null
+    }
+
+    var k = event.key
+    if (k >= Qt.Key_1 && k <= Qt.Key_9) {
+      return k - Qt.Key_0
+    }
+    if (k === Qt.Key_0) {
+      return 10
+    }
+    if (k === Qt.Key_S) {
+      return "scratchpad"
+    }
+
+    if (event.text && event.text.length === 1) {
+      if (event.text >= "1" && event.text <= "9") {
+        return parseInt(event.text, 10)
+      }
+      if (event.text === "0") {
+        return 10
+      }
+      if (event.text === "s" || event.text === "S") {
+        return "scratchpad"
+      }
+    }
+
+    return null
   }
 
   // ── Pinch gesture handling ──────────────────────────────────────────────────
@@ -266,6 +492,17 @@ Item {
 
   onSelectedCardIndexChanged: {
     root.ensureCardVisible(root.selectedCardIndex)
+    root.resetSelectedWindowSelection()
+    if (root.opened && root.activePresentation === "carousel") {
+      var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
+        ? root.overviewCardModel[root.selectedCardIndex] : null
+      var curWsId = typeof curItem === "object" ? curItem.workspaceId : curItem
+      if (typeof curWsId === "number" && curWsId > 0) {
+        if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
+          root.dispatchWorkspace(curWsId)
+        }
+      }
+    }
   }
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
@@ -644,7 +881,72 @@ Item {
       root.selectedCardIndex, dx, dy, root.cardCount, root.columns)
   }
 
+  function isSelectedWindow(toplevel) {
+    var address = root.normalizedAddress(toplevel)
+    return address !== "" && address === root.selectedWindowAddress
+  }
+
+  function rememberPendingCarouselWindow() {
+    var address = root.normalizedAddress(root.selectedWindowAddress)
+    root.pendingCarouselWindowAddress = address
+    root.pendingCarouselWindowExpiresAt = address ? Date.now() + 2000 : 0
+  }
+
+  function takePendingCarouselWindow() {
+    var address = root.pendingCarouselWindowAddress
+    var expiresAt = root.pendingCarouselWindowExpiresAt
+    root.pendingCarouselWindowAddress = ""
+    root.pendingCarouselWindowExpiresAt = 0
+    if (!address || Date.now() > expiresAt) return ""
+    return root.normalizedAddress(address)
+  }
+
+  function clearPendingCarouselWindow() {
+    root.pendingCarouselWindowAddress = ""
+    root.pendingCarouselWindowExpiresAt = 0
+  }
+
+  function toplevelForAddress(value) {
+    var address = root.normalizedAddress(value)
+    if (!address || !Hyprland.toplevels || !Hyprland.toplevels.values) return null
+    var values = Hyprland.toplevels.values
+    for (var i = 0; i < values.length; i++) {
+      if (root.normalizedAddress(values[i]) === address) return values[i]
+    }
+    return null
+  }
+
+  function resetSelectedWindowSelection() {
+    root.selectedWindowAddress = ""
+    if (root.selectedCardIndex < 0 || root.selectedCardIndex >= root.overviewCardModel.length) return
+    var item = root.overviewCardModel[root.selectedCardIndex]
+    if (!item) return
+    var workspaceId = typeof item === "object" ? item.workspaceId : item
+    var target = root.activeToplevelForWorkspace(root.workspaceById(workspaceId) || workspaceId)
+    root.selectedWindowAddress = root.normalizedAddress(target)
+  }
+
+  function moveSelectedWindow(dx, dy) {
+    if (!carouselCycleView || root.activePresentation !== "carousel") return false
+    return carouselCycleView.moveWindowSelection(dx, dy)
+  }
+
+  function dispatchDirectionalFocus(dx, dy) {
+    var direction = dx < 0 ? "l" : (dx > 0 ? "r" : (dy < 0 ? "u" : (dy > 0 ? "d" : "")))
+    if (!direction) return false
+    if (Hyprland.usingLua)
+      Hyprland.dispatch("hl.dsp.focus({ direction = \"" + direction + "\" })")
+    else
+      Hyprland.dispatch("movefocus " + direction)
+    return true
+  }
+
   function activateSelectedCard() {
+    root.initialWorkspaceId = -1
+    root.initialActiveWindowAddress = ""
+    root.cycled = false
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
     var index = root.selectedCardIndex
     if (index < 0 || index >= root.cardCount) return
     var item = root.overviewCardModel[index]
@@ -671,8 +973,15 @@ Item {
   }
 
   function normalizedAddress(toplevel) {
-    var address = String((toplevel && toplevel.address) || "").trim()
-    if (!address.match(/^(0x)?[0-9a-fA-F]+$/)) return ""
+    var rawAddr = ""
+    if (typeof toplevel === "string") {
+      rawAddr = toplevel
+    } else if (toplevel) {
+      rawAddr = toplevel.address || (toplevel.toplevel && toplevel.toplevel.address)
+        || (toplevel.lastIpcObject && toplevel.lastIpcObject.address) || ""
+    }
+    var address = String(rawAddr).trim().toLowerCase()
+    if (!address.match(/^(0x)?[0-9a-f]+$/)) return ""
     return address.indexOf("0x") === 0 ? address : "0x" + address
   }
 
@@ -725,18 +1034,6 @@ Item {
   }
 
   function open(payloadJson) {
-    Hyprland.refreshMonitors()
-    Hyprland.refreshWorkspaces()
-    Hyprland.refreshToplevels()
-    root.targetScreen = root.focusedScreen()
-    root.draggedToplevel = null
-    root.selectedCardIndex = root.initialSelectedCardIndex()
-    root.overviewMode = "normal"
-    root.railScrollY = 0
-    root.pinchTriggered = false
-    root.wheelDeltaAccumulatorX = 0
-    root.wheelDeltaAccumulatorY = 0
-
     var payload = null
     try {
       if (typeof payloadJson === "string" && payloadJson.length > 0)
@@ -746,11 +1043,166 @@ Item {
     } catch (e) {
       payload = null
     }
+
+    // Compositor close bindings are consumed before an exclusive layer-shell
+    // client receives the key event. Route the binding through this action so
+    // carousel closes always use an explicit address and normal desktop closes
+    // retain Hyprland's usual active-window behavior.
+    if (payload && payload.action === "closeWindow") {
+      if (root.opened) {
+        root.closeActiveWindowInSelectedWorkspace()
+      } else if (Hyprland.usingLua) {
+        Hyprland.dispatch("hl.dsp.window.close()")
+      } else {
+        Hyprland.dispatch("killactive")
+      }
+      return
+    }
+
+    if (payload && payload.action === "navigateWindow") {
+      var navDx = Number(payload.dx) || 0
+      var navDy = Number(payload.dy) || 0
+      if (root.opened) {
+        if (root.activePresentation === "carousel") root.moveSelectedWindow(navDx, navDy)
+        else root.moveCardSelection(navDx, navDy)
+      } else {
+        root.dispatchDirectionalFocus(navDx, navDy)
+      }
+      return
+    }
+
+    if (payload && payload.action === "moveWindowToWorkspace") {
+      var moveTarget = Number(payload.workspace)
+      if (!isFinite(moveTarget) || moveTarget < 1 || moveTarget > 10
+          || Math.floor(moveTarget) !== moveTarget) return
+      if (root.opened) {
+        root.carouselAddressedActionHandled = true
+        root.clearPendingCarouselWindow()
+        root.moveSelectedWindowToWorkspace(moveTarget)
+      } else {
+        var pendingAddress = root.takePendingCarouselWindow()
+        if (pendingAddress) {
+          var pendingToplevel = root.toplevelForAddress(pendingAddress)
+          if (pendingToplevel) root.moveWindowToWorkspace(pendingToplevel, moveTarget)
+        } else {
+          root.dispatchActiveWindowToWorkspace(moveTarget)
+        }
+      }
+      return
+    }
+
+    var isCycleInvocation = false
+    if (payload && payload.keybindMode === "cycle") {
+      isCycleInvocation = true
+    } else if (payload && payload.keybindMode === "normal") {
+      isCycleInvocation = false
+    } else if (payload && typeof payload.step === "number") {
+      isCycleInvocation = true
+    } else if (payload && (payload.cycleUI === "carousel" || payload.cycleUI === "compact")) {
+      isCycleInvocation = true
+    }
+
+    var activeMod = (payload && payload.modifier && typeof payload.modifier === "string")
+      ? String(payload.modifier).toLowerCase() : String(root.configuredModifier || "super").toLowerCase()
+
+    if (payload && payload.modifier && typeof payload.modifier === "string") {
+      root.configuredModifier = activeMod
+    }
+
+    // A step while already open is repeated keypress asking to cycle
+    if (root.opened && payload && typeof payload.step === "number") {
+      if (activeMod === "alt") root.activeCycleModifier = Qt.AltModifier
+      else if (activeMod === "ctrl" || activeMod === "control") root.activeCycleModifier = Qt.ControlModifier
+      else if (activeMod === "super") root.activeCycleModifier = Qt.MetaModifier
+      var stepVal = payload.step < 0 ? -1 : 1
+      if (root.keybindMode === "cycle") {
+        root.cycleStep(stepVal)
+      } else {
+        root.moveCardSelection(stepVal, 0)
+      }
+      return
+    }
+
+    Hyprland.refreshMonitors()
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
+    restoreCompositorFocusTimer.stop()
+    root.pendingRestoreWorkspaceId = -1
+    root.pendingRestoreWindowAddress = ""
+    root.closingWindowAddresses = ({})
+    root.clearPendingCarouselWindow()
+    root.carouselAddressedActionHandled = false
+    root.selectedWindowAddress = ""
+    root.targetScreen = root.focusedScreen()
+    root.draggedToplevel = null
+    root.selectedCardIndex = root.initialSelectedCardIndex()
+    root.initialWorkspaceId = (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id > 0)
+      ? Hyprland.focusedWorkspace.id : 1
+    root.initialActiveWindowAddress = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : ""
+    root.overviewMode = "normal"
+    root.railScrollY = 0
+    root.pinchTriggered = false
+    root.wheelDeltaAccumulatorX = 0
+    root.wheelDeltaAccumulatorY = 0
+    root.cycled = false
+    holdWatchdog.stop()
+    cycleReleaseCommitTimer.stop()
+
+    if (isCycleInvocation) {
+      root.keybindMode = "cycle"
+      if (activeMod === "alt") {
+        root.activeCycleModifier = Qt.AltModifier
+      } else if (activeMod === "ctrl" || activeMod === "control") {
+        root.activeCycleModifier = Qt.ControlModifier
+      } else {
+        root.activeCycleModifier = Qt.MetaModifier
+      }
+    } else {
+      root.keybindMode = "normal"
+      root.activeCycleModifier = 0
+    }
+
     root.demoMode = Boolean(payload && payload.demo)
     if (payload && (payload.focused || payload.mode === "focused")) {
       root.overviewMode = "focused"
     }
+
+    if (payload && (payload.cycleUI === "compact" || payload.cycleUI === "full" || payload.cycleUI === "carousel")) {
+      root.activePresentation = payload.cycleUI
+    } else if (payload && payload.carousel) {
+      root.activePresentation = "carousel"
+    } else if (payload && payload.compact) {
+      root.activePresentation = "compact"
+    } else if (payload && (payload.modifier === "alt" || payload.alt)) {
+      // Alt modifier (or payload.alt) opens full Mirador overview from version 2.2
+      root.activePresentation = "full"
+    } else if (isCycleInvocation) {
+      // Super+Tab (or non-alt cycle) uses configured cycleUI or default (carousel)
+      if (root.configuredModifier === "alt" || root.cycleUI === "full") {
+        root.activePresentation = "full"
+      } else if (root.cycleUI === "compact") {
+        root.activePresentation = "compact"
+      } else {
+        root.activePresentation = "carousel"
+      }
+    } else {
+      root.activePresentation = "full"
+    }
+
+    if (root.keybindMode === "cycle" && payload && typeof payload.step === "number") {
+      root.cycleStep(payload.step < 0 ? -1 : 1)
+    } else if (root.keybindMode === "cycle") {
+      root.cycleStep(1)
+    }
+
+    if (root.activePresentation === "carousel" && carouselCycleView) {
+      carouselCycleView.resetTo(root.selectedCardIndex)
+    }
+
+    root.resetSelectedWindowSelection()
+
     root.opened = true
+    keyCatcher.forceActiveFocus()
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
       if (root.demoMode && demoOverlay) {
@@ -760,31 +1212,66 @@ Item {
   }
 
   function close() {
+    var restoreWorkspaceId = root.keybindMode === "cycle" ? root.initialWorkspaceId : -1
+    var restoreWindowAddress = root.keybindMode === "cycle"
+      ? root.normalizedAddress(root.initialActiveWindowAddress) : ""
+    root.initialWorkspaceId = -1
+    root.initialActiveWindowAddress = ""
+    root.cycled = false
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
+    cycleReleaseCommitTimer.stop()
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
+    root.selectedWindowAddress = ""
     root.overviewMode = "normal"
+    root.activePresentation = "full"
+    root.keybindMode = "normal"
     root.railScrollY = 0
     root.pinchTriggered = false
     root.wheelDeltaAccumulatorX = 0
     root.wheelDeltaAccumulatorY = 0
     root.opened = false
+    if (carouselCycleView) carouselCycleView.animatingEnabled = false
     if (demoOverlay) demoOverlay.hideHint()
+    root.scheduleCompositorFocusRestore(restoreWorkspaceId, restoreWindowAddress)
   }
 
   function dismiss() {
+    var restoreWorkspaceId = root.keybindMode === "cycle" ? root.initialWorkspaceId : -1
+    var restoreWindowAddress = root.keybindMode === "cycle"
+      ? root.normalizedAddress(root.initialActiveWindowAddress) : ""
+    root.initialWorkspaceId = -1
+    root.initialActiveWindowAddress = ""
+    root.cycled = false
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
+    cycleReleaseCommitTimer.stop()
     root.demoMode = false
     root.draggedToplevel = null
     root.selectedCardIndex = -1
+    root.selectedWindowAddress = ""
     root.overviewMode = "normal"
+    root.activePresentation = "full"
+    root.keybindMode = "normal"
     root.railScrollY = 0
     root.pinchTriggered = false
     root.wheelDeltaAccumulatorX = 0
     root.wheelDeltaAccumulatorY = 0
     root.opened = false
+    if (carouselCycleView) carouselCycleView.animatingEnabled = false
     if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "mirador")
+    root.scheduleCompositorFocusRestore(restoreWorkspaceId, restoreWindowAddress)
+  }
+
+  function scheduleCompositorFocusRestore(workspaceId, address) {
+    if (!(workspaceId > 0) && !address) return
+    root.pendingRestoreWorkspaceId = workspaceId
+    root.pendingRestoreWindowAddress = address || ""
+    restoreCompositorFocusTimer.restart()
   }
 
   function toggle() {
@@ -796,6 +1283,11 @@ Item {
   // When clicking inside an empty workspace or scratchpad, transports/toggles that workspace and closes Mirador.
   // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
   function activateWorkspace(workspace, workspaceId, occupied) {
+    root.initialWorkspaceId = -1
+    root.initialActiveWindowAddress = ""
+    root.cycled = false
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
     var isSpecial = root.isSpecialWorkspace(workspace)
       || (function() {
         for (var i = 0; i < root.overviewCardModel.length; i++) {
@@ -838,6 +1330,11 @@ Item {
 
   // Window preview activation: focuses target window AND CLOSES MIRADOR
   function activateWindow(toplevel) {
+    root.initialWorkspaceId = -1
+    root.initialActiveWindowAddress = ""
+    root.cycled = false
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
     var app = root.appNameFor(toplevel)
     root.showDemoHint(app ? ("FOCUS → " + app) : "FOCUS WINDOW", false)
     var address = root.normalizedAddress(toplevel)
@@ -851,6 +1348,138 @@ Item {
     else
       return
     Qt.callLater(root.dismiss) // WINDOW ACTIVATION CLOSES MIRADOR
+  }
+
+  function activeToplevelForWorkspace(workspace) {
+    if (!workspace && workspace !== 0) return null
+    var wsObj = (typeof workspace === "object" && workspace !== null) ? workspace : root.workspaceById(workspace)
+    var wsId = wsObj && wsObj.id !== undefined ? wsObj.id : (typeof workspace === "number" ? workspace : null)
+
+    var toplevels = []
+    // Prefer the global model because workspace.toplevels can keep a destroyed
+    // object for another event-loop turn after a close.
+    if (wsId !== null && Hyprland.toplevels && Hyprland.toplevels.values) {
+      var allTops = Hyprland.toplevels.values
+      for (var t = 0; t < allTops.length; t++) {
+        var top = allTops[t]
+        if (!top) continue
+        var ipc = top.lastIpcObject || {}
+        var tws = top.workspace || ipc.workspace
+        if (tws && (tws.id === wsId || tws.name === wsId || String(tws.id) === String(wsId))) {
+          toplevels.push(top)
+        }
+      }
+    }
+
+    // Fall back to the workspace-owned model only when the global collection
+    // has not populated this workspace yet.
+    if (toplevels.length === 0 && wsObj && wsObj.toplevels) {
+      if (wsObj.toplevels.values) toplevels = wsObj.toplevels.values
+      else if (Array.isArray(wsObj.toplevels)) toplevels = wsObj.toplevels
+    }
+
+    var activeAddr = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : ""
+    return WindowModel.selectCloseTarget(
+      toplevels, activeAddr, root.recentClosingWindowAddresses(), root.selectedWindowAddress)
+  }
+
+  function recentClosingWindowAddresses() {
+    var recent = ({})
+    var now = Date.now()
+    for (var address in root.closingWindowAddresses) {
+      if (now - Number(root.closingWindowAddresses[address]) < 1500) recent[address] = true
+    }
+    return recent
+  }
+
+  function markWindowClosing(value) {
+    var address = root.normalizedAddress(value)
+    if (!address || root.closingWindowAddresses[address]) return
+    var next = ({})
+    for (var key in root.closingWindowAddresses) next[key] = root.closingWindowAddresses[key]
+    next[address] = Date.now()
+    root.closingWindowAddresses = next
+  }
+
+  // Closes a window in Hyprland and refreshes UI WITHOUT exiting Mirador
+  function closeWindow(toplevel) {
+    if (!toplevel) return false
+    var address = root.normalizedAddress(toplevel)
+    if (!address) return false
+    root.markWindowClosing(address)
+    var app = root.appNameFor(toplevel)
+    if (root.demoMode && demoOverlay) {
+      root.showDemoHint(app ? ("CLOSE → " + app) : "CLOSE WINDOW", false)
+    }
+
+    if (Hyprland.usingLua) {
+      Hyprland.dispatch("hl.dsp.window.close({ window = \"address:" + address + "\" })")
+    } else {
+      Hyprland.dispatch("closewindow address:" + address)
+    }
+
+    if (carouselCycleView) {
+      carouselCycleView.toplevelRevision++
+    }
+
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
+
+    if (root.keybindMode === "cycle") {
+      root.cycled = true
+      holdWatchdog.restart()
+    }
+    Qt.callLater(root.resetSelectedWindowSelection)
+    return true
+  }
+
+  // Closes active window in currently selected workspace card and keeps Mirador open
+  function closeActiveWindowInSelectedWorkspace() {
+    if (root.selectedCardIndex < 0 || root.selectedCardIndex >= root.overviewCardModel.length) {
+      return false
+    }
+    var currentItem = root.overviewCardModel[root.selectedCardIndex]
+    if (!currentItem) return false
+
+    var currentWsId = typeof currentItem === "object" ? currentItem.workspaceId : currentItem
+    var ws = root.workspaceById(currentWsId)
+    var targetToplevel = root.activeToplevelForWorkspace(ws || currentWsId)
+    if (!targetToplevel) {
+      if (root.demoMode && demoOverlay) {
+        root.showDemoHint("EMPTY WORKSPACE", false)
+      }
+      return false
+    }
+    return root.closeWindow(targetToplevel)
+  }
+
+  function dispatchActiveWindowToWorkspace(workspaceId) {
+    if (workspaceId < 1 || workspaceId > 10) return false
+    if (Hyprland.usingLua) {
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + workspaceId + "\" })")
+    } else {
+      Hyprland.dispatch("movetoworkspace " + workspaceId)
+    }
+    return true
+  }
+
+  function moveSelectedWindowToWorkspace(workspaceId) {
+    if (root.selectedCardIndex < 0 || root.selectedCardIndex >= root.overviewCardModel.length) {
+      return false
+    }
+    var currentItem = root.overviewCardModel[root.selectedCardIndex]
+    if (!currentItem || (typeof currentItem === "object" && currentItem.isInsertion)) return false
+
+    var currentWsId = typeof currentItem === "object" ? currentItem.workspaceId : currentItem
+    var targetToplevel = root.activeToplevelForWorkspace(root.workspaceById(currentWsId) || currentWsId)
+    if (!targetToplevel) {
+      root.showDemoHint("EMPTY WORKSPACE", false)
+      return false
+    }
+
+    var moved = root.moveWindowToWorkspace(targetToplevel, workspaceId)
+    if (moved) Qt.callLater(root.resetSelectedWindowSelection)
+    return moved
   }
 
   function moveWindowToWorkspace(toplevel, workspaceId) {
@@ -929,7 +1558,10 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: "transparent"
+      color: root.activePresentation === "compact" ? Util.alpha("#000000", 0.35) : "transparent"
+      Behavior on color {
+        ColorAnimation { duration: 100 }
+      }
     }
 
     MouseArea {
@@ -955,7 +1587,20 @@ Item {
         }
       }
 
-      onMoveRequested: function(dx, dy) { root.moveCardSelection(dx, dy) }
+      onTabRequested: function(direction) {
+        if (root.keybindMode === "cycle") {
+          root.cycleStep(direction)
+        } else {
+          root.moveCardSelection(direction, 0)
+        }
+      }
+
+      onMoveRequested: function(dx, dy) {
+        if (root.cycled) holdWatchdog.restart()
+        if (root.activePresentation !== "carousel" || !root.moveSelectedWindow(dx, dy)) {
+          root.moveCardSelection(dx, dy)
+        }
+      }
       onReturnRequested: {
         keyCatcher.returnHandled = true
         root.activateSelectedCard()
@@ -970,13 +1615,59 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
+        if (root.cycled) holdWatchdog.restart()
+        if (event.modifiers & Qt.MetaModifier) {
+          root.activeCycleModifier = Qt.MetaModifier
+        } else if (event.modifiers & Qt.AltModifier) {
+          root.activeCycleModifier = Qt.AltModifier
+        } else if (event.modifiers & Qt.ControlModifier) {
+          root.activeCycleModifier = Qt.ControlModifier
+        }
+
         if (root.demoMode && demoOverlay) {
           demoOverlay.handleKeyEvent(event)
         }
         if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.text === "+" || event.text === "=") {
           event.accepted = true
           root.createNewWorkspace()
+          return
         }
+
+        var targetWs = root.workspaceTargetFromEvent(event)
+        var isCarouselWindowMove = root.activePresentation === "carousel"
+          && typeof targetWs === "number"
+          && Boolean(event.modifiers & Qt.MetaModifier)
+          && Boolean(event.modifiers & Qt.ShiftModifier)
+        if (isCarouselWindowMove) {
+          // This key is also handled by Hyprland's Super+Shift+N binding.
+          // Preserve the source card and explicit window address until that
+          // asynchronous IPC action arrives; do not reinterpret N as carousel
+          // workspace navigation.
+          root.rememberPendingCarouselWindow()
+          event.accepted = true
+          return
+        }
+        if (targetWs !== null && root.navigateToWorkspaceNumber(targetWs)) {
+          event.accepted = true
+          if (root.activePresentation === "carousel" && root.keybindMode !== "cycle" && (event.modifiers & Qt.MetaModifier)) {
+            root.activateSelectedCard()
+          }
+          return
+        }
+      }
+
+      Keys.onReleased: function(event) {
+        if (event.isAutoRepeat) return
+        if (root.keybindMode !== "cycle" || !root.cycled) return
+        if (!root.isSummoningModifier(event.key)) return
+
+        root.cycled = false
+        root.activeCycleModifier = 0
+        holdWatchdog.stop()
+        if (!root.carouselAddressedActionHandled) root.rememberPendingCarouselWindow()
+        root.carouselAddressedActionHandled = false
+        cycleReleaseCommitTimer.restart()
+        event.accepted = true
       }
 
       // ── Two-finger pinch handler (native QtQuick pointer handler) ───────────
@@ -1005,6 +1696,7 @@ Item {
         width: root.usableWidth
         height: root.usableGridHeight
         clip: true
+        visible: root.activePresentation !== "compact" && root.activePresentation !== "carousel"
 
         // ── Secondary Rail Wheel Area (Scrolls rail without activating) ───────
         MouseArea {
@@ -1048,7 +1740,7 @@ Item {
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
             isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
-            livePreviews: root.opened && panel.visible
+            livePreviews: root.opened && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel"
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
             focused: Hyprland.focusedWorkspace !== null
@@ -1089,6 +1781,24 @@ Item {
           }
         }
       }
+
+      // ── Compact Cycle Switcher (Active in compact cycle mode) ──────────────
+      CompactCycleView {
+        id: compactCycleView
+        anchors.centerIn: parent
+        visible: root.activePresentation === "compact"
+        overview: root
+        livePreviews: root.opened && panel.visible && root.activePresentation === "compact"
+      }
+
+      // ── Continuous Carousel Switcher (Active in carousel cycle mode) ──────
+      CarouselCycleView {
+        id: carouselCycleView
+        anchors.fill: parent
+        visible: root.activePresentation === "carousel"
+        overview: root
+        livePreviews: root.opened && panel.visible && root.activePresentation === "carousel"
+      }
     }
 
     // ── Demo Input Overlay ──────────────────────────────────────────────────
@@ -1125,6 +1835,56 @@ Item {
           || name.indexOf("workspace") !== -1 || name === "focusedmon"
           || name === "movewindow" || name === "movewindowv2") {
         Hyprland.refreshToplevels()
+        if (carouselCycleView) {
+          carouselCycleView.toplevelRevision++
+        }
+        if (name === "closewindow" || name === "destroywindow") {
+          var closingAddress = String(event.data || "").split(",")[0]
+          root.markWindowClosing(closingAddress)
+          if (root.normalizedAddress(closingAddress) === root.selectedWindowAddress)
+            Qt.callLater(root.resetSelectedWindowSelection)
+        }
+      }
+
+      // When in carousel presentation, sync selection with compositor workspace switches
+      if (root.activePresentation === "carousel" && root.keybindMode !== "cycle"
+          && (name === "workspace" || name === "workspacev2")) {
+        var rawData = String(event.data || "").trim()
+        var targetWs = null
+        if (name === "workspacev2") {
+          var parts = rawData.split(",")
+          if (parts.length > 0) {
+            var wsIdNum = parseInt(parts[0], 10)
+            if (!isNaN(wsIdNum)) {
+              targetWs = wsIdNum
+            } else if (parts[0].indexOf("special") === 0) {
+              targetWs = "scratchpad"
+            }
+          }
+        } else {
+          if (rawData.indexOf("special") === 0) {
+            targetWs = "scratchpad"
+          } else {
+            var num = parseInt(rawData, 10)
+            if (!isNaN(num)) targetWs = num
+          }
+        }
+
+        if (targetWs !== null) {
+          root.navigateToWorkspaceNumber(targetWs)
+        }
+      }
+    }
+
+    function onFocusedWorkspaceChanged() {
+      if (!root.opened || root.activePresentation !== "carousel" || root.keybindMode === "cycle") return
+      var fw = Hyprland.focusedWorkspace
+      if (fw) {
+        var isSpecial = WindowModel.isSpecialWorkspace(fw)
+        var target = isSpecial ? "scratchpad" : Number(fw.id)
+        if (target) {
+          root.navigateToWorkspaceNumber(target)
+        }
       }
     }
   }

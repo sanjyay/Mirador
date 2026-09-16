@@ -118,6 +118,34 @@ TestCase {
     compare(addresses(WindowModel.visibleWorkspaceWindows([remaining])), ["0x1"])
   }
 
+  function test_selectCloseTargetSkipsAlreadyClosingWindow() {
+    var first = client("0x1", [], true, 0)
+    var second = client("0x2", [], false, 1)
+
+    compare(WindowModel.selectCloseTarget([first, second], "0x1", {}), first)
+    compare(WindowModel.selectCloseTarget([first, second], "0x1", { "0x1": true }), second)
+  }
+
+  function test_selectCloseTargetUsesActiveGroupMember() {
+    var group = ["0x1", "0x2"]
+    var first = client("0x1", group, false, 2)
+    var second = client("0x2", group, true, 0)
+
+    compare(WindowModel.selectCloseTarget([first, second], "", {}), second)
+  }
+
+  function test_selectCloseTargetHonorsExplicitPreviewSelection() {
+    var first = client("0x1", [], true, 0)
+    var second = client("0x2", [], false, 1)
+
+    compare(WindowModel.selectCloseTarget([first, second], "0x1", {}, "0x2"), second)
+  }
+
+  function test_selectCloseTargetReturnsNullWhenAllWindowsAreClosing() {
+    var only = client("0x1", [], true, 0)
+    compare(WindowModel.selectCloseTarget([only], "", { "0x1": true }), null)
+  }
+
   function test_dissolvedGroupRestoresNormalWindows() {
     var values = [client("0x1", [], true, 0), client("0x2", [], true, 1)]
     compare(addresses(WindowModel.visibleWorkspaceWindows(values)), ["0x1", "0x2"])
@@ -346,5 +374,50 @@ TestCase {
     // Workspace 10 shows "0"
     compare(WindowModel.workspaceBadgeText(10, false), "0")
   }
-}
 
+  function test_findWorkspaceCardIndex() {
+    var model = [
+      { workspaceId: 1, isInsertion: false, isScratchpad: false },
+      { workspaceId: 2, isInsertion: false, isScratchpad: false },
+      { workspaceId: 3, isInsertion: true,  isScratchpad: false },
+      { workspaceId: 5, isInsertion: false, isScratchpad: false },
+      { workspaceId: 10, isInsertion: false, isScratchpad: false },
+      { workspaceId: -98, isInsertion: false, isScratchpad: true }
+    ]
+
+    // 1. Existing numeric workspaces
+    compare(WindowModel.findWorkspaceCardIndex(model, 1), 0)
+    compare(WindowModel.findWorkspaceCardIndex(model, 2), 1)
+    compare(WindowModel.findWorkspaceCardIndex(model, 5), 3)
+    compare(WindowModel.findWorkspaceCardIndex(model, 10), 4)
+
+    // Key 0 maps to workspace 10
+    compare(WindowModel.findWorkspaceCardIndex(model, 0), 4)
+
+    // Insertion target 3 should be skipped
+    compare(WindowModel.findWorkspaceCardIndex(model, 3), -1)
+
+    // Missing workspaces
+    compare(WindowModel.findWorkspaceCardIndex(model, 4), -1)
+    compare(WindowModel.findWorkspaceCardIndex(model, 7), -1)
+
+    // Scratchpad targets
+    compare(WindowModel.findWorkspaceCardIndex(model, "scratchpad"), 5)
+    compare(WindowModel.findWorkspaceCardIndex(model, "special"), 5)
+    compare(WindowModel.findWorkspaceCardIndex(model, -1), 5)
+
+    // Alternative model where workspace 0 exists instead of 10
+    var modelWithZero = [
+      { workspaceId: 0, isInsertion: false, isScratchpad: false },
+      { workspaceId: 1, isInsertion: false, isScratchpad: false }
+    ]
+    compare(WindowModel.findWorkspaceCardIndex(modelWithZero, 0), 0)
+    compare(WindowModel.findWorkspaceCardIndex(modelWithZero, 10), 0)
+
+    // Empty and invalid inputs
+    compare(WindowModel.findWorkspaceCardIndex([], 1), -1)
+    compare(WindowModel.findWorkspaceCardIndex(null, 1), -1)
+    compare(WindowModel.findWorkspaceCardIndex(model, NaN), -1)
+    compare(WindowModel.findWorkspaceCardIndex(model, "invalid"), -1)
+  }
+}

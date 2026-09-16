@@ -739,4 +739,165 @@ TestCase {
     verify(focusedGeom.cards[1].isPrimary === false,
       "Numeric card 1 must be in secondary rail")
   }
+
+  function test_cycleModePropertiesAndDefaults() {
+    var source = workspaceOverviewSource()
+    // keybindMode must default to "normal"
+    verify(/property\s+string\s+keybindMode\s*:\s*"normal"/.test(source),
+      "keybindMode must default to 'normal'")
+    // configuredModifier must default to "super"
+    verify(/property\s+string\s+configuredModifier\s*:\s*"super"/.test(source),
+      "configuredModifier must default to 'super'")
+    // cycled flag must default to false
+    verify(/property\s+bool\s+cycled\s*:\s*false/.test(source),
+      "cycled must default to false")
+    // activeCycleModifier must default to 0
+    verify(/property\s+int\s+activeCycleModifier\s*:\s*0/.test(source),
+      "activeCycleModifier must default to 0")
+  }
+
+  function test_cycleModeMethodsAndWatchdog() {
+    var source = workspaceOverviewSource()
+    // settingsProbe and loadSettings function
+    verify(/Process\s*\{[\s\S]*id\s*:\s*settingsProbe/.test(source),
+      "Must define settingsProbe Process")
+    verify(/function\s+loadSettings\s*\(rawJson\)/.test(source),
+      "Must define loadSettings function")
+    // 10-second idle hold watchdog timer
+    verify(/Timer\s*\{[\s\S]*id\s*:\s*holdWatchdog[\s\S]*interval\s*:\s*10000/.test(source),
+      "holdWatchdog timer must have 10-second (10000ms) interval")
+    verify(/onTriggered\s*:\s*\{[\s\S]*root\.cycled\s*=\s*false/.test(source),
+      "holdWatchdog must disarm cycled on timeout")
+    // cycleStep function
+    verify(/function\s+cycleStep\s*\(delta\)/.test(source),
+      "Must define cycleStep function")
+    verify(/root\.cycled\s*=\s*true/.test(source),
+      "cycleStep must arm root.cycled")
+    verify(/holdWatchdog\.restart\(\)/.test(source),
+      "cycleStep must restart holdWatchdog")
+    verify(/root\.moveCardSelection\(stepVal,\s*0\)/.test(source),
+      "cycleStep must reuse moveCardSelection")
+  }
+
+  function test_cycleModeKeyCatcherIntegration() {
+    var source = workspaceOverviewSource()
+    // Tab and Shift+Tab keycatcher integration
+    verify(/onTabRequested\s*:\s*function\s*\(direction\)\s*\{[\s\S]*root\.keybindMode\s*===\s*"cycle"[\s\S]*root\.cycleStep\(direction\)/.test(source),
+      "keyCatcher onTabRequested must invoke cycleStep in cycle mode")
+    // Keys.onReleased handler on keyCatcher
+    verify(/Keys\.onReleased\s*:\s*function\s*\(event\)/.test(source),
+      "keyCatcher must implement Keys.onReleased")
+    verify(/if\s*\(event\.isAutoRepeat\)\s*return/.test(source),
+      "Keys.onReleased must ignore autoRepeat events")
+    verify(/if\s*\(root\.keybindMode\s*!==\s*"cycle"\s*\|\|\s*!root\.cycled\)\s*return/.test(source),
+      "Keys.onReleased must only commit when in cycle mode and cycled is armed")
+    verify(/if\s*\(!root\.isSummoningModifier\(event\.key\)\)\s*return/.test(source),
+      "Keys.onReleased must check isSummoningModifier")
+    verify(/root\.activateSelectedCard\(\)/.test(source),
+      "Modifier release must activate highlighted selection")
+    verify(/id\s*:\s*cycleReleaseCommitTimer/.test(source),
+      "Cycle release must provide a grace period for asynchronous compositor bindings")
+    verify(/Keys\.onReleased[\s\S]*cycleReleaseCommitTimer\.restart\(\)/.test(source),
+      "Modifier release must defer commit until addressed bindings reach Mirador")
+    verify(/cycleReleaseCommitTimer[\s\S]*root\.activateSelectedCard\(\)/.test(source),
+      "Deferred cycle release must still activate the highlighted workspace")
+    verify(/function\s+rememberPendingCarouselWindow\(\)/.test(source)
+        && /pendingCarouselWindowAddress/.test(source),
+      "Modifier release must retain the explicit carousel address for late IPC actions")
+    verify(/Keys\.onReleased[\s\S]*rememberPendingCarouselWindow\(\)/.test(source),
+      "Modifier release must snapshot the selected window before dismissing")
+    verify(/payload\.action\s*===\s*"moveWindowToWorkspace"[\s\S]*takePendingCarouselWindow\(\)/.test(source),
+      "Late workspace moves must consume the retained carousel address")
+    verify(/isCarouselWindowMove[\s\S]*rememberPendingCarouselWindow\(\)[\s\S]*event\.accepted\s*=\s*true[\s\S]*return/.test(source),
+      "Super+Shift+number must preserve the source card instead of navigating the carousel")
+    verify(/event\.accepted\s*=\s*true/.test(source),
+      "Modifier release event must be accepted")
+  }
+
+  function test_cycleModeOpenAndDismissStateInvariants() {
+    var source = workspaceOverviewSource()
+    // Repeated step while already open advances selection without re-initializing
+    verify(/if\s*\(root\.opened\s*&&\s*payload\s*&&\s*typeof\s+payload\.step\s*===\s*"number"\)/.test(source),
+      "open() must detect stepping while already open")
+    // Opening with step in cycle mode calls cycleStep
+    verify(/if\s*\(root\.keybindMode\s*===\s*"cycle"\s*&&\s*payload\s*&&\s*typeof\s+payload\.step\s*===\s*"number"\)\s*\{[\s\S]*root\.cycleStep/.test(source),
+      "open() must cycle on initial summon with step in cycle mode")
+    // Dismiss and close cleanly disarm cycled and holdWatchdog
+    verify(/function\s+dismiss\(\)\s*\{[\s\S]*root\.cycled\s*=\s*false[\s\S]*holdWatchdog\.stop\(\)/.test(source),
+      "dismiss() must disarm cycled and stop watchdog")
+    verify(/function\s+close\(\)\s*\{[\s\S]*root\.cycled\s*=\s*false[\s\S]*holdWatchdog\.stop\(\)/.test(source),
+      "close() must disarm cycled and stop watchdog")
+    verify(/function\s+activateSelectedCard\(\)\s*\{[\s\S]*root\.cycled\s*=\s*false[\s\S]*holdWatchdog\.stop\(\)/.test(source),
+      "activateSelectedCard() must disarm cycled and stop watchdog")
+  }
+
+  function simulateIsSummoningModifier(key, activeMod, configuredMod) {
+    var Qt_Key_Meta = 0x01000022
+    var Qt_Key_Super_L = 0x01000053
+    var Qt_Key_Super_R = 0x01000054
+    var Qt_Key_Hyper_L = 0x01000055
+    var Qt_Key_Hyper_R = 0x01000056
+    var Qt_Key_Alt = 0x01000023
+    var Qt_Key_AltGr = 0x01001103
+    var Qt_Key_Control = 0x01000021
+    var Qt_Key_Shift = 0x01000020
+
+    var Qt_MetaModifier = 0x10000000
+    var Qt_AltModifier = 0x08000000
+    var Qt_ControlModifier = 0x04000000
+
+    if (activeMod === Qt_MetaModifier) {
+      return key === Qt_Key_Meta || key === Qt_Key_Super_L || key === Qt_Key_Super_R
+          || key === Qt_Key_Hyper_L || key === Qt_Key_Hyper_R
+    }
+    if (activeMod === Qt_AltModifier) {
+      return key === Qt_Key_Alt || key === Qt_Key_AltGr
+    }
+    if (activeMod === Qt_ControlModifier) {
+      return key === Qt_Key_Control
+    }
+
+    var mod = String(configuredMod || "super").toLowerCase()
+    if (mod === "alt") {
+      return key === Qt_Key_Alt || key === Qt_Key_AltGr
+    }
+    if (mod === "ctrl" || mod === "control") {
+      return key === Qt_Key_Control
+    }
+    return key === Qt_Key_Meta || key === Qt_Key_Super_L || key === Qt_Key_Super_R
+        || key === Qt_Key_Hyper_L || key === Qt_Key_Hyper_R
+  }
+
+  function test_isSummoningModifierAlgorithm() {
+    var Qt_Key_Meta = 0x01000022
+    var Qt_Key_Super_L = 0x01000053
+    var Qt_Key_Super_R = 0x01000054
+    var Qt_Key_Alt = 0x01000023
+    var Qt_Key_Control = 0x01000021
+    var Qt_Key_Shift = 0x01000020
+
+    var Qt_MetaModifier = 0x10000000
+    var Qt_AltModifier = 0x08000000
+    var Qt_ControlModifier = 0x04000000
+
+    // 1. Default configured "super" matches Super_L, Super_R, Meta
+    verify(simulateIsSummoningModifier(Qt_Key_Super_L, 0, "super"))
+    verify(simulateIsSummoningModifier(Qt_Key_Super_R, 0, "super"))
+    verify(simulateIsSummoningModifier(Qt_Key_Meta, 0, "super"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Alt, 0, "super"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Shift, 0, "super"))
+
+    // 2. Configured "alt" matches Alt
+    verify(simulateIsSummoningModifier(Qt_Key_Alt, 0, "alt"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Super_L, 0, "alt"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Shift, 0, "alt"))
+
+    // 3. Shift release is never recognized as summoning modifier
+    verify(!simulateIsSummoningModifier(Qt_Key_Shift, Qt_MetaModifier, "super"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Shift, Qt_AltModifier, "alt"))
+
+    // 4. Active modifier auto-detection overrides configured modifier
+    verify(simulateIsSummoningModifier(Qt_Key_Alt, Qt_AltModifier, "super"))
+    verify(!simulateIsSummoningModifier(Qt_Key_Super_L, Qt_AltModifier, "super"))
+  }
 }

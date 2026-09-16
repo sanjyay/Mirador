@@ -196,6 +196,55 @@ function visibleWorkspaceWindows(clients, activeAddress) {
   return result
 }
 
+// Select the window that should receive a close request for a workspace.
+// excludedAddresses contains windows for which a close has already been sent;
+// Quickshell's toplevel model can retain those objects briefly after Hyprland's
+// close event, so they must not block successive close requests.
+function selectCloseTarget(clients, activeAddress, excludedAddresses, preferredAddress) {
+  var values = clients || []
+  var excluded = excludedAddresses || {}
+  var usable = []
+
+  for (var i = 0; i < values.length; i++) {
+    var candidate = values[i]
+    var address = toplevelAddress(candidate)
+    if (!candidate || !address || excluded[address]) continue
+    usable.push(candidate)
+  }
+
+  if (usable.length === 0) return null
+
+  var normActive = normalizedAddress(activeAddress)
+  var normPreferred = normalizedAddress(preferredAddress)
+  var previews = resolveWorkspacePreviews(usable, normActive)
+  var best = null
+
+  if (normPreferred) {
+    for (var preferredIndex = 0; preferredIndex < previews.length; preferredIndex++) {
+      var preferredPreview = previews[preferredIndex]
+      var preferredTop = preferredPreview
+        ? (preferredPreview.activeMember || preferredPreview.toplevel) : null
+      if (preferredTop && toplevelAddress(preferredTop) === normPreferred) return preferredTop
+    }
+  }
+
+  for (var p = 0; p < previews.length; p++) {
+    var preview = previews[p]
+    var candidateTop = preview ? (preview.activeMember || preview.toplevel) : null
+    if (!candidateTop) continue
+
+    if (normActive && toplevelAddress(candidateTop) === normActive) {
+      return candidateTop
+    }
+
+    if (betterGroupRepresentative(candidateTop, best, normActive)) {
+      best = candidateTop
+    }
+  }
+
+  return best
+}
+
 // Check whether a workspace object or ID represents a special/scratchpad workspace.
 // Prioritizes explicit name and type checks (e.g. "special:scratchpad", isSpecial, isScratchpad)
 // while retaining negative IDs as compositor fallback metadata.
@@ -222,13 +271,13 @@ function specialWorkspaceName(ws) {
   if (ws === null || ws === undefined) return "scratchpad"
   if (typeof ws === "string") {
     if (ws.indexOf("special:") === 0) return ws.slice(8)
-    if (ws === "special") return "scratchpad"
+    if (ws === "special") return ""
     return ws
   }
   if (ws.specialName) return String(ws.specialName)
   var name = String(ws.name || "")
   if (name.indexOf("special:") === 0) return name.slice(8)
-  if (name === "special") return "scratchpad"
+  if (name === "special") return ""
   return name || "scratchpad"
 }
 
@@ -240,3 +289,53 @@ function workspaceBadgeText(workspaceId, isScratchpad) {
   return String(workspaceId !== undefined && workspaceId !== null ? workspaceId : "")
 }
 
+// Find the index in cardModel corresponding to a target workspace number or scratchpad
+function findWorkspaceCardIndex(cardModel, target) {
+  if (!cardModel || cardModel.length === 0) return -1
+
+  var isScratchTarget = (target === "scratchpad" || target === "special" || target === -1)
+  var targetNum = typeof target === "number" ? target : parseInt(target, 10)
+
+  if (isScratchTarget) {
+    for (var s = 0; s < cardModel.length; s++) {
+      var sItem = cardModel[s]
+      var sWsId = typeof sItem === "object" ? sItem.workspaceId : sItem
+      var isScratch = (typeof sItem === "object" && Boolean(sItem.isScratchpad))
+        || (typeof sWsId === "number" && sWsId < 0)
+      if (isScratch) return s
+    }
+    return -1
+  }
+
+  if (isNaN(targetNum)) return -1
+
+  // 1. Direct workspaceId match (skipping insertion targets)
+  for (var i = 0; i < cardModel.length; i++) {
+    var item = cardModel[i]
+    var wsId = typeof item === "object" ? item.workspaceId : item
+    var isIns = typeof item === "object" && Boolean(item.isInsertion)
+    if (!isIns && wsId === targetNum) return i
+  }
+
+  // 2. Key '0' maps to workspace 10, but if 10 is missing, check if workspace 0 exists
+  if (targetNum === 10) {
+    for (var j = 0; j < cardModel.length; j++) {
+      var it0 = cardModel[j]
+      var id0 = typeof it0 === "object" ? it0.workspaceId : it0
+      var isI0 = typeof it0 === "object" && Boolean(it0.isInsertion)
+      if (!isI0 && id0 === 0) return j
+    }
+  }
+
+  // 3. Conversely, if 0 was passed and missing, check if workspace 10 exists
+  if (targetNum === 0) {
+    for (var k = 0; k < cardModel.length; k++) {
+      var it10 = cardModel[k]
+      var id10 = typeof it10 === "object" ? it10.workspaceId : it10
+      var isI10 = typeof it10 === "object" && Boolean(it10.isInsertion)
+      if (!isI10 && id10 === 10) return k
+    }
+  }
+
+  return -1
+}

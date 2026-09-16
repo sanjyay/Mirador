@@ -31,16 +31,20 @@ Rectangle {
     titleMetrics.height, iconSource !== "" ? pillIconSize : 0)
     + pillVerticalPadding * 2
 
-  readonly property bool showGroupTabs: root.isGroup
+  readonly property bool showGroupTabs: root.showLabel
+    && root.isGroup
     && root.groupMembers
     && root.groupMembers.length > 1
     && width >= Style.space(60)
     && height >= naturalPillHeight * 1.8
-  readonly property bool showTitlePill: !root.showGroupTabs
+  readonly property bool showTitlePill: root.showLabel
+    && !root.showGroupTabs
     && width >= Style.space(72)
     && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
+  property bool showLabel: true      // set false in carousel to suppress title pill
+  property bool keyboardSelected: false
 
   signal activated()
   signal tabActivated(var targetToplevel)
@@ -129,9 +133,11 @@ Rectangle {
     anchors.fill: parent
     z: 5
     color: "transparent"
-    border.width: previewHover.hovered || root.dragging
-      ? Math.max(1, Style.normalBorderWidth) : 0
-    border.color: root.dragging ? Color.accent : Util.alpha(Color.menu.text, 0.58)
+    border.width: root.keyboardSelected
+      ? Math.max(2, Style.normalBorderWidth * 2)
+      : (previewHover.hovered || root.dragging ? Math.max(1, Style.normalBorderWidth) : 0)
+    border.color: root.keyboardSelected || root.dragging
+      ? Color.accent : Util.alpha(Color.menu.text, 0.58)
     radius: root.radius
   }
 

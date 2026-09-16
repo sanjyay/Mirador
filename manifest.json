@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "mirador",
   "name": "Mirador",
-  "version": "2.1.1",
+  "version": "2.3",
   "author": "sanjyay",
   "description": "Visual overview of workspaces and their windows",
   "kinds": [
