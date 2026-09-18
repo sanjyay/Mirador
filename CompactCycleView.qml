@@ -292,12 +292,50 @@ Item {
           anchors.fill: parent
           visible: root.occupied
 
-          Repeater {
-            model: root.effectiveToplevels
+          property var previewMap: ({})
+
+          function syncPreviews() {
+            previewMap = WindowModel.syncPreviewDelegates(
+              spatialPreview,
+              previewMap,
+              root.effectiveToplevels,
+              windowPreviewComponent,
+              {
+                initialProps: function(p, i) {
+                  return {
+                    itemIndex: i,
+                    modelData: p,
+                    toplevel: (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+                  }
+                },
+                onUpdate: function(del, p, i) {
+                  del.itemIndex = i
+                  del.modelData = p
+                  var targetTop = (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+                  if (del.toplevel !== targetTop) {
+                    del.toplevel = targetTop
+                  }
+                }
+              }
+            )
+          }
+
+          Component.onCompleted: syncPreviews()
+
+          Connections {
+            target: root
+            function onEffectiveToplevelsChanged() {
+              spatialPreview.syncPreviews()
+            }
+          }
+
+          Component {
+            id: windowPreviewComponent
 
             WindowPreview {
+              id: previewItem
               required property var modelData
-              required property int index
+              property int itemIndex: 0
 
               readonly property var previewToplevel: (modelData && modelData.toplevel) ? modelData.toplevel : modelData
               readonly property var previewIpc: (modelData && modelData.lastIpcObject)
@@ -318,7 +356,7 @@ Item {
 
               readonly property var displayGeometry: previewGeometry.valid
                 ? previewGeometry
-                : WindowGeometry.fallbackGeometry(index, root.windowCount,
+                : WindowGeometry.fallbackGeometry(itemIndex, root.windowCount,
                     spatialPreview.width, spatialPreview.height, Style.spacing.xs)
 
               readonly property real dpr: (targetMon && targetMon.scale > 0)
@@ -329,7 +367,7 @@ Item {
               y: WindowGeometry.snapToDevicePixels(displayGeometry.y, dpr)
               width: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.width, dpr))
               height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
-              z: index + 1
+              z: itemIndex + 1
 
               toplevel: previewToplevel
               isGroup: Boolean(modelData && modelData.isGroup)

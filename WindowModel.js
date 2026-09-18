@@ -151,6 +151,7 @@ function resolveWorkspacePreviews(clients, activeAddress) {
       result.push({
         type: "window",
         isGroup: false,
+        groupKey: "",
         toplevel: client,
         activeMember: client,
         members: client ? [client] : [],
@@ -170,6 +171,7 @@ function resolveWorkspacePreviews(clients, activeAddress) {
       result.push({
         type: isRealGroup ? "group" : "window",
         isGroup: isRealGroup,
+        groupKey: isRealGroup ? clientKey : "",
         toplevel: rep,
         activeMember: rep,
         members: members,
@@ -184,6 +186,60 @@ function resolveWorkspacePreviews(clients, activeAddress) {
   }
 
   return result
+}
+
+// Synchronize window preview delegates incrementally using window address / group key as identity.
+// Existing delegates survive property updates without being destroyed or recreated.
+function syncPreviewDelegates(container, currentMap, previews, component, options) {
+  var activeMap = {}
+  var values = previews || []
+  var map = currentMap || {}
+  var opts = options || {}
+
+  for (var i = 0; i < values.length; i++) {
+    var p = values[i]
+    if (!p) continue
+    var key = p.groupKey || p.address
+    if (!key && p.toplevel) {
+      key = toplevelAddress(p.toplevel)
+    }
+    if (!key) continue
+
+    activeMap[key] = true
+    var existing = map[key]
+    if (existing) {
+      if (typeof opts.onUpdate === "function") {
+        opts.onUpdate(existing, p, i)
+      } else {
+        existing.itemIndex = i
+        existing.modelData = p
+      }
+    } else {
+      var initialProps = (typeof opts.initialProps === "function")
+        ? opts.initialProps(p, i)
+        : { modelData: p, itemIndex: i, toplevel: (p && p.toplevel ? p.toplevel : null) }
+
+      var newDel = component.createObject(container, initialProps)
+      if (newDel) {
+        map[key] = newDel
+      }
+    }
+  }
+
+  for (var oldKey in map) {
+    if (!activeMap[oldKey]) {
+      var del = map[oldKey]
+      if (del) {
+        if (typeof opts.onDestroy === "function") {
+          opts.onDestroy(del)
+        }
+        del.destroy()
+      }
+      delete map[oldKey]
+    }
+  }
+
+  return map
 }
 
 // Return active member toplevels for callers expecting plain client arrays.

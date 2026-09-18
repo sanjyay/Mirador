@@ -267,12 +267,50 @@ BorderSurface {
       id: spatialPreview
       anchors.fill: parent
 
-      Repeater {
-        model: root.toplevelModel
+      property var previewMap: ({})
+
+      function syncPreviews() {
+        previewMap = WindowModel.syncPreviewDelegates(
+          spatialPreview,
+          previewMap,
+          root.effectiveToplevels,
+          windowPreviewComponent,
+          {
+            initialProps: function(p, i) {
+              return {
+                modelData: p,
+                itemIndex: i,
+                toplevel: (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+              }
+            },
+            onUpdate: function(del, p, i) {
+              del.itemIndex = i
+              del.modelData = p
+              var targetTop = (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+              if (del.toplevel !== targetTop) {
+                del.toplevel = targetTop
+              }
+            }
+          }
+        )
+      }
+
+      Component.onCompleted: syncPreviews()
+
+      Connections {
+        target: root
+        function onEffectiveToplevelsChanged() {
+          spatialPreview.syncPreviews()
+        }
+      }
+
+      Component {
+        id: windowPreviewComponent
 
         WindowPreview {
+          id: previewItem
           required property var modelData
-          required property int index
+          property int itemIndex: 0
 
           readonly property var previewToplevel: modelData && modelData.toplevel ? modelData.toplevel : modelData
           readonly property var previewIpc: (modelData && modelData.lastIpcObject)
@@ -292,7 +330,7 @@ BorderSurface {
             Math.min(spatialPreview.height, Math.max(Style.space(40), spatialPreview.height * 0.20)))
           readonly property var displayGeometry: previewGeometry.valid
             ? previewGeometry
-            : WindowGeometry.fallbackGeometry(index, root.windowCount,
+            : WindowGeometry.fallbackGeometry(itemIndex, root.windowCount,
               spatialPreview.width, spatialPreview.height, root.previewSpacing)
 
           readonly property real dpr: (targetMonitor && targetMonitor.scale > 0)
@@ -303,7 +341,7 @@ BorderSurface {
           y: WindowGeometry.snapToDevicePixels(displayGeometry.y, dpr)
           width: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.width, dpr))
           height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
-          z: index + 1
+          z: itemIndex + 1
           toplevel: previewToplevel
           isGroup: Boolean(modelData && modelData.isGroup)
           groupMembers: (modelData && modelData.members) ? modelData.members : []

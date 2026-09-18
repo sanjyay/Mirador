@@ -93,6 +93,25 @@ Rectangle {
     font.pixelSize: Style.font.bodySmall
   }
 
+  property bool hasReceivedFrame: false
+
+  Connections {
+    target: preview
+    function onHasContentChanged() {
+      if (preview.hasContent) root.hasReceivedFrame = true
+    }
+  }
+
+  onToplevelChanged: {
+    root.hasReceivedFrame = false
+  }
+
+  onLiveCaptureEnabledChanged: {
+    if (!root.liveCaptureEnabled) {
+      root.hasReceivedFrame = false
+    }
+  }
+
   radius: Style.cornerRadius
   color: Util.alpha(Color.background, 0.52)
   clip: true
@@ -112,11 +131,11 @@ Rectangle {
       captureSource: root.liveCaptureEnabled ? root.waylandToplevel : null
       live: root.liveCaptureEnabled
       paintCursor: false
-      visible: hasContent
+      visible: hasContent || root.hasReceivedFrame
     }
 
     Image {
-      visible: !preview.hasContent && source !== ""
+      visible: !root.hasReceivedFrame && !preview.hasContent && source !== ""
       anchors.centerIn: parent
       width: Math.min(parent.width, parent.height) * 0.34
       height: width

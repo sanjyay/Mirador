@@ -394,12 +394,50 @@ Item {
                 anchors.fill: parent
                 visible: slotItem.occupied
 
-                Repeater {
-                  model: slotItem.effectiveToplevels
+                property var previewMap: ({})
+
+                function syncPreviews() {
+                  previewMap = WindowModel.syncPreviewDelegates(
+                    spatialPreview,
+                    previewMap,
+                    slotItem.effectiveToplevels,
+                    windowPreviewComponent,
+                    {
+                      initialProps: function(p, i) {
+                        return {
+                          itemIndex: i,
+                          modelData: p,
+                          toplevel: (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+                        }
+                      },
+                      onUpdate: function(del, p, i) {
+                        del.itemIndex = i
+                        del.modelData = p
+                        var targetTop = (p && p.activeMember) ? p.activeMember : (p && p.toplevel ? p.toplevel : null)
+                        if (del.toplevel !== targetTop) {
+                          del.toplevel = targetTop
+                        }
+                      }
+                    }
+                  )
+                }
+
+                Component.onCompleted: syncPreviews()
+
+                Connections {
+                  target: slotItem
+                  function onEffectiveToplevelsChanged() {
+                    spatialPreview.syncPreviews()
+                  }
+                }
+
+                Component {
+                  id: windowPreviewComponent
 
                   WindowPreview {
+                    id: previewItem
                     required property var modelData
-                    required property int index
+                    property int itemIndex: 0
 
                     readonly property var previewToplevel: (modelData && modelData.toplevel) ? modelData.toplevel : modelData
                     readonly property var previewIpc: (modelData && modelData.lastIpcObject)
@@ -420,7 +458,7 @@ Item {
 
                     readonly property var displayGeometry: previewGeometry.valid
                       ? previewGeometry
-                      : WindowGeometry.fallbackGeometry(index, slotItem.windowCount,
+                      : WindowGeometry.fallbackGeometry(itemIndex, slotItem.windowCount,
                           spatialPreview.width, spatialPreview.height, Style.spacing.xs)
 
                     readonly property real dpr: (targetMon && targetMon.scale > 0)
@@ -434,7 +472,7 @@ Item {
                     keyboardSelected: slotItem.isHero
                       && root.overview && root.overview.isSelectedWindow(previewToplevel)
 
-                    z: keyboardSelected ? 90 : index + 1
+                    z: keyboardSelected ? 90 : itemIndex + 1
 
                     toplevel: previewToplevel
                     isGroup: Boolean(modelData && modelData.isGroup)

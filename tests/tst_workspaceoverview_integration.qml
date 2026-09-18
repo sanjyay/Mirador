@@ -48,8 +48,13 @@ TestCase {
 
   function test_groupEventsUseExistingToplevelRefreshPath() {
     var source = workspaceOverviewSource()
+    // Group events must be classified as structural window events
     verify(/name\.indexOf\("group"\)\s*!==\s*-1/.test(source))
-    verify(/name\.indexOf\("group"\)[\s\S]*Hyprland\.refreshToplevels\(\)/.test(source))
+    // The structural window events block must trigger a toplevel refresh
+    // (either directly or via the debounced scheduleStructuralRefresh helper)
+    var groupRefreshOk = /name\.indexOf\("group"\)[^\n]*!==\s*-1[\s\S]*?scheduleStructuralRefresh/.test(source)
+      || /name\.indexOf\("group"\)[\s\S]*Hyprland\.refreshToplevels\(\)/.test(source)
+    verify(groupRefreshOk)
   }
 
   function test_workspaceIdsOnlyEnumeratesActualExistingWorkspaces() {
