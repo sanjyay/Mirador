@@ -203,7 +203,7 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
-// Largest carousel hero that leaves a small glimpse of neighboring cards and
+// Largest carousel hero that keeps most of both neighboring cards visible and
 // a compact indicator strip. All dimensions are logical; callers snap edges on
 // the destination display. Preview proportions exclude the symmetric border inset.
 function carouselGeometry(areaWidth, areaHeight, aspectRatio, options) {
@@ -213,19 +213,26 @@ function carouselGeometry(areaWidth, areaHeight, aspectRatio, options) {
   var aspect = finiteNumber(aspectRatio) > 0 ? Number(aspectRatio) : 16 / 9
   var multiple = finiteNumber(opts.count) > 1
   var spacing = multiple ? Math.min(Math.max(0, finiteNumber(opts.spacing) || 0), width / 10) : 0
-  var peek = multiple ? Math.min(Math.max(0, finiteNumber(opts.peekWidth) || 0), width * 0.05) : 0
+  var sideScale = finiteNumber(opts.sideScale) > 0 ? clamp(Number(opts.sideScale), 0.1, 1) : 0.68
+  var sideVisibility = multiple
+    ? (isFinite(finiteNumber(opts.sideVisibility)) ? clamp(Number(opts.sideVisibility), 0, 1) : 0.8) : 0
   var indicatorHeight = multiple ? Math.min(Math.max(0, finiteNumber(opts.indicatorHeight) || 0), height / 4) : 0
   var indicatorSpacing = indicatorHeight > 0
     ? Math.min(Math.max(0, finiteNumber(opts.indicatorSpacing) || 0), height / 8) : 0
   var contentHeight = height - indicatorHeight - indicatorSpacing
-  var maxCardWidth = width - 2 * (peek + spacing)
-  var inset = Math.min(Math.max(0, finiteNumber(opts.previewInset) || 0), maxCardWidth / 4, contentHeight / 4)
-  var previewWidth = Math.min(maxCardWidth - inset * 2, (contentHeight - inset * 2) * aspect)
+  var inset = Math.min(Math.max(0, finiteNumber(opts.previewInset) || 0),
+    (width - 2 * spacing) / (4 * (1 + 2 * sideVisibility)), contentHeight / 4)
+  // Fit the hero plus two gaps and the requested visible fraction of each
+  // neighbor. Their canvas widths are sideScale * previewWidth; all cards
+  // retain the same unscaled border inset.
+  var maxPreviewWidth = (width - 2 * spacing - 2 * inset * (1 + 2 * sideVisibility))
+    / (1 + 2 * sideVisibility * sideScale)
+  var previewWidth = Math.min(maxPreviewWidth, (contentHeight - inset * 2) * aspect)
   var previewHeight = previewWidth / aspect
   var cardWidth = previewWidth + inset * 2
   var cardHeight = previewHeight + inset * 2
-  var sideScale = finiteNumber(opts.sideScale) > 0 ? clamp(Number(opts.sideScale), 0.1, 1) : 0.68
   var sideCardWidth = previewWidth * sideScale + inset * 2
+  var peek = sideCardWidth * sideVisibility
   return {
     width: width, contentHeight: contentHeight,
     previewWidth: previewWidth, previewHeight: previewHeight, previewInset: inset,

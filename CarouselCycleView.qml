@@ -28,7 +28,7 @@ Item {
   readonly property real sideOpacity: 0.58
   readonly property var layoutGeometry: WindowGeometry.carouselGeometry(
     viewport.width, viewport.height, monitorAspect, {
-      count: cardCount, spacing: Style.space(24), peekWidth: Style.space(48),
+      count: cardCount, spacing: Style.space(24), sideVisibility: 0.8,
       previewInset: overview ? overview.gridPreviewInset : 4,
       indicatorHeight: Style.space(26), indicatorSpacing: Style.space(12), sideScale: sideScale
     })
