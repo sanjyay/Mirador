@@ -79,6 +79,13 @@ omarchy restart shell
 * Repeat with 1–12 workspaces, portrait/ultrawide displays, fractional scaling, and bars on each edge. Resizing or changing workspace count recomputes the grid; changing selection alone must not.
 * The geometry suite also exercises 20/50 cards, tiny viewports, metadata fallback, rotated QScreen dimensions, exact pixel boundaries, navigation, and insertion-card skipping. Geometry tests do not replace a live screencopy check.
 
+### Carousel sizing and local testing
+* Hold `Super` and press `Tab` to test carousel cycling; `Shift+Tab` opens the grid. Release `Super` to commit, or use `Escape` to cancel. Existing numeric/window-selection bindings still apply.
+* For a persistent carousel without holding a modifier: `omarchy-shell shell summon mirador '{"cycleUI":"carousel","keybindMode":"normal"}'`. Close it with `omarchy-shell shell hide mirador`.
+* Verify the main preview fills the safe area with only small neighboring glimpses and a compact indicator row. Badges overlay the preview; source proportions stay correct throughout the scroll animation.
+* Exercise one, two, three, and many workspaces, first/last wrap, window selection, number keys, and indicator clicks. The selected indicator should stay reachable on narrow monitors.
+* Confirm the grid still matches its full-screen layout, client sizes/positions never change, and hide/mode changes release captures. The carousel tests cover all bar edges, landscape/portrait/ultrawide, DPR 1/1.25/1.5/2, small viewports, and animation geometry.
+
 ### 5. Keyboard Navigation (Cyclic 2D Model)
 * **Left / Right**: Cycles continuously across the global visual sequence (wrapping from last to first and first to last across all rows).
 * **Up / Down**: Moves between visual rows, snapping to the card whose horizontal center (`centerX`) is closest to the current workspace. Wraps between top and bottom rows.

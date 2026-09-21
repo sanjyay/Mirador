@@ -18,40 +18,39 @@ Item {
   readonly property int cardCount: cardModel.length
   readonly property int currentIndex: overview ? overview.selectedCardIndex : 0
 
-  // ── Track Dimensions & Positioning ─────────────────────────────────────────
-  readonly property real screenWidth: overview && overview.targetScreen ? overview.targetScreen.width : 1920
-  readonly property real screenHeight: overview && overview.targetScreen ? overview.targetScreen.height : 1080
-  readonly property real monitorAspect: {
-    var mon = Hyprland.focusedMonitor
-    if (mon && mon.height > 0) return mon.width / mon.height
-    return 16.0 / 9.0
-  }
-
-  // Hero Center Preview Dimensions
-  readonly property real centerPreviewWidth: Math.round(Math.min(840, screenWidth * 0.44))
-  readonly property real centerPreviewHeight: Math.round(centerPreviewWidth / monitorAspect)
-  readonly property real headerHeight: Style.space(38)
-  readonly property real cardPadding: Style.spacing.md
-
-  readonly property real centerCardWidth: centerPreviewWidth + cardPadding * 2
-  readonly property real centerCardHeight: centerPreviewHeight + headerHeight + cardPadding * 2 + Style.spacing.sm
-
-  // Side Card Dimensions & Proportions
+  // The same safe monitor rectangle and desktop proportions used by the grid.
+  readonly property real dpr: overview ? overview.gridDpr : 1
+  readonly property var viewport: overview ? overview.gridViewport
+    : WindowGeometry.snapRectToDevicePixels({ x: 0, y: 0, width: width, height: height }, dpr, true)
+  readonly property real monitorAspect: WindowGeometry.workspaceAspectRatio(
+    overview ? overview.targetMonitor : null, overview ? overview.targetScreen : null)
   readonly property real sideScale: 0.68
   readonly property real sideOpacity: 0.58
-  readonly property real sideCardWidth: Math.round(centerCardWidth * sideScale)
-  readonly property real sideCardHeight: Math.round(centerCardHeight * sideScale)
+  readonly property var layoutGeometry: WindowGeometry.carouselGeometry(
+    viewport.width, viewport.height, monitorAspect, {
+      count: cardCount, spacing: Style.space(24), peekWidth: Style.space(48),
+      previewInset: overview ? overview.gridPreviewInset : 4,
+      indicatorHeight: Style.space(26), indicatorSpacing: Style.space(12), sideScale: sideScale
+    })
+  readonly property real centerPreviewWidth: layoutGeometry.previewWidth
+  readonly property real centerPreviewHeight: layoutGeometry.previewHeight
+  readonly property real previewInset: WindowGeometry.snapToDevicePixels(layoutGeometry.previewInset, dpr)
+  readonly property real slotDistance: layoutGeometry.slotDistance
+  readonly property real screenCenterX: layoutGeometry.centerX
+  readonly property var indicatorGeometry: WindowGeometry.snapRectToDevicePixels({
+    x: 0, y: layoutGeometry.indicatorY,
+    width: viewport.width, height: layoutGeometry.indicatorHeight
+  }, dpr)
 
-  // Distance between adjacent card centers on the horizontal strip
-  readonly property real slotDistance: Math.round(centerCardWidth * 0.5 + sideCardWidth * 0.5 + Style.space(28))
+  onSlotDistanceChanged: resetTo(currentIndex)
+  onCurrentIndexChanged: Qt.callLater(ensureIndicatorVisible)
+  onCardCountChanged: Qt.callLater(ensureIndicatorVisible)
 
-  readonly property real screenCenterX: Math.round(width / 2)
-  readonly property real screenCenterY: Math.round(height / 2 - Style.space(20))
-
-  readonly property bool isMultiMonitor: {
-    var scrs = Quickshell.screens ? Quickshell.screens.length : 0
-    var mons = (Hyprland.monitors && Hyprland.monitors.values) ? Hyprland.monitors.values.length : 0
-    return scrs > 1 || mons > 1
+  function ensureIndicatorVisible() {
+    var pill = indicatorRepeater.itemAt(currentIndex)
+    if (!pill) return
+    var target = indicatorRow.x + pill.x + pill.width / 2 - indicatorFlick.width / 2
+    indicatorFlick.contentX = Math.max(0, Math.min(target, indicatorFlick.contentWidth - indicatorFlick.width))
   }
 
   // ── Animated Scrolling for Available Workspaces Strip ──────────────────────
@@ -143,7 +142,11 @@ Item {
   // ── Horizontal Strip: Exactly One Card Per Available Workspace ────────────
   Item {
     id: carouselTrack
-    anchors.fill: parent
+    x: root.viewport.x
+    y: root.viewport.y
+    width: root.viewport.width
+    height: WindowGeometry.snapToDevicePixels(root.layoutGeometry.contentHeight, root.dpr)
+    clip: true
     z: 10
 
     Repeater {
@@ -161,7 +164,6 @@ Item {
         readonly property var workspace: root.overview ? root.overview.workspaceById(workspaceId) : null
         readonly property var wsMonitor: (workspace && workspace.monitor)
           ? workspace.monitor : Hyprland.focusedMonitor
-        readonly property string monitorName: wsMonitor ? String(wsMonitor.name || "") : ""
 
         // Toplevel preview model resolution
         readonly property var effectiveToplevels: {
@@ -195,6 +197,7 @@ Item {
               geometry = WindowGeometry.fallbackGeometry(
                 i, windowCount, previewBox.width, previewBox.height, Style.spacing.xs)
             }
+            geometry = WindowGeometry.snapRectToDevicePixels(geometry, root.dpr)
             var address = WindowModel.normalizedAddress(
               (previewTop && previewTop.address)
                 || (previewTop && previewTop.lastIpcObject && previewTop.lastIpcObject.address))
@@ -219,25 +222,22 @@ Item {
         readonly property real pixelDist: Math.abs(root.screenCenterX - cardCenterX)
         readonly property real normDist: pixelDist / root.slotDistance
 
-        readonly property real itemScale: normDist <= 1.0
-          ? (1.0 - normDist * (1.0 - root.sideScale))
-          : Math.max(0.50, root.sideScale - (normDist - 1.0) * 0.18)
-
         readonly property real itemOpacity: normDist <= 1.0
           ? (1.0 - normDist * (1.0 - root.sideOpacity))
           : Math.max(0.15, root.sideOpacity * (1.0 - (normDist - 1.0) * 0.5))
 
         readonly property bool isHero: index === root.currentIndex
 
-        width: root.centerCardWidth
-        height: root.centerCardHeight
-        x: Math.round(cardCenterX - width / 2)
-        y: Math.round(root.screenCenterY - height / 2)
-        scale: itemScale
+        readonly property var cardGeometry: WindowGeometry.snapRectToDevicePixels(
+          WindowGeometry.carouselSlotGeometry(root.layoutGeometry,
+            index * root.slotDistance - root.trackOffset), root.dpr)
+        width: cardGeometry.width
+        height: cardGeometry.height
+        x: cardGeometry.x
+        y: cardGeometry.y
         opacity: itemOpacity
         visible: normDist < 2.5 && itemOpacity > 0.05
         z: isHero ? 30 : Math.max(1, 20 - Math.round(normDist))
-        transformOrigin: Item.Center
 
         // ── Card Surface ────────────────────────────────────────────────────
         Rectangle {
@@ -262,89 +262,50 @@ Item {
             }
           }
 
-          Column {
+          Item {
             anchors.fill: parent
-            anchors.margins: root.cardPadding
-            spacing: Style.spacing.sm
+            anchors.margins: root.previewInset
             z: 2
 
-            // ── Card Header: Number Badge only ──────────────────────────────
-            Item {
-              width: parent.width
-              height: root.headerHeight
+            // Overlay the badge instead of reserving a full-width header.
+            Row {
+              x: WindowGeometry.snapToDevicePixels(Style.spacing.xs, root.dpr)
+              y: x
+              spacing: Style.spacing.sm
+              z: 110
 
-              Row {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.spacing.sm
+              Rectangle {
+                height: Style.space(26)
+                width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md)
+                radius: Math.min(Style.cornerRadius, Style.space(6))
+                color: slotItem.isHero ? Color.accent : Color.menu.background
+                border.width: slotItem.isHero ? 0 : 1
+                border.color: Color.menu.border
 
-                // Number Badge
-                Rectangle {
-                  height: Style.space(26)
-                  width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md)
-                  radius: Math.min(Style.cornerRadius, Style.space(6))
-                  color: slotItem.isHero ? Color.accent : Util.alpha(Color.menu.text, 0.14)
-                  anchors.verticalCenter: parent.verticalCenter
-
-                  Text {
-                    id: badgeLabel
-                    anchors.centerIn: parent
-                    text: WindowModel.workspaceBadgeText(slotItem.workspaceId, slotItem.isScratchpad)
-                    font.family: Style.font.menuFamily
-                    font.pixelSize: Style.font.body
-                    font.bold: true
-                    color: slotItem.isHero ? Color.menu.scrim : Color.menu.text
-                  }
-                }
-
-                // Scratchpad label (only shown for Scratchpad)
                 Text {
-                  visible: slotItem.isScratchpad
-                  text: "Scratchpad"
+                  id: badgeLabel
+                  anchors.centerIn: parent
+                  text: WindowModel.workspaceBadgeText(slotItem.workspaceId, slotItem.isScratchpad)
                   font.family: Style.font.menuFamily
-                  font.pixelSize: Style.font.heading
+                  font.pixelSize: Style.font.body
                   font.bold: true
-                  color: Color.menu.text
-                  anchors.verticalCenter: parent.verticalCenter
+                  color: slotItem.isHero ? Color.menu.scrim : Color.menu.text
                 }
               }
 
-              // Window count / monitor badge row — hidden in carousel
-              Row {
-                visible: false
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.spacing.sm
-
-                Rectangle {
-                  visible: root.isMultiMonitor && slotItem.monitorName !== ""
-                  height: Style.space(22)
-                  width: monitorLabel.implicitWidth + Style.spacing.sm * 2
-                  radius: Style.cornerRadiusSmall || Style.space(4)
-                  color: Util.alpha(Color.menu.text, 0.08)
-                  border.width: 1
-                  border.color: Util.alpha(Color.menu.border, 0.25)
-                  anchors.verticalCenter: parent.verticalCenter
-
-                  Text {
-                    id: monitorLabel
-                    anchors.centerIn: parent
-                    text: slotItem.monitorName
-                    font.family: Style.font.menuFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    color: Util.alpha(Color.menu.text, 0.75)
-                  }
-                }
-
+              Rectangle {
+                visible: slotItem.isScratchpad
+                height: Style.space(26)
+                width: scratchpadLabel.implicitWidth + Style.spacing.md * 2
+                radius: Math.min(Style.cornerRadius, Style.space(6))
+                color: Color.menu.background
                 Text {
-                  text: slotItem.occupied
-                    ? (slotItem.windowCount + (slotItem.windowCount === 1 ? " window" : " windows"))
-                    : "Empty"
+                  id: scratchpadLabel
+                  anchors.centerIn: parent
+                  text: "Scratchpad"
                   font.family: Style.font.menuFamily
-                  font.pixelSize: Style.font.bodySmall
-                  color: Util.alpha(Color.menu.text, slotItem.isHero ? 0.65 : 0.40)
-                  anchors.verticalCenter: parent.verticalCenter
+                  font.pixelSize: Style.font.body
+                  color: Color.menu.text
                 }
               }
             }
@@ -352,8 +313,7 @@ Item {
             // ── Center: Workspace Preview Canvas ────────────────────────────
             Rectangle {
               id: previewBox
-              width: root.centerPreviewWidth
-              height: root.centerPreviewHeight
+              anchors.fill: parent
               radius: Style.cornerRadius
               color: Util.alpha(Color.menu.background, 0.75)
               border.width: 1
@@ -461,14 +421,11 @@ Item {
                       : WindowGeometry.fallbackGeometry(itemIndex, slotItem.windowCount,
                           spatialPreview.width, spatialPreview.height, Style.spacing.xs)
 
-                    readonly property real dpr: (targetMon && targetMon.scale > 0)
-                      ? targetMon.scale
-                      : ((targetScr && targetScr.devicePixelRatio) ? targetScr.devicePixelRatio : 1.0)
-
-                    x: WindowGeometry.snapToDevicePixels(displayGeometry.x, dpr)
-                    y: WindowGeometry.snapToDevicePixels(displayGeometry.y, dpr)
-                    width: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.width, dpr))
-                    height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
+                    readonly property var renderGeometry: WindowGeometry.snapRectToDevicePixels(displayGeometry, root.dpr)
+                    x: renderGeometry.x
+                    y: renderGeometry.y
+                    width: Math.max(1 / root.dpr, renderGeometry.width)
+                    height: Math.max(1 / root.dpr, renderGeometry.height)
                     keyboardSelected: slotItem.isHero
                       && root.overview && root.overview.isSelectedWindow(previewToplevel)
 
@@ -477,7 +434,7 @@ Item {
                     toplevel: previewToplevel
                     isGroup: Boolean(modelData && modelData.isGroup)
                     groupMembers: (modelData && modelData.members) ? modelData.members : []
-                    liveCaptureEnabled: root.livePreviews && root.visible && previewBox.visible && slotItem.normDist < 1.6
+                    liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewBox.visible && slotItem.normDist < 1.6
                     showLabel: keyboardSelected
 
                     onActivated: {
@@ -518,68 +475,82 @@ Item {
   // ── Bottom: Workspace Indicator Strip (1  [2]  3  4  S) ───────────────────
   Item {
     id: bottomIndicatorArea
-    width: parent.width
-    height: Style.space(48)
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: Math.max(Style.space(36), Style.space(44))
+    x: root.viewport.x
+    y: root.viewport.y + root.indicatorGeometry.y
+    width: root.viewport.width
+    height: root.indicatorGeometry.height
     z: 100
     visible: root.cardCount > 1
 
-    Row {
-      id: indicatorRow
-      anchors.centerIn: parent
-      spacing: Style.spacing.sm
+    Flickable {
+      id: indicatorFlick
+      anchors.fill: parent
+      contentWidth: Math.max(width, indicatorRow.width)
+      contentHeight: height
+      flickableDirection: Flickable.HorizontalFlick
+      boundsBehavior: Flickable.StopAtBounds
+      clip: true
+      onWidthChanged: Qt.callLater(root.ensureIndicatorVisible)
 
-      Repeater {
-        model: root.cardModel
+      Row {
+        id: indicatorRow
+        x: WindowGeometry.snapToDevicePixels(Math.max(0, (indicatorFlick.width - width) / 2), root.dpr)
+        y: WindowGeometry.snapToDevicePixels((indicatorFlick.height - height) / 2, root.dpr)
+        spacing: Style.spacing.sm
+        onWidthChanged: Qt.callLater(root.ensureIndicatorVisible)
 
-        Rectangle {
-          required property var modelData
-          required property int index
+        Repeater {
+          id: indicatorRepeater
+          model: root.cardModel
 
-          readonly property int itemWsId: typeof modelData === "object" ? modelData.workspaceId : modelData
-          readonly property bool itemIsScratch: typeof modelData === "object" && Boolean(modelData.isScratchpad)
-          readonly property bool isCurrentPill: index === root.currentIndex
-          readonly property var itemWs: root.overview ? root.overview.workspaceById(itemWsId) : null
-          readonly property bool isOccupied: {
-            if (!itemWs) return false
-            var tops = itemWs.toplevels
-            return tops ? (tops.values ? tops.values.length > 0 : tops.length > 0) : false
-          }
+          Rectangle {
+            required property var modelData
+            required property int index
 
-          height: Style.space(26)
-          width: Math.max(height, pillLabel.implicitWidth + Style.spacing.md)
-          radius: Math.min(Style.cornerRadius, Style.space(6))
-          color: isCurrentPill
-            ? Color.accent
-            : (isOccupied ? Util.alpha(Color.menu.text, 0.16) : Util.alpha(Color.menu.text, 0.07))
-          border.width: isCurrentPill ? 0 : 1
-          border.color: isCurrentPill
-            ? "transparent"
-            : (isOccupied ? Util.alpha(Color.menu.border, 0.45) : Util.alpha(Color.menu.border, 0.20))
+            readonly property int itemWsId: typeof modelData === "object" ? modelData.workspaceId : modelData
+            readonly property bool itemIsScratch: typeof modelData === "object" && Boolean(modelData.isScratchpad)
+            readonly property bool isCurrentPill: index === root.currentIndex
+            readonly property var itemWs: root.overview ? root.overview.workspaceById(itemWsId) : null
+            readonly property bool isOccupied: {
+              if (!itemWs) return false
+              var tops = itemWs.toplevels
+              return tops ? (tops.values ? tops.values.length > 0 : tops.length > 0) : false
+            }
 
-          Behavior on color {
-            ColorAnimation { duration: 120 }
-          }
-
-          Text {
-            id: pillLabel
-            anchors.centerIn: parent
-            text: WindowModel.workspaceBadgeText(itemWsId, itemIsScratch)
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.bodySmall
-            font.bold: isCurrentPill
+            height: Style.space(26)
+            width: Math.max(height, pillLabel.implicitWidth + Style.spacing.md)
+            radius: Math.min(Style.cornerRadius, Style.space(6))
             color: isCurrentPill
-              ? Color.menu.scrim
-              : (isOccupied ? Color.menu.text : Util.alpha(Color.menu.text, 0.45))
-          }
+              ? Color.accent
+              : (isOccupied ? Util.alpha(Color.menu.text, 0.16) : Util.alpha(Color.menu.text, 0.07))
+            border.width: isCurrentPill ? 0 : 1
+            border.color: isCurrentPill
+              ? "transparent"
+              : (isOccupied ? Util.alpha(Color.menu.border, 0.45) : Util.alpha(Color.menu.border, 0.20))
 
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              if (root.overview) {
-                root.overview.selectedCardIndex = index
+            Behavior on color {
+              ColorAnimation { duration: 120 }
+            }
+
+            Text {
+              id: pillLabel
+              anchors.centerIn: parent
+              text: WindowModel.workspaceBadgeText(itemWsId, itemIsScratch)
+              font.family: Style.font.menuFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: isCurrentPill
+              color: isCurrentPill
+                ? Color.menu.scrim
+                : (isOccupied ? Color.menu.text : Util.alpha(Color.menu.text, 0.45))
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                if (root.overview) {
+                  root.overview.selectedCardIndex = index
+                }
               }
             }
           }

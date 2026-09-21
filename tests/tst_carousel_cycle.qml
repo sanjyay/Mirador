@@ -185,41 +185,19 @@ TestCase {
   }
 
   function test_continuousResponsiveDimensionsStability() {
-    // 1080p display: 1920x1080, aspect 16/9
-    var screenWidth = 1920
-    var monitorAspect = 16.0 / 9.0
-    var centerPreviewW = Math.round(Math.min(840, screenWidth * 0.44))
-    compare(centerPreviewW, 840)
-    var centerPreviewH = Math.round(centerPreviewW / monitorAspect)
-    compare(centerPreviewH, 473)
-
-    var headerHeight = 38
-    var cardPadding = 16
-    var centerCardW = centerPreviewW + cardPadding * 2 // 872
-    var centerCardH = centerPreviewH + headerHeight + cardPadding * 2 + 8 // 551
-
-    var sideScale = 0.68
-    var sideCardW = Math.round(centerCardW * sideScale) // 593
-    var slotDistance = Math.round(centerCardW * 0.5 + sideCardW * 0.5 + 28) // 761
-
-    // Verify center card occupies ~45% of screen width (hero)
-    verify(centerCardW > screenWidth * 0.40 && centerCardW < screenWidth * 0.50,
-      "Center card must occupy 40-50% of screen width")
-
-    // Verify side cards extend beyond screen edge for cinematic strip feel
-    var screenCenterX = 960
-    var rightCardCenterX = screenCenterX + slotDistance // 1721
-    var rightCardRightEdge = rightCardCenterX + sideCardW / 2 // 1721 + 296.5 = 2017.5
-    verify(rightCardRightEdge > screenWidth,
-      "Right side card must extend partially beyond right screen edge")
-
-    var leftCardCenterX = screenCenterX - slotDistance // 199
-    var leftCardLeftEdge = leftCardCenterX - sideCardW / 2 // 199 - 296.5 = -97.5
-    verify(leftCardLeftEdge < 0,
-      "Left side card must extend partially beyond left screen edge")
-
-    // Verify side cards are visibly smaller than center card
-    verify(sideCardW < centerCardW * 0.75, "Side card width must be <75% of center card")
+    var geometry = WindowGeometry.carouselGeometry(1888, 1013, 1920 / 1045, {
+      count: 3, spacing: 24, peekWidth: 48, previewInset: 4,
+      indicatorHeight: 26, indicatorSpacing: 12
+    })
+    verify(geometry.previewWidth > 1700, "Hero must use almost all available monitor width")
+    verify(geometry.previewWidth * geometry.previewHeight > 3 * 840 * 473,
+      "Hero desktop area must exceed three times the old capped preview")
+    var hero = WindowGeometry.carouselSlotGeometry(geometry, 0)
+    var side = WindowGeometry.carouselSlotGeometry(geometry, geometry.slotDistance)
+    verify(Math.abs(side.x - hero.x - hero.width - 24) < 0.001)
+    verify(side.x < geometry.width && side.x + side.width > geometry.width,
+      "Neighbor must remain partially visible at the safe viewport edge")
+    verify(side.width < hero.width * 0.75)
   }
 
   function test_workspaceOverviewDirectNumberNavigationIntegration() {
@@ -528,4 +506,131 @@ TestCase {
     verify(/mirador --close-window/.test(binding),
       "Mirador binding must route close through the plugin action")
   }
+  function carouselOptions(count, scale) {
+    return { count: count, spacing: 24 * scale, peekWidth: 48 * scale,
+      previewInset: 4 * scale, indicatorHeight: 26 * scale, indicatorSpacing: 12 * scale }
+  }
+
+  function near(actual, expected, tolerance) {
+    verify(Math.abs(actual - expected) < (tolerance || 0.001),
+      "Expected " + expected + ", got " + actual)
+  }
+
+  function test_carouselMonitorAwareSizing_data() {
+    var displays = [
+      { tag: "1080p", w: 1920, h: 1080, dpr: 1 },
+      { tag: "1440p", w: 2560, h: 1440, dpr: 1.25 },
+      { tag: "4k", w: 3840, h: 2160, dpr: 2 },
+      { tag: "ultrawide", w: 3440, h: 1440, dpr: 1 },
+      { tag: "portrait", w: 1080, h: 1920, dpr: 1 },
+      { tag: "fractional", w: 2560, h: 1600, dpr: 1.5 }
+    ]
+    var bars = ["", "left", "top", "right", "bottom"]
+    var rows = []
+    for (var d = 0; d < displays.length; d++) {
+      for (var b = 0; b < bars.length; b++) {
+        rows.push({ tag: displays[d].tag + "-" + bars[b], display: displays[d], bar: bars[b] })
+      }
+    }
+    return rows
+  }
+
+  function test_carouselMonitorAwareSizing(data) {
+    var display = data.display
+    var reserved = [0, 0, 0, 0]
+    var edges = { left: 0, top: 1, right: 2, bottom: 3 }
+    if (data.bar) reserved[edges[data.bar]] = 35
+    var monitor = { name: "carousel", x: -1920, y: -100, width: display.w,
+      height: display.h, scale: display.dpr, reserved: reserved }
+    var screen = { name: "carousel", width: display.w / display.dpr, height: display.h / display.dpr }
+    var aspect = WindowGeometry.workspaceAspectRatio(monitor, screen)
+    var safe = WindowGeometry.safeAreaGeometry(screen.width, screen.height, data.bar,
+      data.bar ? 35 : 0, 16, reserved)
+    var viewport = WindowGeometry.snapRectToDevicePixels({ x: safe.usableX, y: safe.usableY,
+      width: safe.usableWidth, height: safe.usableHeight }, display.dpr, true)
+    var counts = [0, 1, 2, 3, 5, 12, 50]
+    for (var n = 0; n < counts.length; n++) {
+      var options = carouselOptions(counts[n], 1)
+      var layout = WindowGeometry.carouselGeometry(viewport.width, viewport.height, aspect, options)
+      var hero = WindowGeometry.carouselSlotGeometry(layout, 0)
+      var inset = layout.previewInset
+      near((hero.width - 2 * inset) / (hero.height - 2 * inset), aspect)
+      near(hero.x + hero.width / 2, viewport.width / 2)
+      near(hero.y + hero.height / 2, layout.contentHeight / 2)
+      verify(hero.x >= 0 && hero.y >= 0)
+      verify(hero.x + hero.width <= viewport.width + 0.001)
+      verify(hero.y + hero.height <= layout.contentHeight + 0.001)
+      verify(layout.contentHeight <= layout.indicatorY)
+      near(layout.indicatorY + layout.indicatorHeight, viewport.height)
+      // At least one axis must reach its limit; no arbitrary preview-size cap.
+      verify(Math.abs(hero.width - (viewport.width - 2 * (layout.peekWidth + layout.spacing))) < 0.001
+        || Math.abs(hero.height - layout.contentHeight) < 0.001)
+      var snapped = WindowGeometry.snapRectToDevicePixels(hero, display.dpr)
+      var boundaries = [viewport.x + snapped.x, viewport.y + snapped.y,
+        viewport.x + snapped.x + snapped.width, viewport.y + snapped.y + snapped.height]
+      for (var b = 0; b < boundaries.length; b++) near(boundaries[b] * display.dpr, Math.round(boundaries[b] * display.dpr))
+      verify(snapped.x + snapped.width <= viewport.width + 0.001)
+      verify(snapped.y + snapped.height <= layout.contentHeight + 1 / display.dpr)
+      near(snapped.width - 2 * inset, (snapped.height - 2 * inset) * aspect, (1 + aspect) / display.dpr + 0.001)
+      var projection = WindowGeometry.workspaceTransform(monitor, screen, layout.previewWidth, layout.previewHeight)
+      near(projection.offsetX, 0)
+      near(projection.offsetY, 0)
+      near(projection.renderedWidth / projection.renderedHeight, aspect)
+    }
+  }
+
+  function test_carouselAnimationPreservesProportionsAndSpacing() {
+    var aspect = 1920 / 1045
+    var layout = WindowGeometry.carouselGeometry(1888, 1013, aspect, carouselOptions(5, 1))
+    for (var step = 0; step <= 20; step++) {
+      var offset = layout.slotDistance * step / 20
+      var left = WindowGeometry.carouselSlotGeometry(layout, -offset)
+      var right = WindowGeometry.carouselSlotGeometry(layout, layout.slotDistance - offset)
+      near(right.x - left.x - left.width, layout.spacing)
+      near((left.width - 8) / (left.height - 8), aspect)
+      near((right.width - 8) / (right.height - 8), aspect)
+      verify(left.y >= 0 && right.y >= 0)
+      verify(left.y + left.height <= layout.contentHeight + 0.001)
+      verify(right.y + right.height <= layout.contentHeight + 0.001)
+    }
+  }
+
+  function test_carouselSingleAndTinyViewports() {
+    var single = WindowGeometry.carouselGeometry(1888, 1013, 1920 / 1045, carouselOptions(1, 1))
+    var multi = WindowGeometry.carouselGeometry(1888, 1013, 1920 / 1045, carouselOptions(3, 1))
+    compare(single.indicatorHeight, 0)
+    compare(single.peekWidth, 0)
+    compare(single.spacing, 0)
+    verify(single.previewWidth > multi.previewWidth)
+    var sizes = [1, 12, 80]
+    for (var i = 0; i < sizes.length; i++) {
+      var layout = WindowGeometry.carouselGeometry(sizes[i], sizes[i], 16 / 9, carouselOptions(12, 2))
+      var hero = WindowGeometry.carouselSlotGeometry(layout, 0)
+      verify(hero.width > 0 && hero.height > 0)
+      verify(hero.x >= 0 && hero.y >= 0)
+      verify(hero.x + hero.width <= sizes[i] + 0.001)
+      verify(hero.y + hero.height <= sizes[i] + 0.001)
+    }
+    var fallback = WindowGeometry.carouselGeometry(NaN, -1, NaN, null)
+    verify(isFinite(fallback.previewWidth) && fallback.previewWidth > 0)
+    near(fallback.previewWidth / fallback.previewHeight, 16 / 9)
+  }
+
+  function test_carouselViewportAndCaptureWiring() {
+    var source = readSource("../CarouselCycleView.qml")
+    verify(/viewport: overview \? overview.gridViewport/.test(source), "Carousel must use the same safe monitor bounds as the grid")
+    verify(/WindowGeometry\.workspaceAspectRatio\([\s\S]*?overview.targetMonitor[\s\S]*?overview.targetScreen/.test(source))
+    verify(/WindowGeometry\.carouselGeometry/.test(source))
+    verify(/WindowGeometry\.carouselSlotGeometry/.test(source))
+    verify(!/\bscale\s*:/.test(source), "Live preview cards must not use fractional scaling transforms")
+    verify(!/Math.min\(840|screenWidth \* 0.44/.test(source), "No fixed preview-width cap")
+    verify(!/headerHeight/.test(source), "Workspace badge must overlay the preview")
+    verify(/renderGeometry: WindowGeometry\.snapRectToDevicePixels\(displayGeometry, root.dpr\)/.test(source))
+    verify(/dpr: overview \? overview.gridDpr/.test(source), "Use destination display DPR for all source monitors")
+    verify(/liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewBox.visible/.test(source))
+    verify(/WindowModel\.syncPreviewDelegates/.test(source), "Keep the existing flicker fix")
+    verify(/Flickable[\s\S]*?id: indicatorFlick[\s\S]*?clip: true/.test(source))
+    verify(/onCurrentIndexChanged: Qt.callLater\(ensureIndicatorVisible\)/.test(source))
+  }
+
 }

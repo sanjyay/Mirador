@@ -203,6 +203,57 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
+// Largest carousel hero that leaves a small glimpse of neighboring cards and
+// a compact indicator strip. All dimensions are logical; callers snap edges on
+// the destination display. Preview proportions exclude the symmetric border inset.
+function carouselGeometry(areaWidth, areaHeight, aspectRatio, options) {
+  var opts = options || {}
+  var width = Math.max(1, finiteNumber(areaWidth) || 1)
+  var height = Math.max(1, finiteNumber(areaHeight) || 1)
+  var aspect = finiteNumber(aspectRatio) > 0 ? Number(aspectRatio) : 16 / 9
+  var multiple = finiteNumber(opts.count) > 1
+  var spacing = multiple ? Math.min(Math.max(0, finiteNumber(opts.spacing) || 0), width / 10) : 0
+  var peek = multiple ? Math.min(Math.max(0, finiteNumber(opts.peekWidth) || 0), width * 0.05) : 0
+  var indicatorHeight = multiple ? Math.min(Math.max(0, finiteNumber(opts.indicatorHeight) || 0), height / 4) : 0
+  var indicatorSpacing = indicatorHeight > 0
+    ? Math.min(Math.max(0, finiteNumber(opts.indicatorSpacing) || 0), height / 8) : 0
+  var contentHeight = height - indicatorHeight - indicatorSpacing
+  var maxCardWidth = width - 2 * (peek + spacing)
+  var inset = Math.min(Math.max(0, finiteNumber(opts.previewInset) || 0), maxCardWidth / 4, contentHeight / 4)
+  var previewWidth = Math.min(maxCardWidth - inset * 2, (contentHeight - inset * 2) * aspect)
+  var previewHeight = previewWidth / aspect
+  var cardWidth = previewWidth + inset * 2
+  var cardHeight = previewHeight + inset * 2
+  var sideScale = finiteNumber(opts.sideScale) > 0 ? clamp(Number(opts.sideScale), 0.1, 1) : 0.68
+  var sideCardWidth = previewWidth * sideScale + inset * 2
+  return {
+    width: width, contentHeight: contentHeight,
+    previewWidth: previewWidth, previewHeight: previewHeight, previewInset: inset,
+    cardWidth: cardWidth, cardHeight: cardHeight, sideScale: sideScale,
+    centerX: width / 2, centerY: contentHeight / 2,
+    spacing: spacing, peekWidth: peek,
+    slotDistance: (cardWidth + sideCardWidth) / 2 + spacing,
+    indicatorY: height - indicatorHeight, indicatorHeight: indicatorHeight
+  }
+}
+
+// Resize actual preview canvases during scrolling instead of transforming live
+// screencopy textures. Linear interpolation keeps adjacent cards separated.
+function carouselSlotGeometry(layout, offset) {
+  var distance = finiteNumber(offset) || 0
+  var norm = Math.abs(distance) / layout.slotDistance
+  var factor = norm <= 1
+    ? 1 - norm * (1 - layout.sideScale)
+    : Math.max(0.50, layout.sideScale - (norm - 1) * 0.18)
+  var width = layout.previewWidth * factor + layout.previewInset * 2
+  var height = layout.previewHeight * factor + layout.previewInset * 2
+  return {
+    x: layout.centerX + distance - width / 2,
+    y: layout.centerY - height / 2,
+    width: width, height: height
+  }
+}
+
 // Fit a focused workspace layout where the primary selected workspace occupies
 // the majority of the screen (65-75% area), and remaining workspaces form an
 // adaptive secondary rail/grid on the right.

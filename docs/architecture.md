@@ -50,7 +50,7 @@ This document details the architectural layout, Wayland protocol interactions, Q
 * Sets `WlrLayershell.namespace: "omarchy-workspace-overview"`.
 * Sets `WlrLayershell.layer: WlrLayer.Overlay` and `WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive`.
 * Owns `gridGeometry` via `WindowGeometry.overviewGridGeometry(...)`. Normal full overview uses the target monitor's usable desktop aspect ratio, including reserved areas and QScreen's logical/rotated dimensions. Missing monitor data falls back to screen proportions, then 16:9.
-* Normal grid bounds snap inward to the display's physical pixels. Cards retain equal preview sizes (within one physical pixel after rounding), balanced rows, independently centered incomplete rows, and a compact fixed gap. Selection never changes their geometry. Focused/compact/carousel layouts retain their own sizing.
+* Normal grid bounds snap inward to the display's physical pixels. Cards retain equal preview sizes (within one physical pixel after rounding), balanced rows, independently centered incomplete rows, and a compact fixed gap. Selection never changes their geometry. Focused and compact layouts retain their own sizing; carousel shares the safe viewport and desktop proportions.
 * Manages workspace selection (`selectedCardIndex`), explicit carousel window selection (`selectedWindowAddress`), keyboard shortcuts, and drag-and-drop state. Close and workspace-move bindings resolve this address instead of relying on compositor focus while the exclusive overlay is open.
 * Defers release-to-commit for 250 ms so asynchronously launched Hyprland bindings can consume the explicit carousel window selection before the overlay clears it.
 * Retains the selected address for a two-second, single-use handoff when release wins the race. A late workspace-move IPC resolves that address directly and never falls back to the compositor's stale active window.
@@ -95,6 +95,12 @@ This document details the architectural layout, Wayland protocol interactions, Q
   * `snapRectToDevicePixels`: Snaps rectangle edges together; supports inward snapping for safe bounds.
   * `overviewGridGeometry`: Maximizes common preview area across row counts, without enumerating equivalent row permutations. Its optional seventh argument is the symmetric preview inset; the returned `previewInset`, `previewWidth`, `previewHeight`, and `spacing` describe the effective canvas/chrome. Existing five-argument (spacing) and six-argument (maximum width, spacing) calls retain zero-inset sizing.
   * `cyclicCardMove`: Implements 2D cyclic keyboard navigation (global continuous horizontal cycle, spatial nearest-center vertical row movement with top/bottom wrap-around).
+
+### Carousel presentation (`CarouselCycleView.qml`)
+* Fits the main preview to the target display's usable rectangle, with no fixed width cap. A small side glimpse and the compact bottom indicator strip are the only additional reserved space; a single workspace needs neither.
+* Workspace badges overlay the preview. Source workspaces retain uniform projection even when their monitor differs from the destination display.
+* `carouselGeometry` calculates the available canvas; `carouselSlotGeometry` interpolates real card dimensions during scrolling. Cards, canvases, and windows snap to the destination display's physical pixels without texture scaling transforms.
+* The indicator strip scrolls horizontally when needed and keeps the selected workspace visible. Navigation, activation, cancellation, and stable preview delegate identity retain their existing behavior.
 
 ### 6. `WindowModel.js`
 * Hyprland group and client resolver:
