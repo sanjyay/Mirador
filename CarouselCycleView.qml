@@ -28,7 +28,7 @@ Item {
   readonly property real sideOpacity: 0.58
   readonly property var layoutGeometry: WindowGeometry.carouselGeometry(
     viewport.width, viewport.height, monitorAspect, {
-      count: cardCount, spacing: Style.space(24), sideVisibility: 0.8,
+      count: cardCount, spacing: Style.space(24), sideVisibility: 0.8, previewSizeMultiplier: 1.2,
       previewInset: overview ? overview.gridPreviewInset : 4,
       indicatorHeight: Style.space(26), indicatorSpacing: Style.space(12), sideScale: sideScale
     })
@@ -245,8 +245,6 @@ Item {
           anchors.fill: parent
           radius: Style.cornerRadiusLarge || Style.space(12)
           color: Color.menu.background
-          border.width: slotItem.isHero ? 2 : 1
-          border.color: slotItem.isHero ? Color.accent : Util.alpha(Color.menu.border, 0.45)
           clip: true
 
           MouseArea {
@@ -316,8 +314,6 @@ Item {
               anchors.fill: parent
               radius: Style.cornerRadius
               color: Util.alpha(Color.menu.background, 0.75)
-              border.width: 1
-              border.color: Util.alpha(Color.menu.border, slotItem.isHero ? 0.50 : 0.25)
               clip: true
 
               // Empty state cue
@@ -447,15 +443,6 @@ Item {
                 }
               }
 
-              // Topmost border overlay for preview
-              Rectangle {
-                anchors.fill: parent
-                z: 100
-                color: "transparent"
-                radius: previewBox.radius
-                border.width: 1
-                border.color: Util.alpha(Color.menu.border, slotItem.isHero ? 0.40 : 0.20)
-              }
             }
           }
 

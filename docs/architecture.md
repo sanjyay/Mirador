@@ -97,8 +97,8 @@ This document details the architectural layout, Wayland protocol interactions, Q
   * `cyclicCardMove`: Implements 2D cyclic keyboard navigation (global continuous horizontal cycle, spatial nearest-center vertical row movement with top/bottom wrap-around).
 
 ### Carousel presentation (`CarouselCycleView.qml`)
-* Sizes the main preview within the target display's usable rectangle while keeping at least 80% of each adjacent card visible when multiple workspaces exist. On a landscape monitor this puts the center card near 46% of the available width. A single workspace uses the larger available area without neighbor or indicator reservations.
-* Workspace badges overlay the preview. Source workspaces retain uniform projection even when their monitor differs from the destination display.
+* Sizes previews 20% wider and taller than the neighbor-focused layout, capped by the target display's usable rectangle. On a landscape monitor the center card occupies about 55% of the available width, with just over half of each adjacent card visible. A single workspace uses the larger available area without neighbor or indicator reservations.
+* Workspace surfaces have no borders; the selected workspace number remains highlighted. Workspace badges overlay the preview. Source workspaces retain uniform projection even when their monitor differs from the destination display.
 * `carouselGeometry` calculates the available canvas; `carouselSlotGeometry` interpolates real card dimensions during scrolling. Cards, canvases, and windows snap to the destination display's physical pixels without texture scaling transforms.
 * The indicator strip scrolls horizontally when needed and keeps the selected workspace visible. Navigation, activation, cancellation, and stable preview delegate identity retain their existing behavior.
 

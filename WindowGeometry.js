@@ -203,8 +203,9 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
-// Largest carousel hero that keeps most of both neighboring cards visible and
-// a compact indicator strip. All dimensions are logical; callers snap edges on
+// Fit a carousel hero with neighboring cards and a compact indicator strip.
+// Optional enlargement trades neighbor visibility for preview size while keeping
+// the hero inside the viewport. All dimensions are logical; callers snap edges on
 // the destination display. Preview proportions exclude the symmetric border inset.
 function carouselGeometry(areaWidth, areaHeight, aspectRatio, options) {
   var opts = options || {}
@@ -227,12 +228,15 @@ function carouselGeometry(areaWidth, areaHeight, aspectRatio, options) {
   // retain the same unscaled border inset.
   var maxPreviewWidth = (width - 2 * spacing - 2 * inset * (1 + 2 * sideVisibility))
     / (1 + 2 * sideVisibility * sideScale)
-  var previewWidth = Math.min(maxPreviewWidth, (contentHeight - inset * 2) * aspect)
+  var heightLimitedWidth = (contentHeight - inset * 2) * aspect
+  var sizeMultiplier = finiteNumber(opts.previewSizeMultiplier) > 0 ? Number(opts.previewSizeMultiplier) : 1
+  var previewWidth = Math.min(Math.min(maxPreviewWidth, heightLimitedWidth) * sizeMultiplier,
+    width - inset * 2, heightLimitedWidth)
   var previewHeight = previewWidth / aspect
   var cardWidth = previewWidth + inset * 2
   var cardHeight = previewHeight + inset * 2
   var sideCardWidth = previewWidth * sideScale + inset * 2
-  var peek = sideCardWidth * sideVisibility
+  var peek = multiple ? Math.min(sideCardWidth, Math.max(0, (width - cardWidth) / 2 - spacing)) : 0
   return {
     width: width, contentHeight: contentHeight,
     previewWidth: previewWidth, previewHeight: previewHeight, previewInset: inset,

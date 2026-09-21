@@ -82,7 +82,7 @@ omarchy restart shell
 ### Carousel sizing and local testing
 * Hold `Super` and press `Tab` to test carousel cycling; `Shift+Tab` opens the grid. Release `Super` to commit, or use `Escape` to cancel. Existing numeric/window-selection bindings still apply.
 * For a persistent carousel without holding a modifier: `omarchy-shell shell summon mirador '{"cycleUI":"carousel","keybindMode":"normal"}'`. Close it with `omarchy-shell shell hide mirador`.
-* With three workspaces, select the middle card and verify that at least 80% of each neighboring card is visible. The center card should be close to the previous carousel size, rather than dominating the monitor. Badges overlay the preview; source proportions stay correct throughout the scroll animation.
+* With three workspaces, select the middle card and verify that at least half of each neighboring card is visible. Preview width and height should be 20% larger than the initial neighbor-focused layout, unless limited by the usable monitor bounds. Workspace borders should be absent while the selected number stays highlighted. Badges overlay the preview; source proportions stay correct throughout the scroll animation.
 * Exercise one, two, three, and many workspaces, first/last wrap, window selection, number keys, and indicator clicks. The selected indicator should stay reachable on narrow monitors.
 * Confirm the grid still matches its full-screen layout, client sizes/positions never change, and hide/mode changes release captures. The carousel tests cover all bar edges, landscape/portrait/ultrawide, DPR 1/1.25/1.5/2, small viewports, and animation geometry.
 

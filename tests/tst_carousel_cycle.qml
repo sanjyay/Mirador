@@ -186,20 +186,20 @@ TestCase {
 
   function test_continuousResponsiveDimensionsStability() {
     var geometry = WindowGeometry.carouselGeometry(1888, 1013, 1920 / 1045, {
-      count: 3, spacing: 24, sideVisibility: 0.8, previewInset: 4,
+      count: 3, spacing: 24, sideVisibility: 0.8, previewSizeMultiplier: 1.2, previewInset: 4,
       indicatorHeight: 26, indicatorSpacing: 12
     })
-    verify(geometry.cardWidth > geometry.width * 0.40 && geometry.cardWidth < geometry.width * 0.50,
-      "Hero must leave substantial space for both neighbors, close to the previous carousel balance")
+    verify(geometry.cardWidth > geometry.width * 0.50 && geometry.cardWidth < geometry.width * 0.60,
+      "Enlarged hero must still leave substantial space for both neighbors")
     var hero = WindowGeometry.carouselSlotGeometry(geometry, 0)
     var side = WindowGeometry.carouselSlotGeometry(geometry, geometry.slotDistance)
     verify(Math.abs(side.x - hero.x - hero.width - 24) < 0.001)
     verify(side.x < geometry.width && side.x + side.width > geometry.width,
       "Neighbor must remain partially visible at the safe viewport edge")
     verify(side.width < hero.width * 0.75)
-    near((geometry.width - side.x) / side.width, 0.8)
+    verify((geometry.width - side.x) / side.width > 0.5)
     var left = WindowGeometry.carouselSlotGeometry(geometry, -geometry.slotDistance)
-    near((left.x + left.width) / left.width, 0.8)
+    verify((left.x + left.width) / left.width > 0.5)
   }
 
   function test_workspaceOverviewDirectNumberNavigationIntegration() {
@@ -509,7 +509,7 @@ TestCase {
       "Mirador binding must route close through the plugin action")
   }
   function carouselOptions(count, scale) {
-    return { count: count, spacing: 24 * scale, sideVisibility: 0.8,
+    return { count: count, spacing: 24 * scale, sideVisibility: 0.8, previewSizeMultiplier: 1.2,
       previewInset: 4 * scale, indicatorHeight: 26 * scale, indicatorSpacing: 12 * scale }
   }
 
@@ -554,6 +554,11 @@ TestCase {
     for (var n = 0; n < counts.length; n++) {
       var options = carouselOptions(counts[n], 1)
       var layout = WindowGeometry.carouselGeometry(viewport.width, viewport.height, aspect, options)
+      options.previewSizeMultiplier = 1
+      var baseline = WindowGeometry.carouselGeometry(viewport.width, viewport.height, aspect, options)
+      near(layout.previewWidth, Math.min(baseline.previewWidth * 1.2,
+        viewport.width - 2 * layout.previewInset,
+        (layout.contentHeight - 2 * layout.previewInset) * aspect))
       var hero = WindowGeometry.carouselSlotGeometry(layout, 0)
       var inset = layout.previewInset
       near((hero.width - 2 * inset) / (hero.height - 2 * inset), aspect)
@@ -572,10 +577,10 @@ TestCase {
           WindowGeometry.carouselSlotGeometry(layout, layout.slotDistance), display.dpr)
         var left = WindowGeometry.snapRectToDevicePixels(
           WindowGeometry.carouselSlotGeometry(layout, -layout.slotDistance), display.dpr)
-        verify(Math.min(right.width, viewport.width - right.x) >= right.width * 0.8 - 1 / display.dpr,
-          "At least 80% of the next workspace must be visible")
-        verify(Math.min(left.width, left.x + left.width) >= left.width * 0.8 - 1 / display.dpr,
-          "At least 80% of the previous workspace must be visible")
+        verify(Math.min(right.width, viewport.width - right.x) >= right.width * 0.5 - 1 / display.dpr,
+          "At least 50% of the next workspace must be visible")
+        verify(Math.min(left.width, left.x + left.width) >= left.width * 0.5 - 1 / display.dpr,
+          "At least 50% of the previous workspace must be visible")
       }
       var snapped = WindowGeometry.snapRectToDevicePixels(hero, display.dpr)
       var boundaries = [viewport.x + snapped.x, viewport.y + snapped.y,
@@ -633,7 +638,8 @@ TestCase {
     verify(/viewport: overview \? overview.gridViewport/.test(source), "Carousel must use the same safe monitor bounds as the grid")
     verify(/WindowGeometry\.workspaceAspectRatio\([\s\S]*?overview.targetMonitor[\s\S]*?overview.targetScreen/.test(source))
     verify(/WindowGeometry\.carouselGeometry/.test(source))
-    verify(/sideVisibility: 0\.8/.test(source), "Reserve most of each neighboring preview, not narrow edge slivers")
+    verify(/sideVisibility: 0\.8/.test(source), "Start from the neighboring-preview layout")
+    verify(/previewSizeMultiplier: 1\.2/.test(source), "Enlarge preview dimensions by 20%")
     verify(/WindowGeometry\.carouselSlotGeometry/.test(source))
     verify(!/\bscale\s*:/.test(source), "Live preview cards must not use fractional scaling transforms")
     verify(!/Math.min\(840|screenWidth \* 0.44/.test(source), "No fixed preview-width cap")
