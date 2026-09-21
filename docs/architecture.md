@@ -77,7 +77,7 @@ This document details the architectural layout, Wayland protocol interactions, Q
   * `captureSource`: bound to `root.liveCaptureEnabled ? root.waylandToplevel : null`.
   * **Critical Lifecycle Invariant**: When Mirador is dismissed or hidden, `liveCaptureEnabled` becomes `false`, immediately releasing `captureSource` to `null`. This prevents dangling DMA-BUF handles from crashing Hyprland during DPMS sleep or monitor hotplug events.
 * Handles Hyprland window groups (tabbed windows) by rendering an interactive group tab bar.
-* Renders window title pills with `Text.PlainText` to neutralize any formatting or injection issues.
+* Omits bottom application title pills in all overview presentations. Interactive grouped-window tabs retain `Text.PlainText` labels to neutralize formatting or injection issues.
 
 ### 4. `InsertionWorkspaceCard.qml`
 * Transient drop zone card created only during window drag operations.
@@ -97,7 +97,7 @@ This document details the architectural layout, Wayland protocol interactions, Q
   * `cyclicCardMove`: Implements 2D cyclic keyboard navigation (global continuous horizontal cycle, spatial nearest-center vertical row movement with top/bottom wrap-around).
 
 ### Carousel presentation (`CarouselCycleView.qml`)
-* Sizes previews 20% wider and taller than the neighbor-focused layout, capped by the target display's usable rectangle. On a landscape monitor the center card occupies about 55% of the available width, with just over half of each adjacent card visible. A single workspace uses the larger available area without neighbor or indicator reservations.
+* Sizes previews 32% wider and taller than the initial neighbor-focused layout (a further 10% increase over the previous 1.2 multiplier), capped by the target display's usable rectangle. On a landscape monitor the center card occupies about 61% of the available width, with over 40% of each adjacent card visible. A single workspace uses the larger available area without neighbor or indicator reservations.
 * Workspace surfaces have no borders; the selected workspace number remains highlighted. Workspace badges overlay the preview. Source workspaces retain uniform projection even when their monitor differs from the destination display.
 * `carouselGeometry` calculates the available canvas; `carouselSlotGeometry` interpolates real card dimensions during scrolling. Cards, canvases, and windows snap to the destination display's physical pixels without texture scaling transforms.
 * The indicator strip scrolls horizontally when needed and keeps the selected workspace visible. Navigation, activation, cancellation, and stable preview delegate identity retain their existing behavior.

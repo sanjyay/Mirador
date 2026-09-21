@@ -20,8 +20,6 @@ Rectangle {
   readonly property string title: root.titleFor(toplevel)
   readonly property string iconSource: root.iconFor(toplevel)
 
-  readonly property real pillHorizontalPadding: Math.max(Style.spacing.sm,
-    Style.spacing.controlPaddingX)
   readonly property real pillVerticalPadding: Math.max(2,
     Math.min(Style.spacing.xs, Style.spacing.controlPaddingY))
   readonly property real pillEdgeInset: Math.max(2, Style.spacing.xs)
@@ -37,13 +35,9 @@ Rectangle {
     && root.groupMembers.length > 1
     && width >= Style.space(60)
     && height >= naturalPillHeight * 1.8
-  readonly property bool showTitlePill: root.showLabel
-    && !root.showGroupTabs
-    && width >= Style.space(72)
-    && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
-  property bool showLabel: true      // set false in carousel to suppress title pill
+  property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
 
   signal activated()
@@ -254,58 +248,6 @@ Rectangle {
             }
           }
         }
-      }
-    }
-  }
-
-  // ── Single Window Title Pill ───────────────────────────────────────────────
-  Rectangle {
-    id: titlePill
-    visible: root.showTitlePill
-    z: 10
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: root.pillEdgeInset
-    width: Math.min(
-      titleMetrics.width + root.pillHorizontalPadding * 2
-        + (root.iconSource !== "" ? root.pillIconSize + Style.spacing.xs : 0),
-      Math.max(1, root.width * 0.72),
-      Math.max(1, root.width - root.pillEdgeInset * 2))
-    height: root.naturalPillHeight
-    radius: height / 2
-    color: Util.alpha(Color.menu.background, 0.86)
-
-    Row {
-      id: titleContent
-      anchors.fill: parent
-      anchors.leftMargin: root.pillHorizontalPadding
-      anchors.rightMargin: root.pillHorizontalPadding
-      spacing: Style.spacing.xs
-
-      Image {
-        id: appIcon
-        visible: source !== ""
-        anchors.verticalCenter: parent.verticalCenter
-        width: visible ? root.pillIconSize : 0
-        height: width
-        source: root.iconSource
-        fillMode: Image.PreserveAspectFit
-        asynchronous: true
-        smooth: true
-      }
-
-      Text {
-        anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(1, parent.width
-          - (appIcon.visible ? appIcon.width + parent.spacing : 0))
-        text: root.title
-        textFormat: Text.PlainText
-        color: Color.menu.text
-        font.family: Style.font.menuFamily
-        font.pixelSize: Style.font.bodySmall
-        elide: Text.ElideRight
-        maximumLineCount: 1
-        verticalAlignment: Text.AlignVCenter
       }
     }
   }

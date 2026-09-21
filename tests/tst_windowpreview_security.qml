@@ -33,7 +33,7 @@ TestCase {
 
   function test_windowTitleSinkExplicitlyUsesPlainText() {
     var source = windowPreviewSource()
-    verify(/text\s*:\s*root\.title\s*\n\s*textFormat\s*:\s*Text\.PlainText/.test(source))
+    verify(/text\s*:\s*tabTitle\s*\n\s*textFormat\s*:\s*Text\.PlainText/.test(source))
   }
 
   function test_hiddenPreviewReleasesCaptureSource() {

@@ -28,7 +28,7 @@ Item {
   readonly property real sideOpacity: 0.58
   readonly property var layoutGeometry: WindowGeometry.carouselGeometry(
     viewport.width, viewport.height, monitorAspect, {
-      count: cardCount, spacing: Style.space(24), sideVisibility: 0.8, previewSizeMultiplier: 1.2,
+      count: cardCount, spacing: Style.space(24), sideVisibility: 0.8, previewSizeMultiplier: 1.32,
       previewInset: overview ? overview.gridPreviewInset : 4,
       indicatorHeight: Style.space(26), indicatorSpacing: Style.space(12), sideScale: sideScale
     })
@@ -291,21 +291,6 @@ Item {
                 }
               }
 
-              Rectangle {
-                visible: slotItem.isScratchpad
-                height: Style.space(26)
-                width: scratchpadLabel.implicitWidth + Style.spacing.md * 2
-                radius: Math.min(Style.cornerRadius, Style.space(6))
-                color: Color.menu.background
-                Text {
-                  id: scratchpadLabel
-                  anchors.centerIn: parent
-                  text: "Scratchpad"
-                  font.family: Style.font.menuFamily
-                  font.pixelSize: Style.font.body
-                  color: Color.menu.text
-                }
-              }
             }
 
             // ── Center: Workspace Preview Canvas ────────────────────────────
