@@ -49,7 +49,8 @@ This document details the architectural layout, Wayland protocol interactions, Q
 * Declares `PanelWindow` anchored to all 4 edges of the target screen.
 * Sets `WlrLayershell.namespace: "omarchy-workspace-overview"`.
 * Sets `WlrLayershell.layer: WlrLayer.Overlay` and `WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive`.
-* Owns `gridGeometry` via `WindowGeometry.overviewGridGeometry(...)`.
+* Owns `gridGeometry` via `WindowGeometry.overviewGridGeometry(...)`. Normal full overview uses the target monitor's usable desktop aspect ratio, including reserved areas and QScreen's logical/rotated dimensions. Missing monitor data falls back to screen proportions, then 16:9.
+* Normal grid bounds snap inward to the display's physical pixels. Cards retain equal preview sizes (within one physical pixel after rounding), balanced rows, independently centered incomplete rows, and a compact fixed gap. Selection never changes their geometry. Focused/compact/carousel layouts retain their own sizing.
 * Manages workspace selection (`selectedCardIndex`), explicit carousel window selection (`selectedWindowAddress`), keyboard shortcuts, and drag-and-drop state. Close and workspace-move bindings resolve this address instead of relying on compositor focus while the exclusive overlay is open.
 * Defers release-to-commit for 250 ms so asynchronously launched Hyprland bindings can consume the explicit carousel window selection before the overlay clears it.
 * Retains the selected address for a two-second, single-use handoff when release wins the race. A late workspace-move IPC resolves that address directly and never falls back to the compositor's stale active window.
@@ -63,7 +64,8 @@ This document details the architectural layout, Wayland protocol interactions, Q
 * Manages card styling:
   * Active workspace: fully opaque (`cardOpacity: 1.0`), border `Color.accent`.
   * Inactive workspaces: slightly dimmed (`cardOpacity: 0.90`), border `Color.menu.border`.
-  * Workspace badge: top-left number badge (`1`, `2`, ..., `0` for 10).
+  * Workspace badge: top-left number badge (`1`, `2`, ..., `0` for 10). In normal full overview, an opaque badge overlays the preview instead of reserving a header strip.
+* Normal-grid preview canvases use a symmetric inset of at least 4 logical pixels (theme-scaled), large enough for the active border, snapped on the destination display. Small viewports reduce chrome and gaps to keep the geometry bounded. Workspaces from differently shaped monitors are fitted uniformly inside the common canvas.
 * Hosts `spatialPreview` item where child `WindowPreview` instances are positioned.
 * Calculates physical device pixel ratio (`dpr`) from `targetMonitor.scale` or `targetScreen.devicePixelRatio`.
 * Positions child window previews using `WindowGeometry.snapToDevicePixels(displayGeometry.*, dpr)`.
@@ -89,7 +91,9 @@ This document details the architectural layout, Wayland protocol interactions, Q
   * `workspaceTransform`: Computes uniform scale factor and centering offsets.
   * `previewGeometry`: Projects Hyprland client rectangles into the card preview canvas.
   * `snapToDevicePixels`: Quantizes logical values to physical device pixel boundaries.
-  * `overviewGridGeometry`: Calculates optimal column/row matrix to maximize card size.
+  * `workspaceAspectRatio`: Resolves the target desktop proportions without imposing a fixed card shape.
+  * `snapRectToDevicePixels`: Snaps rectangle edges together; supports inward snapping for safe bounds.
+  * `overviewGridGeometry`: Maximizes common preview area across row counts, without enumerating equivalent row permutations. Its optional seventh argument is the symmetric preview inset; the returned `previewInset`, `previewWidth`, `previewHeight`, and `spacing` describe the effective canvas/chrome. Existing five-argument (spacing) and six-argument (maximum width, spacing) calls retain zero-inset sizing.
   * `cyclicCardMove`: Implements 2D cyclic keyboard navigation (global continuous horizontal cycle, spatial nearest-center vertical row movement with top/bottom wrap-around).
 
 ### 6. `WindowModel.js`

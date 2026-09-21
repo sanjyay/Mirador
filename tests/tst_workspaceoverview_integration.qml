@@ -527,7 +527,7 @@ TestCase {
     var source = workspaceOverviewSource()
 
     // 1. Grid geometry without 520px cap
-    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*cardAspectRatio,\s*gridSpacing\)/.test(source),
+    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*gridAspectRatio,\s*null,\s*gridSpacing,\s*gridPreviewInset\)/.test(source),
       "WorkspaceOverview must invoke overviewGridGeometry without hardcoded 520px cap")
 
     // 2. normalCardGeom helper defined and used
@@ -556,6 +556,23 @@ TestCase {
       "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
   }
 
+  function test_normalGridUsesDesktopCanvasAndOverlayBadge() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+    verify(/gridAspectRatio: WindowGeometry\.workspaceAspectRatio\(targetMonitor, targetScreen\)/.test(source))
+    verify(/normalGrid: overviewMode === "normal" && activePresentation === "full"/.test(source))
+    verify(/overlayBadge: root.normalGrid/.test(source))
+    verify(/previewInset: WindowGeometry\.snapToDevicePixels\(root.gridGeometry.previewInset, root.gridDpr\)/.test(source))
+    verify(/return WindowGeometry\.snapRectToDevicePixels\(root.gridGeometry.cards\[idx\], root.gridDpr\)/.test(source))
+    verify(/anchors.top: root.overlayBadge \? parent.top : cardHeader.bottom/.test(cardSource))
+    verify(/dpr: root.overlayBadge && root.overview\s*\? root.overview.gridDpr/.test(cardSource),
+      "Normal previews must snap on the display DPR, including windows from another monitor")
+    verify(/root.overlayBadge \? Color.menu.background/.test(cardSource),
+      "Overlay badges need an opaque background to remain legible over windows")
+    verify(!/return Math.round\(nCard\./.test(source),
+      "Do not round physically snapped card coordinates back to logical integers")
+  }
+
   function test_safeAreaAuthoritativeBarIntegration() {
     var source = workspaceOverviewSource()
 
@@ -563,14 +580,15 @@ TestCase {
     verify(/safeArea\s*:\s*WindowGeometry\.safeAreaGeometry\s*\(/.test(source),
       "WorkspaceOverview must compute safeArea via WindowGeometry.safeAreaGeometry")
 
-    // 2. Usable viewport wired strictly to safeArea results
-    verify(/readonly\s+property\s+real\s+usableX\s*:\s*safeArea\.usableX/.test(source),
+    // 2. Normal-grid bounds snap inward from the authoritative safe area.
+    verify(/gridViewport\s*:\s*WindowGeometry\.snapRectToDevicePixels\(\{[\s\S]*?x: safeArea.usableX,[\s\S]*?width: safeArea.usableWidth,[\s\S]*?\}, gridDpr, true\)/.test(source))
+    verify(/readonly\s+property\s+real\s+usableX\s*:\s*normalGrid\s*\?\s*gridViewport\.x\s*:\s*safeArea\.usableX/.test(source),
       "usableX must be driven by safeArea.usableX")
-    verify(/readonly\s+property\s+real\s+usableY\s*:\s*safeArea\.usableY/.test(source),
+    verify(/readonly\s+property\s+real\s+usableY\s*:\s*normalGrid\s*\?\s*gridViewport\.y\s*:\s*safeArea\.usableY/.test(source),
       "usableY must be driven by safeArea.usableY")
-    verify(/readonly\s+property\s+real\s+usableWidth\s*:\s*safeArea\.usableWidth/.test(source),
+    verify(/readonly\s+property\s+real\s+usableWidth\s*:\s*normalGrid\s*\?\s*gridViewport\.width\s*:\s*safeArea\.usableWidth/.test(source),
       "usableWidth must be driven by safeArea.usableWidth")
-    verify(/readonly\s+property\s+real\s+usableHeight\s*:\s*safeArea\.usableHeight/.test(source),
+    verify(/readonly\s+property\s+real\s+usableHeight\s*:\s*normalGrid\s*\?\s*gridViewport\.height\s*:\s*safeArea\.usableHeight/.test(source),
       "usableHeight must be driven by safeArea.usableHeight")
 
     // 3. Multi-tier authoritative bar detection (shell.bar, shell.barConfig, monitorReserved struts)

@@ -1173,5 +1173,177 @@ TestCase {
     verify(newPrimaryArea >= oldPrimaryArea, "Focused primary card must be at least as large")
     verify(newFocused3.rail.width > oldFocused3.rail.width, "Secondary rail width must be larger with tightened spacing")
   }
+  function verifyGridBoundsAndSpacing(grid, count, width, height, aspect) {
+    compare(grid.cards.length, count)
+    for (var i = 0; i < count; i++) {
+      var card = grid.cards[i]
+      verify(isFinite(card.x) && isFinite(card.y))
+      verify(card.width > 0 && card.height > 0)
+      fuzzyCompare(card.width, grid.cardWidth)
+      fuzzyCompare(card.height, grid.cardHeight)
+      fuzzyCompare((card.width - 2 * grid.previewInset) / (card.height - 2 * grid.previewInset), aspect)
+      verify(card.x >= -0.001 && card.y >= -0.001)
+      verify(card.x + card.width <= width + 0.001)
+      verify(card.y + card.height <= height + 0.001)
+      for (var j = 0; j < i; j++) {
+        var other = grid.cards[j]
+        verify(card.x >= other.x + other.width - 0.001
+          || other.x >= card.x + card.width - 0.001
+          || card.y >= other.y + other.height - 0.001
+          || other.y >= card.y + card.height - 0.001, "Cards must not overlap")
+      }
+    }
+    if (!count) return
+    var cursor = 0
+    for (var r = 0; r < grid.rows; r++) {
+      var first = grid.cards[cursor]
+      var last = grid.cards[cursor + grid.rowDistribution[r] - 1]
+      fuzzyCompare(first.x, width - last.x - last.width)
+      if (r > 0) fuzzyCompare(first.y - grid.cards[cursor - 1].y - grid.cardHeight, grid.spacing)
+      cursor += grid.rowDistribution[r]
+    }
+    fuzzyCompare(grid.y * 2 + grid.gridHeight, height)
+  }
+
+  function test_fullScreenGrid_data() {
+    var displays = [
+      { tag: "1080p", width: 1920, height: 1080, scale: 1 },
+      { tag: "1440p", width: 2560, height: 1440, scale: 1 },
+      { tag: "4k", width: 3840, height: 2160, scale: 2 },
+      { tag: "ultrawide", width: 3440, height: 1440, scale: 1 },
+      { tag: "portrait", width: 1080, height: 1920, scale: 1 },
+      { tag: "fractional", width: 2560, height: 1600, scale: 1.5 }
+    ]
+    var rows = []
+    var positions = ["", "left", "top", "right", "bottom"]
+    for (var d = 0; d < displays.length; d++) {
+      for (var b = 0; b < positions.length; b++) {
+        rows.push({ tag: displays[d].tag + "-" + positions[b], display: displays[d], bar: positions[b] })
+      }
+    }
+    return rows
+  }
+
+  function test_fullScreenGrid(data) {
+    var display = data.display
+    var reserved = [0, 0, 0, 0]
+    var edges = { left: 0, top: 1, right: 2, bottom: 3 }
+    if (data.bar) reserved[edges[data.bar]] = 35
+    var mon = { name: "grid", x: -1920, y: -100, width: display.width,
+      height: display.height, scale: display.scale, reserved: reserved }
+    var screen = { name: "grid", width: display.width / display.scale, height: display.height / display.scale }
+    var aspect = WindowGeometry.workspaceAspectRatio(mon, screen)
+    var safe = WindowGeometry.safeAreaGeometry(screen.width, screen.height, data.bar, data.bar ? 35 : 0, 16, reserved)
+    var counts = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 50]
+    for (var n = 0; n < counts.length; n++) {
+      var count = counts[n]
+      var grid = WindowGeometry.overviewGridGeometry(count, safe.usableWidth, safe.usableHeight, aspect, null, 24, 4)
+      verifyGridBoundsAndSpacing(grid, count, safe.usableWidth, safe.usableHeight, aspect)
+      if (!count) continue
+      // Independent upper bound: every row/column count must fit both axes.
+      var largest = 0
+      for (var rows = 1; rows <= count; rows++) {
+        var columns = Math.ceil(count / rows)
+        var availableW = (safe.usableWidth - grid.spacing * (columns - 1)) / columns - 8
+        var availableH = (safe.usableHeight - grid.spacing * (rows - 1)) / rows - 8
+        largest = Math.max(largest, Math.min(availableW, availableH * aspect))
+      }
+      fuzzyCompare(grid.previewWidth, largest)
+      var repeated = WindowGeometry.overviewGridGeometry(count, safe.usableWidth, safe.usableHeight, aspect, null, 24, 4)
+      compare(JSON.stringify(grid), JSON.stringify(repeated))
+    }
+  }
+
+  function test_fullScreenGrid_threeWorkspacePreviewArea() {
+    var mon = { name: "test", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 35, 0, 0] }
+    var screen = { name: "test", width: 1920, height: 1080 }
+    var safe = WindowGeometry.safeAreaGeometry(1920, 1080, "top", 35, 16, mon.reserved)
+    var previous = WindowGeometry.overviewGridGeometry(3, safe.usableWidth, safe.usableHeight, 1.55, 24)
+    // Previous default chrome: 4px horizontal insets, 22px header + 11px margins.
+    var oldCanvas = WindowGeometry.workspaceTransform(mon, screen, previous.cardWidth - 8, previous.cardHeight - 33)
+    var grid = WindowGeometry.overviewGridGeometry(3, safe.usableWidth, safe.usableHeight,
+      WindowGeometry.workspaceAspectRatio(mon, screen), null, 24, 4)
+    var newCanvas = WindowGeometry.workspaceTransform(mon, screen, grid.previewWidth, grid.previewHeight)
+    compare(grid.rowDistribution.join(","), "2,1")
+    verifyGridBoundsAndSpacing(grid, 3, safe.usableWidth, safe.usableHeight, 1920 / 1045)
+    fuzzyCompare(newCanvas.offsetX, 0)
+    fuzzyCompare(newCanvas.offsetY, 0)
+    fuzzyCompare(grid.y, 0)
+    verify(newCanvas.renderedWidth * newCanvas.renderedHeight
+      / (oldCanvas.renderedWidth * oldCanvas.renderedHeight) > 1.30)
+    fuzzyCompare(grid.cards[2].y - grid.cards[0].height, 24)
+  }
+
+  function test_fullScreenGrid_pixelAlignedBounds_data() {
+    return [{ tag: "1x", dpr: 1 }, { tag: "1.25x", dpr: 1.25 },
+      { tag: "1.5x", dpr: 1.5 }, { tag: "2x", dpr: 2 }]
+  }
+
+  function test_fullScreenGrid_pixelAlignedBounds(data) {
+    var dpr = data.dpr
+    var safe = WindowGeometry.safeAreaGeometry(2560 / dpr, 1440 / dpr, "top", 35, 16, [0, 35, 0, 0])
+    var viewport = WindowGeometry.snapRectToDevicePixels({ x: safe.usableX, y: safe.usableY,
+      width: safe.usableWidth, height: safe.usableHeight }, dpr, true)
+    verify(viewport.x >= safe.usableX && viewport.y >= safe.usableY)
+    verify(viewport.x + viewport.width <= safe.usableX + safe.usableWidth + 0.001)
+    verify(viewport.y + viewport.height <= safe.usableY + safe.usableHeight + 0.001)
+    var aspect = (2560 / dpr) / (1440 / dpr - 35)
+    for (var count = 1; count <= 12; count++) {
+      var grid = WindowGeometry.overviewGridGeometry(count, viewport.width, viewport.height, aspect, null, 24, 4)
+      for (var i = 0; i < count; i++) {
+        var rect = WindowGeometry.snapRectToDevicePixels(grid.cards[i], dpr)
+        var edges = [viewport.x + rect.x, viewport.y + rect.y,
+          viewport.x + rect.x + rect.width, viewport.y + rect.y + rect.height]
+        for (var e = 0; e < edges.length; e++) fuzzyCompare(edges[e] * dpr, Math.round(edges[e] * dpr))
+        verify(rect.x >= -0.001 && rect.y >= -0.001)
+        verify(rect.x + rect.width <= viewport.width + 0.001)
+        verify(rect.y + rect.height <= viewport.height + 0.001)
+        verify(Math.abs(rect.width - grid.cardWidth) <= 1 / dpr + 0.001)
+        verify(Math.abs(rect.height - grid.cardHeight) <= 1 / dpr + 0.001)
+        verify(Math.abs((rect.width - 8) - (rect.height - 8) * aspect) <= (1 + aspect) / dpr + 0.001)
+      }
+    }
+  }
+
+  function test_workspaceAspectRatioFallbackAndRotation() {
+    fuzzyCompare(WindowGeometry.workspaceAspectRatio(null, null), 16 / 9)
+    fuzzyCompare(WindowGeometry.workspaceAspectRatio(null, { width: 1000, height: 1600 }), 0.625)
+    fuzzyCompare(WindowGeometry.workspaceAspectRatio({}, { width: -1, height: NaN }), 16 / 9)
+    var rotated = { name: "rotated", x: -1080, y: 0, width: 1920, height: 1080, scale: 1,
+      transform: 1, reserved: [0, 35, 0, 0] }
+    var screen = { name: "rotated", width: 1080, height: 1920 }
+    fuzzyCompare(WindowGeometry.workspaceAspectRatio(rotated, screen), 1080 / 1885)
+    var scaled = { name: "scaled", x: -1920, y: 0, width: 3840, height: 2160, scale: 2,
+      lastIpcObject: { reserved: [40, 0, 0, 0] } }
+    fuzzyCompare(WindowGeometry.workspaceAspectRatio(scaled, null), 1880 / 1080)
+  }
+
+  function test_fullScreenGrid_tinyViewport() {
+    var cases = [{ width: 1, height: 1 }, { width: 20, height: 12 }, { width: 120, height: 80 }]
+    for (var c = 0; c < cases.length; c++) {
+      for (var count = 1; count <= 20; count++) {
+        var grid = WindowGeometry.overviewGridGeometry(count, cases[c].width, cases[c].height, 16 / 9, null, 100, 4)
+        verifyGridBoundsAndSpacing(grid, count, cases[c].width, cases[c].height, 16 / 9)
+      }
+    }
+  }
+
+  function test_fullScreenGrid_navigationAndInsertion() {
+    var grid = WindowGeometry.overviewGridGeometry(3, 1888, 1013, 1920 / 1045, null, 24, 4)
+    compare(WindowGeometry.cyclicCardMove(grid.cards, 0, -1, 0), 2)
+    compare(WindowGeometry.cyclicCardMove(grid.cards, 2, 1, 0), 0)
+    compare(WindowGeometry.cyclicCardMove(grid.cards, 1, 0, 1), 2)
+    var wrapped = WindowGeometry.cyclicCardMove(grid.cards, 2, 0, 1)
+    verify(wrapped === 0 || wrapped === 1, "Both top-row centers are equally near the centered final card")
+    var drag = WindowGeometry.overviewGridGeometry(7, 1888, 1013, 1920 / 1045, null, 24, 4)
+    for (var i = 0; i < drag.cards.length; i++) drag.cards[i].isInsertion = i % 2 === 0
+    compare(WindowGeometry.cyclicCardMove(drag.cards, 5, 1, 0), 1)
+    compare(WindowGeometry.cyclicCardMove(drag.cards, 1, -1, 0), 5)
+    for (var j = 1; j < 7; j += 2) {
+      verify(!drag.cards[WindowGeometry.cyclicCardMove(drag.cards, j, 0, 1)].isInsertion)
+      verify(!drag.cards[WindowGeometry.cyclicCardMove(drag.cards, j, 0, -1)].isInsertion)
+    }
+  }
+
 }
 

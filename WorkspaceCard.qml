@@ -18,6 +18,8 @@ BorderSurface {
   property bool livePreviews: false
   property int toplevelRevision: 0
   property bool isSpecial: false
+  property bool overlayBadge: false
+  property real previewInset: 4
 
   readonly property bool isScratchpad: root.isSpecial
     || WindowModel.isSpecialWorkspace(root.workspace)
@@ -206,9 +208,10 @@ BorderSurface {
       radius: Math.min(Style.cornerRadius, Style.space(6))
       color: root.isCurrent
         ? Color.accent
-        : (root.highlighted
-          ? Util.alpha(Color.menu.text, 0.16)
-          : Util.alpha(Color.menu.text, 0.10))
+        : (root.overlayBadge ? Color.menu.background
+          : (root.highlighted
+            ? Util.alpha(Color.menu.text, 0.16)
+            : Util.alpha(Color.menu.text, 0.10)))
       border.width: root.isCurrent ? 0 : 1
       border.color: root.isCurrent
         ? "transparent"
@@ -241,14 +244,14 @@ BorderSurface {
   Item {
     id: previewArea
     z: 5
-    anchors.top: cardHeader.bottom
+    anchors.top: root.overlayBadge ? parent.top : cardHeader.bottom
     anchors.bottom: parent.bottom
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.topMargin: Style.spacing.xs
-    anchors.bottomMargin: Style.spacing.sm
-    anchors.leftMargin: Style.spacing.sm
-    anchors.rightMargin: Style.spacing.sm
+    anchors.topMargin: root.overlayBadge ? root.previewInset : Style.spacing.xs
+    anchors.bottomMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
+    anchors.leftMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
+    anchors.rightMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
 
     // Empty hint: subtle centred dot.
     Text {
@@ -333,9 +336,10 @@ BorderSurface {
             : WindowGeometry.fallbackGeometry(itemIndex, root.windowCount,
               spatialPreview.width, spatialPreview.height, root.previewSpacing)
 
-          readonly property real dpr: (targetMonitor && targetMonitor.scale > 0)
-            ? targetMonitor.scale
-            : ((targetScreen && targetScreen.devicePixelRatio) ? targetScreen.devicePixelRatio : 1.0)
+          readonly property real dpr: root.overlayBadge && root.overview
+            ? root.overview.gridDpr
+            : ((targetMonitor && targetMonitor.scale > 0) ? targetMonitor.scale
+              : ((targetScreen && targetScreen.devicePixelRatio) ? targetScreen.devicePixelRatio : 1.0))
 
           x: WindowGeometry.snapToDevicePixels(displayGeometry.x, dpr)
           y: WindowGeometry.snapToDevicePixels(displayGeometry.y, dpr)

@@ -482,7 +482,14 @@ Item {
   readonly property var overviewCardModel: root.buildOverviewItems(
     root.workspaceModel, root.draggedToplevel !== null)
   readonly property int cardCount: overviewCardModel.length
+  // Focused mode keeps its existing card proportions.
   readonly property real cardAspectRatio: 1.55
+  readonly property bool normalGrid: overviewMode === "normal" && activePresentation === "full"
+  readonly property real gridAspectRatio: WindowGeometry.workspaceAspectRatio(targetMonitor, targetScreen)
+  readonly property real gridDpr: targetScreen && targetScreen.devicePixelRatio > 0
+    ? targetScreen.devicePixelRatio : (targetMonitor && targetMonitor.scale > 0 ? targetMonitor.scale : 1)
+  readonly property real gridPreviewInset: WindowGeometry.snapToDevicePixels(
+    Math.max(4, Style.space(4), Style.space(2), Style.focusBorderWidth), gridDpr)
 
   // Optimized breathing outer margin & inter-card spacing to maximize preview dimensions
   readonly property real outerMargin: Math.max(16, Style.space(16))
@@ -493,18 +500,22 @@ Item {
     panel.width, panel.height, root.barPosition, root.barPixels, root.outerMargin, root.monitorReserved)
 
   // Usable panel area strictly bounded inside the safe rectangle
-  readonly property real usableX:      safeArea.usableX
-  readonly property real usableY:      safeArea.usableY
-  readonly property real usableWidth:  safeArea.usableWidth
-  readonly property real usableHeight: safeArea.usableHeight
+  readonly property var gridViewport: WindowGeometry.snapRectToDevicePixels({
+    x: safeArea.usableX, y: safeArea.usableY,
+    width: safeArea.usableWidth, height: safeArea.usableHeight
+  }, gridDpr, true)
+  readonly property real usableX:      normalGrid ? gridViewport.x : safeArea.usableX
+  readonly property real usableY:      normalGrid ? gridViewport.y : safeArea.usableY
+  readonly property real usableWidth:  normalGrid ? gridViewport.width : safeArea.usableWidth
+  readonly property real usableHeight: normalGrid ? gridViewport.height : safeArea.usableHeight
 
   // Usable grid area across full usable panel
   readonly property real usableGridY: root.usableY
   readonly property real usableGridHeight: root.usableHeight
 
   readonly property var gridGeometry: WindowGeometry.overviewGridGeometry(
-    cardCount, usableWidth, usableGridHeight, cardAspectRatio,
-    gridSpacing)
+    cardCount, usableWidth, usableGridHeight, gridAspectRatio,
+    null, gridSpacing, gridPreviewInset)
   readonly property int columns: Math.max(1, gridGeometry.columns)
   readonly property int rows: Math.max(1, gridGeometry.rows)
   readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
@@ -824,7 +835,7 @@ Item {
   function normalCardGeom(idx) {
     if (idx < 0 || !root.gridGeometry || !root.gridGeometry.cards) return null
     if (idx < root.gridGeometry.cards.length) {
-      return root.gridGeometry.cards[idx]
+      return WindowGeometry.snapRectToDevicePixels(root.gridGeometry.cards[idx], root.gridDpr)
     }
     return null
   }
@@ -835,7 +846,7 @@ Item {
       if (card && card.width > 0) return Math.round(card.width)
     }
     var nCard = root.normalCardGeom(idx)
-    if (nCard && nCard.width > 0) return Math.round(nCard.width)
+    if (nCard && nCard.width > 0) return nCard.width
     return Math.round(root.cardWidth)
   }
 
@@ -845,7 +856,7 @@ Item {
       if (card && card.height > 0) return Math.round(card.height)
     }
     var nCard = root.normalCardGeom(idx)
-    if (nCard && nCard.height > 0) return Math.round(nCard.height)
+    if (nCard && nCard.height > 0) return nCard.height
     return Math.round(root.cardHeight)
   }
 
@@ -856,7 +867,7 @@ Item {
       if (card) return Math.round(card.x)
     }
     var nCard = root.normalCardGeom(idx)
-    if (nCard) return Math.round(nCard.x)
+    if (nCard) return nCard.x
     var col = idx % root.columns
     return Math.round(root.gridGeometry.x + col * (root.cardWidth + root.gridSpacing))
   }
@@ -871,7 +882,7 @@ Item {
       }
     }
     var nCard = root.normalCardGeom(idx)
-    if (nCard) return Math.round(nCard.y)
+    if (nCard) return nCard.y
     var row = Math.floor(idx / root.columns)
     return Math.round(root.gridGeometry.y + row * (root.cardHeight + root.gridSpacing))
   }
@@ -1834,6 +1845,8 @@ Item {
             }
 
             overview: root
+            overlayBadge: root.normalGrid
+            previewInset: WindowGeometry.snapToDevicePixels(root.gridGeometry.previewInset, root.gridDpr)
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
             isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)

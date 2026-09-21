@@ -73,20 +73,26 @@ omarchy restart shell
 * Active workspace card is fully opaque (1.0); inactive workspaces are subtly dimmed (0.90).
 * Selection outline uses `Color.accent` without any fractional magnification (`scale: 1.008` is prohibited).
 
-### 4. Keyboard Navigation (Cyclic 2D Model)
+### 4. Full-Screen Normal Grid
+* On a 1920×1080 monitor with a 35px top reservation and default styling, three workspaces form equal-sized 2+1 rows. The desktop previews occupy at least 30% more area than the previous fixed-1.55 cards with a dedicated header.
+* Verify the number badges remain legible over bright and dark windows, borders remain visible, and the gap between rows stays compact. Some side space beside the centered final card is expected.
+* Repeat with 1–12 workspaces, portrait/ultrawide displays, fractional scaling, and bars on each edge. Resizing or changing workspace count recomputes the grid; changing selection alone must not.
+* The geometry suite also exercises 20/50 cards, tiny viewports, metadata fallback, rotated QScreen dimensions, exact pixel boundaries, navigation, and insertion-card skipping. Geometry tests do not replace a live screencopy check.
+
+### 5. Keyboard Navigation (Cyclic 2D Model)
 * **Left / Right**: Cycles continuously across the global visual sequence (wrapping from last to first and first to last across all rows).
 * **Up / Down**: Moves between visual rows, snapping to the card whose horizontal center (`centerX`) is closest to the current workspace. Wraps between top and bottom rows.
 * Insertion cards (`isInsertion: true`) are skipped during keyboard navigation.
 * Arrow keys and Vim keys (`h`, `j`, `k`, `l`) produce identical navigation outcomes.
 
-### 5. Window Drag & Drop
+### 6. Window Drag & Drop
 * Drag a window preview card:
   * Insertion placeholder cards appear between workspaces and at ends (`+ Drop to create WS N`).
   * Moving over an existing workspace card tints the target card (`validDropTarget`).
   * Dropping onto a workspace moves the window via `hyprctl dispatch movetoworkspacesilent` and leaves Mirador open.
   * Dragging outside or canceling releases the drag state cleanly.
 
-### 6. Display Hotplug & DPMS Safety
+### 7. Display Hotplug & DPMS Safety
 * Hide Mirador and verify that `captureSource` on all `ScreencopyView` instances is detached (`null`).
 * Simulate DPMS off/on or monitor reconnect to ensure Hyprland screencopy session does not crash.
 
