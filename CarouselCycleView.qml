@@ -187,8 +187,10 @@ Item {
               : (previewTop ? previewTop.lastIpcObject : null)
             var displayMon = (root.overview && root.overview.targetMonitor) ? root.overview.targetMonitor : (wsMonitor || Hyprland.focusedMonitor)
             var displayScr = (root.overview && root.overview.targetScreen) ? root.overview.targetScreen : root.screenForMonitor(wsMonitor || Hyprland.focusedMonitor)
-            var geometry = WindowGeometry.previewGeometry(
+            var geometry = WindowGeometry.previewGeometryNormalized(
               previewIpc,
+              wsMonitor || Hyprland.focusedMonitor,
+              root.screenForMonitor(wsMonitor || Hyprland.focusedMonitor),
               displayMon,
               displayScr,
               previewBox.width,
@@ -387,11 +389,15 @@ Item {
                       ? modelData.lastIpcObject
                       : (previewToplevel ? previewToplevel.lastIpcObject : null)
 
-                    readonly property var targetMon: (root.overview && root.overview.targetMonitor) ? root.overview.targetMonitor : (slotItem.wsMonitor || Hyprland.focusedMonitor)
-                    readonly property var targetScr: (root.overview && root.overview.targetScreen) ? root.overview.targetScreen : root.screenForMonitor(slotItem.wsMonitor || Hyprland.focusedMonitor)
+                    readonly property var sourceMon: slotItem.wsMonitor || Hyprland.focusedMonitor
+                    readonly property var sourceScr: root.screenForMonitor(sourceMon)
+                    readonly property var targetMon: (root.overview && root.overview.targetMonitor) ? root.overview.targetMonitor : sourceMon
+                    readonly property var targetScr: (root.overview && root.overview.targetScreen) ? root.overview.targetScreen : root.screenForMonitor(targetMon)
 
-                    readonly property var previewGeometry: WindowGeometry.previewGeometry(
+                    readonly property var previewGeometry: WindowGeometry.previewGeometryNormalized(
                       previewIpc,
+                      sourceMon,
+                      sourceScr,
                       targetMon,
                       targetScr,
                       spatialPreview.width,

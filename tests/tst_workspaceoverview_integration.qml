@@ -1009,4 +1009,18 @@ TestCase {
     verify(Math.abs(lRatio - 1 / pRatio) < 0.001,
       "1920×1080 and 1080×1920 aspect ratios must be reciprocals of each other")
   }
+
+  function test_focusedModeCardAspectRatioDerivesFromGridAspectRatio() {
+    var source = workspaceOverviewSource()
+    verify(/cardAspectRatio\s*:\s*gridAspectRatio/.test(source),
+      "Focused mode cardAspectRatio must derive from gridAspectRatio rather than hardcoded 1.55 (issue #28)")
+    verify(!/cardAspectRatio\s*:\s*1\.55/.test(source),
+      "WorkspaceOverview must not hardcode cardAspectRatio to 1.55")
+  }
+
+  function test_workspaceCardUsesPreviewGeometryNormalized() {
+    var cardSource = workspaceCardSource()
+    verify(/WindowGeometry\.previewGeometryNormalized/.test(cardSource),
+      "WorkspaceCard must invoke previewGeometryNormalized to prevent letterboxing across mixed-orientation monitors (issue #28)")
+  }
 }

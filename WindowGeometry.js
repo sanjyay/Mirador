@@ -568,6 +568,93 @@ function previewGeometry(ipcObject, monitor, screen, areaWidth, areaHeight,
   }
 }
 
+// Project a client into a preview card using a two-monitor split:
+//   sourceMonitor/sourceScreen  — the workspace's actual origin (for coordinate normalisation)
+//   displayMonitor/displayScreen — the Mirador display output (for card canvas size)
+//
+// The approach normalises each window's position to [0,1] workspace-local coordinates
+// using the source workspace geometry, then maps those normalised values directly
+// onto the display card canvas. This means:
+//   • a fullscreen window on its source workspace fills the card regardless of
+//     whether source and display have different aspect ratios,
+//   • a half-width tiled window occupies the left half of the card,
+//   • floating windows appear at their relative position within the card.
+//
+// When source and display monitors are the same object this is identical to the
+// uniform-scale approach in previewGeometry(), so single-monitor setups are unaffected.
+//
+// Minimum sizing (minimumWidth/minimumHeight) is still applied and expands around
+// the window's normalised center without altering other windows.
+function previewGeometryNormalized(ipcObject,
+                                   sourceMonitor, sourceScreen,
+                                   displayMonitor, displayScreen,
+                                   areaWidth, areaHeight,
+                                   minimumWidth, minimumHeight) {
+  var client = clientGeometry(ipcObject)
+  // Resolve source workspace usable geometry for coordinate normalisation.
+  var srcUsable = usableMonitorGeometry(sourceMonitor, sourceScreen)
+  var canvasW = finiteNumber(areaWidth)
+  var canvasH = finiteNumber(areaHeight)
+
+  // Fall back to the simple single-monitor path when source info is unavailable.
+  if (!client || !srcUsable || !isFinite(canvasW) || !isFinite(canvasH)
+      || canvasW <= 0 || canvasH <= 0 || srcUsable.width <= 0 || srcUsable.height <= 0)
+    return previewGeometry(ipcObject, displayMonitor, displayScreen,
+                           areaWidth, areaHeight, minimumWidth, minimumHeight)
+
+  // Clamp the window to the source workspace boundaries.
+  var wsLeft   = srcUsable.x
+  var wsTop    = srcUsable.y
+  var wsRight  = srcUsable.x + srcUsable.width
+  var wsBottom = srcUsable.y + srcUsable.height
+
+  var left   = clamp(client.x,                wsLeft,  wsRight)
+  var top    = clamp(client.y,                wsTop,   wsBottom)
+  var right  = clamp(client.x + client.width, wsLeft,  wsRight)
+  var bottom = clamp(client.y + client.height,wsTop,   wsBottom)
+
+  if (right <= left || bottom <= top)
+    return { valid: false, x: 0, y: 0, width: 0, height: 0 }
+
+  // Normalise to [0,1] within the source workspace.
+  var normX = (left   - srcUsable.x) / srcUsable.width
+  var normY = (top    - srcUsable.y) / srcUsable.height
+  var normW = (right  - left)        / srcUsable.width
+  var normH = (bottom - top)         / srcUsable.height
+
+  // Map normalised coordinates onto the display card canvas.
+  var rawX      = normX * canvasW
+  var rawY      = normY * canvasH
+  var rawWidth  = normW * canvasW
+  var rawHeight = normH * canvasH
+
+  // Apply minimum size, expanding around the window's centre.
+  var minW = finiteNumber(minimumWidth)  || 0
+  var minH = finiteNumber(minimumHeight) || 0
+  var displayWidth  = Math.min(canvasW, Math.max(minW, rawWidth))
+  var displayHeight = Math.min(canvasH, Math.max(minH, rawHeight))
+
+  var x = clamp(rawX + (rawWidth  - displayWidth)  / 2, 0, canvasW - displayWidth)
+  var y = clamp(rawY + (rawHeight - displayHeight) / 2, 0, canvasH - displayHeight)
+
+  return {
+    valid:     true,
+    x:         x,
+    y:         y,
+    width:     displayWidth,
+    height:    displayHeight,
+    rawX:      rawX,
+    rawY:      rawY,
+    rawWidth:  rawWidth,
+    rawHeight: rawHeight,
+    normX:     normX,
+    normY:     normY,
+    normW:     normW,
+    normH:     normH
+  }
+}
+
+
 // Malformed/unavailable IPC geometry must not make a window disappear. Keep
 // such clients in a compact bottom-right grid without affecting valid clients.
 function fallbackGeometry(index, count, areaWidth, areaHeight, spacing) {

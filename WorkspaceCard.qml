@@ -325,14 +325,20 @@ BorderSurface {
           readonly property var targetMonitor: root.displayMonitor || root.workspaceMonitor || (previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : Hyprland.focusedMonitor)
           readonly property var targetScreen: root.displayScreen || root.screenForMonitor(targetMonitor)
 
-          readonly property var previewGeometry: WindowGeometry.previewGeometry(
+          // Source monitor: the workspace's actual host — used for coordinate normalisation.
+          // This may differ from targetMonitor when Mirador is open on a different display.
+          readonly property var sourceMonitor: root.workspaceMonitor || (previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : Hyprland.focusedMonitor)
+          readonly property var sourceScreen: root.screenForMonitor(sourceMonitor)
+
+          readonly property var previewGeometry: WindowGeometry.previewGeometryNormalized(
             previewIpc,
-            targetMonitor,
-            targetScreen,
+            sourceMonitor, sourceScreen,
+            targetMonitor, targetScreen,
             spatialPreview.width,
             spatialPreview.height,
             Math.min(spatialPreview.width, Math.max(Style.space(56), spatialPreview.width * 0.15)),
             Math.min(spatialPreview.height, Math.max(Style.space(40), spatialPreview.height * 0.20)))
+
           readonly property var displayGeometry: previewGeometry.valid
             ? previewGeometry
             : WindowGeometry.fallbackGeometry(itemIndex, root.windowCount,

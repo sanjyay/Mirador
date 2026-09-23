@@ -1345,5 +1345,132 @@ TestCase {
     }
   }
 
+  // ── Tests for issue #28: normalized preview geometry & focused orientation ─
+  function test_previewGeometryNormalized_fullscreenCrossOrientation() {
+    var portraitMon = { name: "portrait", x: 0, y: 0, width: 1080, height: 1920, scale: 1 }
+    var portraitScr = { name: "portrait", width: 1080, height: 1920 }
+    var landscapeMon = { name: "landscape", x: 0, y: 0, width: 1920, height: 1080, scale: 1 }
+    var landscapeScr = { name: "landscape", width: 1920, height: 1080 }
+
+    // 1. Portrait workspace displayed in a landscape card (e.g. 320x180)
+    var portraitWin = { at: [0, 0], size: [1080, 1920] }
+    var resLandscape = WindowGeometry.previewGeometryNormalized(
+      portraitWin, portraitMon, portraitScr, landscapeMon, landscapeScr, 320, 180, 20, 16)
+    verify(resLandscape.valid)
+    fuzzyCompare(resLandscape.x, 0)
+    fuzzyCompare(resLandscape.y, 0)
+    fuzzyCompare(resLandscape.width, 320)
+    fuzzyCompare(resLandscape.height, 180)
+
+    // 2. Landscape workspace displayed in a portrait card (e.g. 180x320)
+    var landscapeWin = { at: [0, 0], size: [1920, 1080] }
+    var resPortrait = WindowGeometry.previewGeometryNormalized(
+      landscapeWin, landscapeMon, landscapeScr, portraitMon, portraitScr, 180, 320, 16, 20)
+    verify(resPortrait.valid)
+    fuzzyCompare(resPortrait.x, 0)
+    fuzzyCompare(resPortrait.y, 0)
+    fuzzyCompare(resPortrait.width, 180)
+    fuzzyCompare(resPortrait.height, 320)
+  }
+
+  function test_previewGeometryNormalized_tiledHalvesAndQuarters() {
+    var pMon = { name: "p", x: 0, y: 0, width: 1080, height: 1920, scale: 1 }
+    var lMon = { name: "l", x: 0, y: 0, width: 1920, height: 1080, scale: 1 }
+
+    // Left-half tile on portrait (540x1920) in a landscape card (400x200)
+    var leftHalf = WindowGeometry.previewGeometryNormalized(
+      { at: [0, 0], size: [540, 1920] }, pMon, null, lMon, null, 400, 200, 10, 10)
+    verify(leftHalf.valid)
+    fuzzyCompare(leftHalf.x, 0)
+    fuzzyCompare(leftHalf.y, 0)
+    fuzzyCompare(leftHalf.width, 200)
+    fuzzyCompare(leftHalf.height, 200)
+
+    // Right-half tile on portrait (540x1920 at x=540) in landscape card (400x200)
+    var rightHalf = WindowGeometry.previewGeometryNormalized(
+      { at: [540, 0], size: [540, 1920] }, pMon, null, lMon, null, 400, 200, 10, 10)
+    verify(rightHalf.valid)
+    fuzzyCompare(rightHalf.x, 200)
+    fuzzyCompare(rightHalf.y, 0)
+    fuzzyCompare(rightHalf.width, 200)
+    fuzzyCompare(rightHalf.height, 200)
+
+    // Top-right quarter tile on landscape (960x540 at x=960, y=0) in portrait card (200x400)
+    var topRightQuarter = WindowGeometry.previewGeometryNormalized(
+      { at: [960, 0], size: [960, 540] }, lMon, null, pMon, null, 200, 400, 10, 10)
+    verify(topRightQuarter.valid)
+    fuzzyCompare(topRightQuarter.x, 100)
+    fuzzyCompare(topRightQuarter.y, 0)
+    fuzzyCompare(topRightQuarter.width, 100)
+    fuzzyCompare(topRightQuarter.height, 200)
+
+    // Bottom-left quarter tile on landscape (960x540 at x=0, y=540) in portrait card (200x400)
+    var btmLeftQuarter = WindowGeometry.previewGeometryNormalized(
+      { at: [0, 540], size: [960, 540] }, lMon, null, pMon, null, 200, 400, 10, 10)
+    verify(btmLeftQuarter.valid)
+    fuzzyCompare(btmLeftQuarter.x, 0)
+    fuzzyCompare(btmLeftQuarter.y, 200)
+    fuzzyCompare(btmLeftQuarter.width, 100)
+    fuzzyCompare(btmLeftQuarter.height, 200)
+  }
+
+  function test_previewGeometryNormalized_offsetAndNegativeCoordinates() {
+    var negMon = { name: "neg", x: -1920, y: -1080, width: 1920, height: 1080, scale: 1 }
+    var cardW = 300
+    var cardH = 150
+
+    // Fullscreen on offset monitor
+    var full = WindowGeometry.previewGeometryNormalized(
+      { at: [-1920, -1080], size: [1920, 1080] }, negMon, null, null, null, cardW, cardH, 10, 10)
+    verify(full.valid)
+    fuzzyCompare(full.x, 0)
+    fuzzyCompare(full.y, 0)
+    fuzzyCompare(full.width, cardW)
+    fuzzyCompare(full.height, cardH)
+
+    // Bottom-right quadrant on offset monitor: [-960, -540], size [960, 540]
+    var br = WindowGeometry.previewGeometryNormalized(
+      { at: [-960, -540], size: [960, 540] }, negMon, null, null, null, cardW, cardH, 10, 10)
+    verify(br.valid)
+    fuzzyCompare(br.x, 150)
+    fuzzyCompare(br.y, 75)
+    fuzzyCompare(br.width, 150)
+    fuzzyCompare(br.height, 75)
+  }
+
+  function test_previewGeometryNormalized_floatingAndReservedBar() {
+    // Top bar 30px reserved -> usable height 1050, y starts at 30
+    var barMon = { name: "bar", x: 0, y: 0, width: 1920, height: 1080, scale: 1, reserved: [0, 30, 0, 0] }
+    // Floating centered window: size 960x525 (half of usable width & height), centered in usable area
+    var win = { at: [480, 292.5], size: [960, 525] }
+    var card = WindowGeometry.previewGeometryNormalized(
+      win, barMon, null, null, null, 400, 200, 10, 10)
+    verify(card.valid)
+    fuzzyCompare(card.x, 100)
+    fuzzyCompare(card.y, 50)
+    fuzzyCompare(card.width, 200)
+    fuzzyCompare(card.height, 100)
+  }
+
+  function test_focusedOverviewGeometry_adaptsToPortraitAndLandscape() {
+    // Landscape aspect ratio (1920/1080 = 1.777)
+    var lAspect = 1920 / 1080
+    var lGeom = WindowGeometry.focusedOverviewGeometry(4, 0, 1920, 1080, lAspect, 24)
+    verify(lGeom.primaryCard.width / lGeom.primaryCard.height > 1.0)
+    fuzzyCompare(lGeom.primaryCard.width / lGeom.primaryCard.height, lAspect)
+    for (var i = 1; i < lGeom.cards.length; i++) {
+      fuzzyCompare(lGeom.cards[i].width / lGeom.cards[i].height, lAspect)
+    }
+
+    // Portrait aspect ratio (1080/1920 = 0.5625)
+    var pAspect = 1080 / 1920
+    var pGeom = WindowGeometry.focusedOverviewGeometry(4, 0, 1080, 1920, pAspect, 24)
+    verify(pGeom.primaryCard.width / pGeom.primaryCard.height < 1.0)
+    fuzzyCompare(pGeom.primaryCard.width / pGeom.primaryCard.height, pAspect)
+    for (var j = 1; j < pGeom.cards.length; j++) {
+      fuzzyCompare(pGeom.cards[j].width / pGeom.cards[j].height, pAspect)
+    }
+  }
+
 }
 

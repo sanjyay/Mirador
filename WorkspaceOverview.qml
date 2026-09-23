@@ -482,10 +482,10 @@ Item {
   readonly property var overviewCardModel: root.buildOverviewItems(
     root.workspaceModel, root.draggedToplevel !== null)
   readonly property int cardCount: overviewCardModel.length
-  // Focused mode keeps its existing card proportions.
-  readonly property real cardAspectRatio: 1.55
   readonly property bool normalGrid: overviewMode === "normal" && activePresentation === "full"
   readonly property real gridAspectRatio: WindowGeometry.workspaceAspectRatio(targetMonitor, targetScreen)
+  // Focused mode rail thumbnails follow the shared current Mirador output geometry.
+  readonly property real cardAspectRatio: gridAspectRatio
   readonly property real gridDpr: targetScreen && targetScreen.devicePixelRatio > 0
     ? targetScreen.devicePixelRatio : (targetMonitor && targetMonitor.scale > 0 ? targetMonitor.scale : 1)
   readonly property real gridPreviewInset: WindowGeometry.snapToDevicePixels(
