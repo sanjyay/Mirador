@@ -948,4 +948,65 @@ TestCase {
     verify(simulateIsSummoningModifier(Qt_Key_Alt, Qt_AltModifier, "super"))
     verify(!simulateIsSummoningModifier(Qt_Key_Super_L, Qt_AltModifier, "super"))
   }
+
+  // ── Regression tests for issue #28: adaptive monitor orientation ──────────
+  // Each card's window-preview transform must use the Mirador display monitor
+  // (overview.targetMonitor / overview.targetScreen), NOT the workspace's own
+  // source monitor, so that portrait workspaces shown on a landscape display do
+  // not letterbox into a narrow strip.
+
+  function test_workspaceCardExposesDisplayMonitorProperties() {
+    var cardSource = workspaceCardSource()
+    verify(/property\s+var\s+displayMonitor\s*:/.test(cardSource),
+      "WorkspaceCard must expose a displayMonitor property for the Mirador display output")
+    verify(/property\s+var\s+displayScreen\s*:/.test(cardSource),
+      "WorkspaceCard must expose a displayScreen property for the Mirador display output")
+  }
+
+  function test_windowPreviewInsideCardUsesDisplayMonitorFirst() {
+    var cardSource = workspaceCardSource()
+    // The targetMonitor resolved inside windowPreviewComponent must prefer
+    // displayMonitor over the workspace's own workspaceMonitor.
+    verify(/root\.displayMonitor\s*\|\|/.test(cardSource),
+      "WindowPreview targetMonitor in WorkspaceCard must fall through displayMonitor before workspaceMonitor (issue #28)")
+    verify(/root\.displayScreen\s*\|\|/.test(cardSource),
+      "WindowPreview targetScreen in WorkspaceCard must fall through displayScreen before screenForMonitor(workspaceMonitor) (issue #28)")
+  }
+
+  function test_overviewPassesDisplayMonitorToEachCard() {
+    var source = workspaceOverviewSource()
+    verify(/displayMonitor\s*:\s*root\.targetMonitor/.test(source),
+      "WorkspaceOverview must pass displayMonitor: root.targetMonitor to each WorkspaceCard (issue #28)")
+    verify(/displayScreen\s*:\s*root\.targetScreen/.test(source),
+      "WorkspaceOverview must pass displayScreen: root.targetScreen to each WorkspaceCard (issue #28)")
+  }
+
+  function test_aspectRatioIsLandscapeForLandscapeOutput() {
+    var landscapeMon = { lastIpcObject: { reserved: [0, 0, 0, 0] },
+                         width: 1920, height: 1080,
+                         x: 0, y: 0, transform: 0, scale: 1 }
+    var landscapeScr = { width: 1920, height: 1080 }
+    var ratio = WindowGeometry.workspaceAspectRatio(landscapeMon, landscapeScr)
+    verify(ratio > 1.0, "Landscape 1920×1080 output must yield aspect ratio > 1 (got " + ratio + ")")
+  }
+
+  function test_aspectRatioIsPortraitForPortraitOutput() {
+    var portraitMon = { lastIpcObject: { reserved: [0, 0, 0, 0] },
+                        width: 1080, height: 1920,
+                        x: 0, y: 0, transform: 1, scale: 1 }
+    var portraitScr = { width: 1080, height: 1920 }
+    var ratio = WindowGeometry.workspaceAspectRatio(portraitMon, portraitScr)
+    verify(ratio < 1.0, "Portrait 1080×1920 output must yield aspect ratio < 1 (got " + ratio + ")")
+  }
+
+  function test_landscapeAndPortraitAspectRatiosAreReciprocal() {
+    var lMon = { lastIpcObject: { reserved: [0, 0, 0, 0] }, width: 1920, height: 1080, x: 0, y: 0, scale: 1 }
+    var pMon = { lastIpcObject: { reserved: [0, 0, 0, 0] }, width: 1080, height: 1920, x: 0, y: 0, scale: 1 }
+    var lScr = { width: 1920, height: 1080 }
+    var pScr = { width: 1080, height: 1920 }
+    var lRatio = WindowGeometry.workspaceAspectRatio(lMon, lScr)
+    var pRatio = WindowGeometry.workspaceAspectRatio(pMon, pScr)
+    verify(Math.abs(lRatio - 1 / pRatio) < 0.001,
+      "1920×1080 and 1080×1920 aspect ratios must be reciprocals of each other")
+  }
 }

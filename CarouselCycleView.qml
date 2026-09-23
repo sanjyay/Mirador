@@ -185,10 +185,12 @@ Item {
             var previewIpc = previewModel && previewModel.lastIpcObject
               ? previewModel.lastIpcObject
               : (previewTop ? previewTop.lastIpcObject : null)
+            var displayMon = (root.overview && root.overview.targetMonitor) ? root.overview.targetMonitor : (wsMonitor || Hyprland.focusedMonitor)
+            var displayScr = (root.overview && root.overview.targetScreen) ? root.overview.targetScreen : root.screenForMonitor(wsMonitor || Hyprland.focusedMonitor)
             var geometry = WindowGeometry.previewGeometry(
               previewIpc,
-              wsMonitor || Hyprland.focusedMonitor,
-              root.screenForMonitor(wsMonitor || Hyprland.focusedMonitor),
+              displayMon,
+              displayScr,
               previewBox.width,
               previewBox.height,
               Math.min(previewBox.width, Math.max(Style.space(48), previewBox.width * 0.15)),
@@ -385,8 +387,8 @@ Item {
                       ? modelData.lastIpcObject
                       : (previewToplevel ? previewToplevel.lastIpcObject : null)
 
-                    readonly property var targetMon: slotItem.wsMonitor || Hyprland.focusedMonitor
-                    readonly property var targetScr: root.screenForMonitor(targetMon)
+                    readonly property var targetMon: (root.overview && root.overview.targetMonitor) ? root.overview.targetMonitor : (slotItem.wsMonitor || Hyprland.focusedMonitor)
+                    readonly property var targetScr: (root.overview && root.overview.targetScreen) ? root.overview.targetScreen : root.screenForMonitor(slotItem.wsMonitor || Hyprland.focusedMonitor)
 
                     readonly property var previewGeometry: WindowGeometry.previewGeometry(
                       previewIpc,
