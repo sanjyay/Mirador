@@ -526,9 +526,11 @@ TestCase {
   function test_adaptiveOverviewNormalModeIntegration() {
     var source = workspaceOverviewSource()
 
-    // 1. Grid geometry without 520px cap
-    verify(/overviewGridGeometry\(\s*cardCount,\s*usableWidth,\s*usableGridHeight,\s*gridAspectRatio,\s*null,\s*gridSpacing,\s*gridPreviewInset\)/.test(source),
-      "WorkspaceOverview must invoke overviewGridGeometry without hardcoded 520px cap")
+    // 1. Grid geometry without 520px cap, one canvas aspect per workspace monitor (#28)
+    verify(/overviewMonitorGridGeometry\(\s*gridCardAspectRatios,\s*gridCardGroups,\s*usableWidth,\s*usableGridHeight,\s*gridSpacing,\s*gridPreviewInset\)/.test(source),
+      "WorkspaceOverview must size each card from its own workspace monitor without a 520px cap")
+    verify(/WindowGeometry\.workspaceAspectRatio\(monitor, root\.screenForMonitor\(monitor\)\)/.test(source),
+      "Card aspect ratios must come from each workspace's monitor, not the display monitor (#28)")
 
     // 2. normalCardGeom helper defined and used
     verify(/function\s+normalCardGeom\(idx\)/.test(source),
@@ -551,7 +553,7 @@ TestCase {
       "slotHeight must query normalCardGeom in normal overview mode")
 
     // 3. Invariant: gridGeometry has NO dependency on selectedCardIndex
-    var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewGridGeometry[\s\S]*?\)/)
+    var gridGeomDecl = source.match(/readonly\s+property\s+var\s+gridGeometry\s*:\s*WindowGeometry\.overviewMonitorGridGeometry[\s\S]*?\)/)
     verify(gridGeomDecl && !/selectedCardIndex/.test(gridGeomDecl[0]),
       "gridGeometry must never depend on selectedCardIndex (selection must not alter Normal mode geometry)")
   }

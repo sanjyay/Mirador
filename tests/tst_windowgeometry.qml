@@ -1345,5 +1345,116 @@ TestCase {
     }
   }
 
-}
+  // ── Issue #28: per-monitor card aspect ratios ─────────────────────────────
+  readonly property var landscapeAspect: 3440 / 1440
+  readonly property var portraitAspect: 1200 / 1920
 
+  function mixedAspects() {
+    return [landscapeAspect, landscapeAspect, landscapeAspect, landscapeAspect,
+      portraitAspect, portraitAspect, portraitAspect, portraitAspect]
+  }
+
+  function mixedGroups() {
+    return ["DP-3", "DP-3", "DP-3", "DP-3", "DP-2", "DP-2", "DP-2", "DP-2"]
+  }
+
+  function test_uniformMonitorAspectsMatchEqualGrid() {
+    var sizes = [[1880, 1000], [1000, 1880], [3408, 1340], [320, 240]]
+    for (var count = 0; count <= 10; count++) {
+      for (var i = 0; i < sizes.length; i++) {
+        var aspects = []
+        var groups = []
+        for (var n = 0; n < count; n++) {
+          aspects.push(1.6)
+          groups.push(n % 2 ? "A" : "B")
+        }
+        var mixed = WindowGeometry.overviewMonitorGridGeometry(
+          aspects, groups, sizes[i][0], sizes[i][1], 24, 4)
+        var equal = WindowGeometry.overviewGridGeometry(
+          count, sizes[i][0], sizes[i][1], 1.6, null, 24, 4)
+        compare(JSON.stringify(mixed), JSON.stringify(equal))
+      }
+    }
+  }
+
+  function test_portraitWorkspacesKeepPortraitCanvas() {
+    var aspects = mixedAspects()
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      aspects, mixedGroups(), 3408, 1340, 24, 4)
+    compare(result.cards.length, 8)
+    for (var i = 0; i < result.cards.length; i++) {
+      var card = result.cards[i]
+      compare(card.index, i)
+      fuzzyCompare(card.previewWidth / card.previewHeight, aspects[i], 0.0001)
+      fuzzyCompare(card.width, card.previewWidth + 2 * result.previewInset, 0.0001)
+      fuzzyCompare(card.height, card.previewHeight + 2 * result.previewInset, 0.0001)
+    }
+    verify(result.cards[4].height > result.cards[4].width,
+      "Portrait workspaces must preview as portrait cards")
+    verify(result.cards[0].width > result.cards[0].height,
+      "Landscape workspaces must preview as landscape cards")
+  }
+
+  function test_monitorGroupsNeverShareARow() {
+    var groups = mixedGroups()
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      mixedAspects(), groups, 3408, 1340, 24, 4)
+    var rowGroup = {}
+    for (var i = 0; i < result.cards.length; i++) {
+      var row = result.cards[i].row
+      if (rowGroup[row] === undefined) rowGroup[row] = groups[i]
+      compare(rowGroup[row], groups[i])
+    }
+  }
+
+  function test_mixedGridStaysInsideAndCentered() {
+    var sizes = [[3408, 1340], [1880, 1000], [1168, 1860], [320, 240]]
+    for (var s = 0; s < sizes.length; s++) {
+      var width = sizes[s][0]
+      var height = sizes[s][1]
+      var result = WindowGeometry.overviewMonitorGridGeometry(
+        mixedAspects(), mixedGroups(), width, height, 24, 4)
+      verify(result.gridHeight <= height + 0.001)
+      fuzzyCompare(result.y * 2 + result.gridHeight, height, 0.001)
+      var rowSum = 0
+      for (var r = 0; r < result.rowDistribution.length; r++) rowSum += result.rowDistribution[r]
+      compare(rowSum, 8)
+      for (var i = 0; i < result.cards.length; i++) {
+        var card = result.cards[i]
+        verify(card.x >= -0.001 && card.x + card.width <= width + 0.001)
+        verify(card.y >= -0.001 && card.y + card.height <= height + 0.001)
+        var next = result.cards[i + 1]
+        if (next && next.row === card.row)
+          verify(next.x >= card.x + card.width + result.spacing - 0.001, "Cards in a row must not overlap")
+      }
+    }
+  }
+
+  function test_mixedGridUsesTheLargestFittingCanvas() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      mixedAspects(), mixedGroups(), 3408, 1340, 24, 4)
+    // Two rows of landscape cards plus one portrait row beat one row each.
+    compare(JSON.stringify(result.rowDistribution), JSON.stringify([2, 2, 4]))
+    var oneRowEach = (3408 - 3 * 24 - 8 * 4) / (4 * landscapeAspect)
+    verify(result.previewHeight > oneRowEach)
+  }
+
+  function test_mixedGridWithoutGroupsFallsBackToAspect() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [landscapeAspect, portraitAspect, portraitAspect], null, 1880, 1000, 16, 4)
+    compare(result.cards[0].row === result.cards[1].row, false)
+    compare(result.cards[1].row, result.cards[2].row)
+  }
+
+  function test_mixedGridInvalidInputsStayFinite() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [2, NaN, -1, 0.5], ["a", "a", undefined, "b"], NaN, -1, -5, NaN)
+    compare(result.cards.length, 4)
+    for (var i = 0; i < result.cards.length; i++) {
+      verify(isFinite(result.cards[i].x) && isFinite(result.cards[i].y))
+      verify(isFinite(result.cards[i].width) && isFinite(result.cards[i].height))
+    }
+    var empty = WindowGeometry.overviewMonitorGridGeometry([], [], 1920, 1080, 16, 4)
+    compare(empty.cards.length, 0)
+  }
+}

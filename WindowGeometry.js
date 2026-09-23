@@ -203,6 +203,130 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
+// Overview cards whose canvases follow each workspace's own monitor, so a
+// portrait desktop previews as a portrait card beside landscape ones. Cards
+// sharing a group key (the monitor) stay together in their own rows and every
+// canvas shares one height. When all aspect ratios match, this is exactly
+// overviewGridGeometry.
+function overviewMonitorGridGeometry(aspectRatios, groupKeys, areaWidth, areaHeight,
+                                     spacing, previewInset) {
+  var raw = aspectRatios || []
+  var keys = groupKeys || []
+  var fallbackAspect = 16 / 9
+  for (var f = 0; f < raw.length; f++) {
+    if (finiteNumber(raw[f]) > 0) { fallbackAspect = Number(raw[f]); break }
+  }
+  var aspects = []
+  var uniform = true
+  for (var i = 0; i < raw.length; i++) {
+    var value = finiteNumber(raw[i]) > 0 ? Math.max(0.01, Number(raw[i])) : fallbackAspect
+    aspects.push(value)
+    if (Math.abs(value - aspects[0]) > 0.001) uniform = false
+  }
+  var count = aspects.length
+  if (count === 0 || uniform) {
+    return overviewGridGeometry(count, areaWidth, areaHeight,
+      count > 0 ? aspects[0] : fallbackAspect, null, spacing, previewInset)
+  }
+
+  var safeWidth = Math.max(1, finiteNumber(areaWidth) || 1)
+  var safeHeight = Math.max(1, finiteNumber(areaHeight) || 1)
+  var gap = Math.min(Math.max(0, finiteNumber(spacing) || 0),
+    Math.min(safeWidth, safeHeight) / (2 * Math.max(1, count - 1)))
+  var inset = Math.min(Math.max(0, finiteNumber(previewInset) || 0),
+    safeWidth / 8, safeHeight / 8)
+
+  // Consecutive cards from the same monitor form one segment. Without keys,
+  // cards are grouped by matching aspect ratio instead.
+  var segments = []
+  for (var s = 0; s < count; s++) {
+    var key = keys[s] !== undefined && keys[s] !== null ? String(keys[s]) : aspects[s].toFixed(3)
+    var last = segments.length > 0 ? segments[segments.length - 1] : null
+    if (!last || last.key !== key) {
+      last = { key: key, start: s, count: 0, aspect: 0 }
+      segments.push(last)
+    }
+    last.count++
+    last.aspect = Math.max(last.aspect, aspects[s])
+  }
+
+  function rowsForSegment(segment, height) {
+    var cardW = height * segment.aspect + 2 * inset
+    var perRow = Math.floor((safeWidth + gap) / (cardW + gap))
+    return perRow < 1 ? Infinity : Math.ceil(segment.count / perRow)
+  }
+  function totalRows(height) {
+    var rows = 0
+    for (var t = 0; t < segments.length; t++) rows += rowsForSegment(segments[t], height)
+    return rows
+  }
+  function fits(height) {
+    var rows = totalRows(height)
+    return isFinite(rows) && rows * (height + 2 * inset) + gap * (rows - 1) <= safeHeight
+  }
+
+  // Row counts only grow with the canvas height, so the largest height that
+  // still fits can be found by bisection.
+  var lo = 0
+  var hi = safeHeight
+  for (var iter = 0; iter < 48; iter++) {
+    var mid = (lo + hi) / 2
+    if (fits(mid)) lo = mid
+    else hi = mid
+  }
+  var previewH = lo
+
+  var rowSpecs = []
+  for (var g = 0; g < segments.length; g++) {
+    var segment = segments[g]
+    var segmentRows = Math.max(1, Math.min(segment.count, rowsForSegment(segment, previewH)))
+    var base = Math.floor(segment.count / segmentRows)
+    var extra = segment.count % segmentRows
+    var next = segment.start
+    for (var sr = 0; sr < segmentRows; sr++) {
+      var inRow = base + (sr < extra ? 1 : 0)
+      rowSpecs.push({ start: next, count: inRow })
+      next += inRow
+    }
+  }
+
+  var cardH = previewH + 2 * inset
+  var gridH = rowSpecs.length * cardH + gap * (rowSpecs.length - 1)
+  var gridY = (safeHeight - gridH) / 2
+  var cards = []
+  var distribution = []
+  var gridX = safeWidth
+  var gridW = 0
+  var maxColumns = 0
+  for (var r = 0; r < rowSpecs.length; r++) {
+    var spec = rowSpecs[r]
+    var rowW = gap * (spec.count - 1)
+    for (var w = 0; w < spec.count; w++) rowW += previewH * aspects[spec.start + w] + 2 * inset
+    var cardX = (safeWidth - rowW) / 2
+    gridX = Math.min(gridX, cardX)
+    gridW = Math.max(gridW, rowW)
+    maxColumns = Math.max(maxColumns, spec.count)
+    distribution.push(spec.count)
+    for (var c = 0; c < spec.count; c++) {
+      var previewW = previewH * aspects[spec.start + c]
+      cards.push({
+        index: spec.start + c, x: cardX, y: gridY + r * (cardH + gap),
+        width: previewW + 2 * inset, height: cardH, row: r, col: c,
+        previewWidth: previewW, previewHeight: previewH
+      })
+      cardX += previewW + 2 * inset + gap
+    }
+  }
+
+  return {
+    columns: maxColumns, rows: rowSpecs.length,
+    cardWidth: cards[0].width, cardHeight: cardH,
+    gridWidth: gridW, gridHeight: gridH, x: gridX, y: gridY,
+    previewWidth: cards[0].previewWidth, previewHeight: previewH, previewInset: inset,
+    spacing: gap, rowDistribution: distribution, cards: cards
+  }
+}
+
 // Fit a carousel hero with neighboring cards and a compact indicator strip.
 // Optional enlargement trades neighbor visibility for preview size while keeping
 // the hero inside the viewport. All dimensions are logical; callers snap edges on
