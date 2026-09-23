@@ -121,6 +121,29 @@ hyprctl reload
 hyprctl configerrors
 ```
 
+## Uninstall
+
+To remove Mirador through Omarchy:
+
+```bash
+omarchy plugin remove mirador
+```
+
+> [!WARNING]
+> ### Remove Mirador keybindings from `~/.config/hypr/bindings.lua`
+>
+> During setup, you added custom keybindings to `~/.config/hypr/bindings.lua` that explicitly unbind `SUPER + TAB` (`hl.unbind("SUPER + TAB")`) and route it to Mirador.
+>
+> `omarchy plugin remove` removes the plugin files, but it **does not modify your custom configuration files**. Unless you remove or comment out the Mirador bindings in `~/.config/hypr/bindings.lua`, `SUPER + TAB` will remain unbound and you will **not be able to use `SUPER + TAB` like how vanilla Omarchy has it**.
+>
+> **To restore vanilla Omarchy behavior:**
+> 1. Open `~/.config/hypr/bindings.lua` and remove the Mirador configuration block (including the `SUPER + TAB`, `ALT + TAB`, `SUPER + W`, `SUPER + Arrow`, numeric workspace, and `SHIFT + TAB` bindings).
+> 2. If you added touchpad gestures to `~/.config/hypr/input.lua` or blur rules to `~/.config/hypr/looknfeel.lua`, remove those entries as well.
+> 3. Reload Hyprland to restore default bindings:
+>    ```bash
+>    hyprctl reload
+>    hyprctl configerrors
+>    ```
 
 ## What's new
 
