@@ -20,6 +20,8 @@ BorderSurface {
   property bool isSpecial: false
   property bool overlayBadge: false
   property real previewInset: 4
+  property var displayMonitor: null
+  property var displayScreen: null
 
   readonly property bool isScratchpad: root.isSpecial
     || WindowModel.isSpecialWorkspace(root.workspace)
@@ -320,8 +322,8 @@ BorderSurface {
             ? modelData.lastIpcObject
             : (previewToplevel ? previewToplevel.lastIpcObject : null)
 
-          readonly property var targetMonitor: root.workspaceMonitor || (previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : Hyprland.focusedMonitor)
-          readonly property var targetScreen: root.screenForMonitor(targetMonitor)
+          readonly property var targetMonitor: root.displayMonitor || root.workspaceMonitor || (previewToplevel && previewToplevel.monitor ? previewToplevel.monitor : Hyprland.focusedMonitor)
+          readonly property var targetScreen: root.displayScreen || root.screenForMonitor(targetMonitor)
 
           readonly property var previewGeometry: WindowGeometry.previewGeometry(
             previewIpc,

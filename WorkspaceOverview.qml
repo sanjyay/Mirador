@@ -1844,6 +1844,9 @@ Item {
               return (cy + ch > -root.gridSpacing && cy < root.usableGridHeight + root.gridSpacing)
             }
 
+            displayMonitor: root.targetMonitor
+            displayScreen: root.targetScreen
+
             overview: root
             overlayBadge: root.normalGrid
             previewInset: WindowGeometry.snapToDevicePixels(root.gridGeometry.previewInset, root.gridDpr)
