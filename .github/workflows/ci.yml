@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install CI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qtdeclarative5-dev-tools \
+            qml-module-qttest \
+            qml-module-qtquick2 \
+            shellcheck \
+            jq \
+            lua5.4
+
+      - name: Run Mirador unit tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          fail=0
+          for f in tests/*.qml; do
+            echo "::group::$f"
+            if qmltestrunner -input "$f"; then
+              echo "✓ $f passed"
+            else
+              echo "✗ $f failed"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$fail"
+
+      - name: Validate shell scripts (bash -n)
+        run: bash -n bin/mirador
+
+      - name: Lint shell scripts (shellcheck)
+        run: shellcheck bin/mirador
+
+      - name: Validate JSON
+        run: |
+          for f in manifest.json settings.example.json; do
+            echo "Validating $f"
+            jq empty "$f"
+          done
+
+      - name: Validate Lua syntax
+        run: |
+          for f in mirador.bindings.lua mirador.gestures.lua; do
+            echo "Checking $f"
+            luac5.4 -p "$f"
+          done
