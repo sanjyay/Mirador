@@ -344,6 +344,11 @@ TestCase {
     verify(!WindowModel.isSpecialWorkspace({ id: 10, name: "10" }))
     verify(!WindowModel.isSpecialWorkspace({ id: 10, name: "browser" }))
 
+    // Named normal workspaces with negative IDs assigned by Hyprland
+    verify(!WindowModel.isSpecialWorkspace({ id: -1337, name: "DP-1:1" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1338, name: "DP-1:2" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1340, name: "code" }))
+
     // Null and undefined
     verify(!WindowModel.isSpecialWorkspace(null))
     verify(!WindowModel.isSpecialWorkspace(undefined))
@@ -373,6 +378,12 @@ TestCase {
 
     // Workspace 10 shows "0"
     compare(WindowModel.workspaceBadgeText(10, false), "0")
+
+    // Named workspaces show their custom name
+    compare(WindowModel.workspaceBadgeText(-1337, false, "DP-1:1"), "DP-1:1")
+    compare(WindowModel.workspaceBadgeText(-1338, false, "DP-1:2"), "DP-1:2")
+    compare(WindowModel.workspaceBadgeText(-1340, false, "code"), "code")
+    compare(WindowModel.workspaceBadgeText(-1341, false, "10"), "0")
   }
 
   function test_findWorkspaceCardIndex() {
@@ -413,6 +424,19 @@ TestCase {
     ]
     compare(WindowModel.findWorkspaceCardIndex(modelWithZero, 0), 0)
     compare(WindowModel.findWorkspaceCardIndex(modelWithZero, 10), 0)
+
+    // Named workspaces model
+    var modelWithNamed = [
+      { workspaceId: 1, isInsertion: false, isScratchpad: false, workspaceName: "1" },
+      { workspaceId: -1337, isInsertion: false, isScratchpad: false, workspaceName: "DP-1:1" },
+      { workspaceId: -1338, isInsertion: false, isScratchpad: false, workspaceName: "DP-1:2" },
+      { workspaceId: -98, isInsertion: false, isScratchpad: true, workspaceName: "special:scratchpad" }
+    ]
+    compare(WindowModel.findWorkspaceCardIndex(modelWithNamed, "DP-1:1"), 1)
+    compare(WindowModel.findWorkspaceCardIndex(modelWithNamed, "DP-1:2"), 2)
+    compare(WindowModel.findWorkspaceCardIndex(modelWithNamed, 1), 0)
+    compare(WindowModel.findWorkspaceCardIndex(modelWithNamed, 2), 2)
+    compare(WindowModel.findWorkspaceCardIndex(modelWithNamed, "scratchpad"), 3)
 
     // Empty and invalid inputs
     compare(WindowModel.findWorkspaceCardIndex([], 1), -1)

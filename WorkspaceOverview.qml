@@ -50,7 +50,10 @@ Item {
       root.pendingRestoreWorkspaceId = -1
       root.pendingRestoreWindowAddress = ""
 
-      if (workspaceId !== undefined && workspaceId !== null && workspaceId !== -1) root.dispatchWorkspace(workspaceId)
+      var restoreWs = root.workspaceById(workspaceId)
+      if (workspaceId > 0 || (restoreWs && !root.isSpecialWorkspace(restoreWs))) {
+        root.dispatchWorkspace(workspaceId)
+      }
       if (!address) return
       if (Hyprland.usingLua)
         Hyprland.dispatch("hl.dsp.focus({ window = \"address:" + address + "\" })")
@@ -282,7 +285,8 @@ Item {
       var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
         ? root.overviewCardModel[root.selectedCardIndex] : null
       var curWsId = curItem !== null && typeof curItem === "object" ? curItem.workspaceId : curItem
-      if ((typeof curWsId === "number" && curWsId > 0) || (curItem && !curItem.isScratchpad)) {
+      var curIsScratch = curItem !== null && typeof curItem === "object" && Boolean(curItem.isScratchpad)
+      if (!curIsScratch && curWsId !== undefined && curWsId !== null) {
         if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
           root.dispatchWorkspace(curWsId)
         }
@@ -335,7 +339,8 @@ Item {
         var curFoundItem = (foundIndex >= 0 && foundIndex < root.overviewCardModel.length)
           ? root.overviewCardModel[foundIndex] : null
         var foundWsId = typeof curFoundItem === "object" ? curFoundItem.workspaceId : curFoundItem
-        if (typeof foundWsId === "number" && foundWsId > 0) {
+        var foundIsScratch = curFoundItem !== null && typeof curFoundItem === "object" && Boolean(curFoundItem.isScratchpad)
+        if (!foundIsScratch && foundWsId !== undefined && foundWsId !== null) {
           if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== foundWsId) {
             root.dispatchWorkspace(foundWsId)
           }
@@ -674,7 +679,8 @@ Item {
       var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
         ? root.overviewCardModel[root.selectedCardIndex] : null
       var curWsId = curItem !== null && typeof curItem === "object" ? curItem.workspaceId : curItem
-      if ((typeof curWsId === "number" && curWsId > 0) || (curItem && !curItem.isScratchpad)) {
+      var curIsScratch = curItem !== null && typeof curItem === "object" && Boolean(curItem.isScratchpad)
+      if (!curIsScratch && curWsId !== undefined && curWsId !== null) {
         if (!Hyprland.focusedWorkspace || Hyprland.focusedWorkspace.id !== curWsId) {
           root.dispatchWorkspace(curWsId)
         }
@@ -684,6 +690,10 @@ Item {
 
   // ── Workspace helpers ───────────────────────────────────────────────────────
   function isSpecialWorkspace(ws) {
+    if (typeof ws === "number") {
+      var obj = root.workspaceById(ws)
+      if (obj) return WindowModel.isSpecialWorkspace(obj)
+    }
     return WindowModel.isSpecialWorkspace(ws)
   }
 
@@ -845,6 +855,20 @@ Item {
       }
     }
 
+    var tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var j = 0; j < tops.length; j++) {
+      var tws = tops[j] ? tops[j].workspace : null
+      if (!tws) continue
+      if (!root.isSpecialWorkspace(tws)) {
+        var tid = Number(tws.id)
+        if (tid > 0) {
+          if (numericIds.indexOf(tid) === -1) numericIds.push(tid)
+        } else {
+          if (namedIds.indexOf(tid) === -1) namedIds.push(tid)
+        }
+      }
+    }
+
     if (numericIds.length === 0 && namedIds.length === 0) {
       var focused = Hyprland.focusedWorkspace
       if (focused && !root.isSpecialWorkspace(focused)) {
@@ -863,7 +887,7 @@ Item {
       var wsR = root.workspaceById(right)
       var nameL = wsL ? String(wsL.name || wsL.id) : String(left)
       var nameR = wsR ? String(wsR.name || wsR.id) : String(right)
-      return nameL.localeCompare(nameR)
+      return nameL.localeCompare(nameR, undefined, { numeric: true, sensitivity: "base" })
     })
 
     var specials = root.specialWorkspaces()
@@ -932,12 +956,24 @@ Item {
     if (!isDragging) {
       var items = []
       for (var n = 0; n < regularIds.length; n++) {
-        items.push({ workspaceId: regularIds[n], isInsertion: false, isScratchpad: false })
+        var wsN = root.workspaceById(regularIds[n])
+        items.push({
+          workspaceId: regularIds[n],
+          workspaceName: (wsN && wsN.name) ? String(wsN.name) : "",
+          isInsertion: false,
+          isScratchpad: false
+        })
       }
       for (var s = 0; s < specialIds.length; s++) {
         var sWs = root.workspaceById(specialIds[s])
         var sName = sWs ? root.specialWorkspaceName(sWs) : root.specialWorkspaceName(specialIds[s])
-        items.push({ workspaceId: specialIds[s], isInsertion: false, isScratchpad: true, specialName: sName })
+        items.push({
+          workspaceId: specialIds[s],
+          workspaceName: (sWs && sWs.name) ? String(sWs.name) : "",
+          isInsertion: false,
+          isScratchpad: true,
+          specialName: sName
+        })
       }
       return items
     }
@@ -961,8 +997,14 @@ Item {
     }
 
     for (var j = 0; j < posNumericIds.length; j++) {
+      var wsJ = root.workspaceById(posNumericIds[j])
       // Add the real workspace
-      items.push({ workspaceId: posNumericIds[j], isInsertion: false, isScratchpad: false })
+      items.push({
+        workspaceId: posNumericIds[j],
+        workspaceName: (wsJ && wsJ.name) ? String(wsJ.name) : "",
+        isInsertion: false,
+        isScratchpad: false
+      })
 
       // If there is a gap before the next workspace, insert target (cur + 1)
       if (j < posNumericIds.length - 1) {
@@ -979,14 +1021,26 @@ Item {
 
     // 4. Other regular (named) workspaces
     for (var o = 0; o < otherRegularIds.length; o++) {
-      items.push({ workspaceId: otherRegularIds[o], isInsertion: false, isScratchpad: false })
+      var wsO = root.workspaceById(otherRegularIds[o])
+      items.push({
+        workspaceId: otherRegularIds[o],
+        workspaceName: (wsO && wsO.name) ? String(wsO.name) : "",
+        isInsertion: false,
+        isScratchpad: false
+      })
     }
 
     // 5. Scratchpad cards appended at the end without insertion targets
     for (var k = 0; k < specialIds.length; k++) {
       var kWs = root.workspaceById(specialIds[k])
       var kName = kWs ? root.specialWorkspaceName(kWs) : root.specialWorkspaceName(specialIds[k])
-      items.push({ workspaceId: specialIds[k], isInsertion: false, isScratchpad: true, specialName: kName })
+      items.push({
+        workspaceId: specialIds[k],
+        workspaceName: (kWs && kWs.name) ? String(kWs.name) : "",
+        isInsertion: false,
+        isScratchpad: true,
+        specialName: kName
+      })
     }
 
     return items
@@ -1311,6 +1365,7 @@ Item {
         }
       }
     } else {
+      if (ws) ws.activate()
       root.dispatchWorkspace(workspaceId)
     }
     root.dismiss()
@@ -1335,24 +1390,37 @@ Item {
 
   function dispatchWorkspace(workspaceId) {
     root.liveSpecialWorkspaceName = ""
-    var ws = root.workspaceById(workspaceId)
+    var ws = (typeof workspaceId === "number" || typeof workspaceId === "string")
+      ? root.workspaceById(workspaceId) : null
     if (ws && root.isSpecialWorkspace(ws)) return false
-    var target = ""
-    if (typeof workspaceId === "number" && workspaceId > 0) {
-      target = String(workspaceId)
-    } else if (ws && ws.name) {
-      target = ws.name.indexOf("name:") === 0 ? ws.name : ("name:" + ws.name)
+    var targetStr = ""
+
+    if (typeof workspaceId === "number") {
+      if (workspaceId > 0) {
+        targetStr = String(workspaceId)
+      } else if (ws && ws.name) {
+        var nameStr = String(ws.name)
+        targetStr = (nameStr.indexOf("name:") === 0) ? nameStr : ("name:" + nameStr)
+      } else {
+        return false
+      }
     } else if (typeof workspaceId === "string" && workspaceId.length > 0) {
       if (WindowModel.isSpecialWorkspaceName(workspaceId)) return false
-      target = workspaceId.indexOf("name:") === 0 ? workspaceId : ("name:" + workspaceId)
+      if (workspaceId.indexOf("name:") === 0) {
+        targetStr = workspaceId
+      } else if (isNaN(Number(workspaceId))) {
+        targetStr = "name:" + workspaceId
+      } else {
+        targetStr = workspaceId
+      }
     } else {
       return false
     }
 
     if (Hyprland.usingLua)
-      Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + target + "\" })")
+      Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetStr + "\" })")
     else
-      Hyprland.dispatch("workspace " + target)
+      Hyprland.dispatch("workspace " + targetStr)
     return true
   }
 
@@ -1703,7 +1771,9 @@ Item {
       return
     }
 
-    root.showDemoHint("SWITCH → WS " + workspaceId, false)
+    var wsLabel = (workspace && workspace.name) ? workspace.name : workspaceId
+    root.showDemoHint("SWITCH → WS " + wsLabel, false)
+    if (workspace) workspace.activate()
     root.dispatchWorkspace(workspaceId)
 
     if (occupied === false) {
@@ -1892,7 +1962,7 @@ Item {
         return false
       })()
 
-    if (!address || (!isTargetSpecial && !targetWs && workspaceId <= 0) || sourceId === workspaceId) {
+    if (!address || (!isTargetSpecial && workspaceId <= 0 && (!targetWs || !targetWs.name)) || sourceId === workspaceId) {
       if (demoOverlay) demoOverlay.hideHint()
       return false
     }
@@ -1908,6 +1978,11 @@ Item {
       }
       targetStr = specialName
       root.showDemoHint(app ? (app + " → SCRATCHPAD") : "MOVE → SCRATCHPAD", false)
+    } else if (targetWs && targetWs.name && isNaN(Number(targetWs.name))) {
+      var wsName = String(targetWs.name)
+      if (wsName.indexOf("name:") !== 0) wsName = "name:" + wsName
+      targetStr = wsName
+      root.showDemoHint(app ? (app + " → " + targetWs.name) : ("MOVE → " + targetWs.name), false)
     } else {
       targetStr = String(workspaceId)
       root.showDemoHint(app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId), false)
