@@ -652,4 +652,23 @@ TestCase {
     verify(/onCurrentIndexChanged: Qt.callLater\(ensureIndicatorVisible\)/.test(source))
   }
 
+
+  // ── Regression test for issue #28: carousel uses display monitor ──────────
+  // Window-preview transforms inside the carousel must use the Mirador display
+  // output (overview.targetMonitor/targetScreen) rather than each workspace's
+  // own source monitor (slotItem.wsMonitor), so portrait workspaces shown on a
+  // landscape carousel card are not letterboxed.
+  function test_carouselWindowPreviewUsesDisplayMonitorNotWorkspaceMonitor() {
+    var source = readSource("../CarouselCycleView.qml")
+    // targetMon inside windowPreviewComponent must prefer overview.targetMonitor
+    verify(/overview\.targetMonitor/.test(source),
+      "Carousel WindowPreview must reference overview.targetMonitor for the display output (issue #28)")
+    verify(/overview\.targetScreen/.test(source),
+      "Carousel WindowPreview must reference overview.targetScreen for the display output (issue #28)")
+    // The old direct slotItem.wsMonitor usage must no longer appear as the
+    // primary (non-fallback) assignment in targetMon / targetScr definitions.
+    verify(!/readonly\s+property\s+var\s+targetMon\s*:\s*slotItem\.wsMonitor/.test(source),
+      "Carousel must not resolve targetMon directly to slotItem.wsMonitor without preferring overview.targetMonitor (issue #28)")
+  }
+
 }
