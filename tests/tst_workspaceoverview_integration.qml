@@ -531,6 +531,10 @@ TestCase {
       "WorkspaceOverview must size each card from its own workspace monitor without a 520px cap")
     verify(/WindowGeometry\.workspaceAspectRatio\(monitor, root\.screenForMonitor\(monitor\)\)/.test(source),
       "Card aspect ratios must come from each workspace's monitor, not the display monitor (#28)")
+    verify(/WindowGeometry\.workspaceMonitor\(ws, monitorValues\)/.test(source),
+      "Card monitors must be resolved through workspaceMonitor, not ws.monitor alone (#30 review)")
+    verify(!/ws\s*&&\s*ws\.monitor\s*\?/.test(source),
+      "WorkspaceOverview must not read ws.monitor directly for card aspect ratios")
 
     // 2. normalCardGeom helper defined and used
     verify(/function\s+normalCardGeom\(idx\)/.test(source),

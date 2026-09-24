@@ -518,10 +518,11 @@ Item {
   readonly property var gridCardMonitors: {
     var monitors = []
     var previous = null
+    var monitorValues = Hyprland.monitors ? Hyprland.monitors.values : []
     for (var i = 0; i < root.overviewCardModel.length; i++) {
       var item = root.overviewCardModel[i]
       var ws = item && !item.isInsertion ? root.workspaceById(item.workspaceId) : null
-      var monitor = ws && ws.monitor ? ws.monitor : previous
+      var monitor = WindowGeometry.workspaceMonitor(ws, monitorValues) || previous
       monitors.push(monitor)
       if (monitor) previous = monitor
     }

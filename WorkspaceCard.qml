@@ -49,8 +49,8 @@ BorderSurface {
   readonly property bool occupied: windowCount > 0
 
   readonly property real previewSpacing: Math.max(1, Style.spacing.xs || 2)
-  readonly property var workspaceMonitor: (workspace && workspace.monitor)
-    ? workspace.monitor : Hyprland.focusedMonitor
+  readonly property var workspaceMonitor: WindowGeometry.workspaceMonitor(
+    workspace, Hyprland.monitors ? Hyprland.monitors.values : []) || Hyprland.focusedMonitor
 
   readonly property int draggedSourceWorkspaceId: draggedToplevel && draggedToplevel.workspace
     ? Number(draggedToplevel.workspace.id) : -1
