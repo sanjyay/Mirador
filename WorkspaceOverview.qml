@@ -108,13 +108,78 @@ Item {
     } catch (e) {}
   }
 
+  property int cycleSessionId: 0
+
+  Timer {
+    id: cycleSettleTimer
+    interval: 35
+    repeat: false
+    onTriggered: {
+      if (root.opened && root.keybindMode === "cycle" && root.cycled) {
+        root.checkCycleModifierState()
+      }
+    }
+  }
+
+  Process {
+    id: cycleModifierProbe
+    property int sessionId: 0
+    property int probeCount: 0
+    command: []
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var resp = String(text).trim()
+        if (cycleModifierProbe.sessionId === root.cycleSessionId
+            && root.opened
+            && root.keybindMode === "cycle"
+            && root.cycled) {
+          if (resp === "false") {
+            root.activateSelectedCard()
+          } else if (resp === "true" && cycleModifierProbe.probeCount < 5) {
+            cycleModifierProbe.probeCount++
+            cycleSettleTimer.restart()
+          }
+        }
+      }
+    }
+  }
+
+  function modifierCheckQuery() {
+    if (root.activeCycleModifier === Qt.AltModifier) {
+      return 'return hl.is_key_down("Alt_L") or hl.is_key_down("Alt_R")'
+    }
+    if (root.activeCycleModifier === Qt.ControlModifier) {
+      return 'return hl.is_key_down("Control_L") or hl.is_key_down("Control_R")'
+    }
+    var mod = String(root.configuredModifier || "super").toLowerCase()
+    if (mod === "alt") {
+      return 'return hl.is_key_down("Alt_L") or hl.is_key_down("Alt_R")'
+    }
+    if (mod === "ctrl" || mod === "control") {
+      return 'return hl.is_key_down("Control_L") or hl.is_key_down("Control_R")'
+    }
+    return 'return hl.is_key_down("Super_L") or hl.is_key_down("Super_R")'
+  }
+
+  function checkCycleModifierState() {
+    if (!root.opened || root.keybindMode !== "cycle" || !root.cycled) return
+    if (cycleModifierProbe.running) return
+    cycleModifierProbe.sessionId = root.cycleSessionId
+    cycleModifierProbe.command = ["hyprctl", "repl", root.modifierCheckQuery()]
+    cycleModifierProbe.running = true
+  }
+
   Timer {
     id: holdWatchdog
     interval: 10000
     repeat: false
     onTriggered: {
-      root.cycled = false
-      root.activeCycleModifier = 0
+      if (root.opened && root.keybindMode === "cycle" && root.cycled) {
+        root.activateSelectedCard()
+      } else {
+        root.cycled = false
+        root.activeCycleModifier = 0
+      }
     }
   }
 
@@ -131,6 +196,9 @@ Item {
       Hyprland.refreshWorkspaces()
       Hyprland.refreshToplevels()
       livePreviewStartTimer.restart()
+      if (root.keybindMode === "cycle" && root.cycled) {
+        root.checkCycleModifierState()
+      }
     }
   }
 
@@ -1023,6 +1091,9 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    root.cycleSessionId++
+    cycleModifierProbe.running = false
+    cycleSettleTimer.stop()
     var pendingWorkspaceTarget = root.pendingWorkspaceNavigationTarget
     if (pendingWorkspaceTarget > 0) {
       root.pendingWorkspaceNavigationTarget = -1
@@ -1245,6 +1316,10 @@ Item {
     holdWatchdog.stop()
 
     if (isCycleInvocation) {
+      root.cycleSessionId++
+      cycleModifierProbe.probeCount = 0
+      cycleSettleTimer.stop()
+      cycleModifierProbe.running = false
       root.keybindMode = "cycle"
       if (activeMod === "alt") {
         root.activeCycleModifier = Qt.AltModifier
@@ -1305,6 +1380,9 @@ Item {
 
     keyCatcher.forceActiveFocus()
     postOpenRefreshTimer.restart()
+    if (root.keybindMode === "cycle") {
+      root.checkCycleModifierState()
+    }
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
       if (root.demoMode && demoOverlay) {
@@ -1322,6 +1400,9 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    root.cycleSessionId++
+    cycleModifierProbe.running = false
+    cycleSettleTimer.stop()
     postOpenRefreshTimer.stop()
     livePreviewStartTimer.stop()
     root.livePreviewsReady = false
@@ -1352,6 +1433,9 @@ Item {
     root.cycled = false
     root.activeCycleModifier = 0
     holdWatchdog.stop()
+    root.cycleSessionId++
+    cycleModifierProbe.running = false
+    cycleSettleTimer.stop()
     postOpenRefreshTimer.stop()
     livePreviewStartTimer.stop()
     root.livePreviewsReady = false
@@ -1685,6 +1769,12 @@ Item {
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
+
+      onActiveFocusChanged: {
+        if (keyCatcher.activeFocus && root.opened && root.keybindMode === "cycle" && root.cycled) {
+          root.checkCycleModifierState()
+        }
+      }
 
       // ── Cursor wheel arrow-key workspace navigation ─────────────────────────
       WheelHandler {
