@@ -162,8 +162,8 @@ Item {
         readonly property bool isScratchpad: typeof modelData === "object" && Boolean(modelData.isScratchpad)
 
         readonly property var workspace: root.overview ? root.overview.workspaceById(workspaceId) : null
-        readonly property var wsMonitor: (workspace && workspace.monitor)
-          ? workspace.monitor : Hyprland.focusedMonitor
+        readonly property var wsMonitor: WindowGeometry.workspaceMonitor(
+          workspace, Hyprland.monitors ? Hyprland.monitors.values : []) || Hyprland.focusedMonitor
 
         // Toplevel preview model resolution
         readonly property var effectiveToplevels: {

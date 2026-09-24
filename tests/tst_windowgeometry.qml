@@ -1345,5 +1345,229 @@ TestCase {
     }
   }
 
-}
+  // ── Issue #28: per-monitor card aspect ratios ─────────────────────────────
+  readonly property var landscapeAspect: 3440 / 1440
+  readonly property var portraitAspect: 1200 / 1920
 
+  function mixedAspects() {
+    return [landscapeAspect, landscapeAspect, landscapeAspect, landscapeAspect,
+      portraitAspect, portraitAspect, portraitAspect, portraitAspect]
+  }
+
+  function mixedGroups() {
+    return ["DP-3", "DP-3", "DP-3", "DP-3", "DP-2", "DP-2", "DP-2", "DP-2"]
+  }
+
+  function test_uniformMonitorAspectsMatchEqualGrid() {
+    var sizes = [[1880, 1000], [1000, 1880], [3408, 1340], [320, 240]]
+    for (var count = 0; count <= 10; count++) {
+      for (var i = 0; i < sizes.length; i++) {
+        var aspects = []
+        var groups = []
+        for (var n = 0; n < count; n++) {
+          aspects.push(1.6)
+          groups.push(n % 2 ? "A" : "B")
+        }
+        var mixed = WindowGeometry.overviewMonitorGridGeometry(
+          aspects, groups, sizes[i][0], sizes[i][1], 24, 4)
+        var equal = WindowGeometry.overviewGridGeometry(
+          count, sizes[i][0], sizes[i][1], 1.6, null, 24, 4)
+        compare(JSON.stringify(mixed), JSON.stringify(equal))
+      }
+    }
+  }
+
+  function test_portraitWorkspacesKeepPortraitCanvas() {
+    var aspects = mixedAspects()
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      aspects, mixedGroups(), 3408, 1340, 24, 4)
+    compare(result.cards.length, 8)
+    for (var i = 0; i < result.cards.length; i++) {
+      var card = result.cards[i]
+      compare(card.index, i)
+      fuzzyCompare(card.previewWidth / card.previewHeight, aspects[i], 0.0001)
+      fuzzyCompare(card.width, card.previewWidth + 2 * result.previewInset, 0.0001)
+      fuzzyCompare(card.height, card.previewHeight + 2 * result.previewInset, 0.0001)
+    }
+    verify(result.cards[4].height > result.cards[4].width,
+      "Portrait workspaces must preview as portrait cards")
+    verify(result.cards[0].width > result.cards[0].height,
+      "Landscape workspaces must preview as landscape cards")
+  }
+
+  function test_contiguousMonitorGroupsKeepTheirOwnRows() {
+    var groups = mixedGroups()
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      mixedAspects(), groups, 3408, 1340, 24, 4)
+    var rowGroup = {}
+    for (var i = 0; i < result.cards.length; i++) {
+      var row = result.cards[i].row
+      if (rowGroup[row] === undefined) rowGroup[row] = groups[i]
+      compare(rowGroup[row], groups[i])
+    }
+  }
+
+  function test_mixedGridStaysInsideAndCentered() {
+    var sizes = [[3408, 1340], [1880, 1000], [1168, 1860], [320, 240]]
+    for (var s = 0; s < sizes.length; s++) {
+      var width = sizes[s][0]
+      var height = sizes[s][1]
+      var result = WindowGeometry.overviewMonitorGridGeometry(
+        mixedAspects(), mixedGroups(), width, height, 24, 4)
+      verify(result.gridHeight <= height + 0.001)
+      fuzzyCompare(result.y * 2 + result.gridHeight, height, 0.001)
+      var rowSum = 0
+      for (var r = 0; r < result.rowDistribution.length; r++) rowSum += result.rowDistribution[r]
+      compare(rowSum, 8)
+      for (var i = 0; i < result.cards.length; i++) {
+        var card = result.cards[i]
+        verify(card.x >= -0.001 && card.x + card.width <= width + 0.001)
+        verify(card.y >= -0.001 && card.y + card.height <= height + 0.001)
+        var next = result.cards[i + 1]
+        if (next && next.row === card.row)
+          verify(next.x >= card.x + card.width + result.spacing - 0.001, "Cards in a row must not overlap")
+      }
+    }
+  }
+
+  function test_mixedGridUsesTheLargestFittingCanvas() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      mixedAspects(), mixedGroups(), 3408, 1340, 24, 4)
+    // Two rows of landscape cards plus one portrait row beat one row each.
+    compare(JSON.stringify(result.rowDistribution), JSON.stringify([2, 2, 4]))
+    var oneRowEach = (3408 - 3 * 24 - 8 * 4) / (4 * landscapeAspect)
+    verify(result.previewHeight > oneRowEach)
+  }
+
+  function test_mixedGridWithoutGroupsFallsBackToAspect() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [landscapeAspect, portraitAspect, portraitAspect], null, 1880, 1000, 16, 4)
+    compare(result.cards[0].row === result.cards[1].row, false)
+    compare(result.cards[1].row, result.cards[2].row)
+  }
+
+  function test_mixedGridInvalidInputsStayFinite() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [2, NaN, -1, 0.5], ["a", "a", undefined, "b"], NaN, -1, -5, NaN)
+    compare(result.cards.length, 4)
+    for (var i = 0; i < result.cards.length; i++) {
+      verify(isFinite(result.cards[i].x) && isFinite(result.cards[i].y))
+      verify(isFinite(result.cards[i].width) && isFinite(result.cards[i].height))
+    }
+    var empty = WindowGeometry.overviewMonitorGridGeometry([], [], 1920, 1080, 16, 4)
+    compare(empty.cards.length, 0)
+  }
+
+  // #30 review: numerically interleaved monitors must not collapse into one
+  // row per workspace.
+  function test_interleavedMonitorsFlowInsteadOfOneRowEach() {
+    var aspects = [16 / 9, 9 / 16, 16 / 9, 9 / 16]
+    var groups = ["Virtual-1", "HEADLESS-2", "Virtual-1", "HEADLESS-2"]
+    var result = WindowGeometry.overviewMonitorGridGeometry(aspects, groups, 1888, 1000, 24, 4)
+    compare(result.grouped, false)
+    verify(result.rows < 4, "Interleaved workspaces must share rows")
+    var oneRowEach = (1000 - 3 * 24 - 8 * 4) / 4
+    verify(result.previewHeight > oneRowEach * 1.5)
+    for (var i = 0; i < result.cards.length; i++) {
+      compare(result.cards[i].index, i)
+      fuzzyCompare(result.cards[i].previewWidth / result.cards[i].previewHeight, aspects[i], 0.0001)
+      if (i > 0) {
+        var prev = result.cards[i - 1]
+        var card = result.cards[i]
+        verify(card.row > prev.row || (card.row === prev.row && card.x > prev.x),
+          "Cards must stay in workspace reading order")
+      }
+    }
+  }
+
+  function test_groupingIsKeptOnlyWhenItIsNearlyFree() {
+    var aspects = [16 / 9, 9 / 16, 16 / 9, 9 / 16]
+    var groups = ["a", "b", "a", "b"]
+    var strict = WindowGeometry.overviewMonitorGridGeometry(aspects, groups, 1888, 1000, 24, 4, 0)
+    var always = WindowGeometry.overviewMonitorGridGeometry(aspects, groups, 1888, 1000, 24, 4, 1)
+    compare(strict.grouped, false)
+    compare(always.grouped, true)
+    compare(always.rows, 4)
+    verify(strict.previewHeight > always.previewHeight)
+  }
+
+  function test_flowRowsAreBalanced() {
+    var l = 16 / 9
+    var p = 9 / 16
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [l, l, p, l, l], ["a", "a", "b", "a", "a"], 1888, 1000, 24, 4)
+    compare(result.grouped, false)
+    for (var r = 0; r < result.rowDistribution.length; r++)
+      verify(result.rowDistribution[r] > 1 || result.cards.length === 1,
+        "A flowed layout must not strand a lone card on a row")
+  }
+
+  function test_reviewerMixedAspectsGivePortraitCards() {
+    var result = WindowGeometry.overviewMonitorGridGeometry(
+      [16 / 9, 16 / 9, 9 / 16, 9 / 16], ["Virtual-1", "Virtual-1", "HEADLESS-2", "HEADLESS-2"],
+      1888, 1000, 24, 4)
+    verify(result.cards[0].previewWidth > result.cards[0].previewHeight)
+    verify(result.cards[1].previewWidth > result.cards[1].previewHeight)
+    verify(result.cards[2].previewWidth < result.cards[2].previewHeight)
+    verify(result.cards[3].previewWidth < result.cards[3].previewHeight)
+  }
+
+  function test_workspaceMonitorPrefersTheLiveLink() {
+    var dp3 = { name: "DP-3", id: 1 }
+    var dp2 = { name: "DP-2", id: 0 }
+    var ws = { id: 5, monitor: dp3, lastIpcObject: { monitor: "DP-2", monitorID: 0 } }
+    compare(WindowGeometry.workspaceMonitor(ws, [dp2, dp3]), dp3)
+  }
+
+  function test_workspaceMonitorFallsBackToIpcState() {
+    var dp3 = { name: "DP-3", id: 1 }
+    var dp2 = { name: "DP-2", id: 0 }
+    var monitors = [dp3, dp2]
+    compare(WindowGeometry.workspaceMonitor(
+      { id: 5, monitor: null, lastIpcObject: { monitor: "DP-2", monitorID: 0 } }, monitors), dp2)
+    compare(WindowGeometry.workspaceMonitor(
+      { id: 5, monitor: null, lastIpcObject: { monitorID: 0 } }, monitors), dp2)
+    compare(WindowGeometry.workspaceMonitor(
+      { id: 5, monitor: null, lastIpcObject: { monitor: "gone", monitorID: 7 } }, monitors), null)
+    compare(WindowGeometry.workspaceMonitor(null, monitors), null)
+  }
+
+  function test_workspaceMonitorFallsBackToActiveWorkspace() {
+    var ws = { id: 3, monitor: null, lastIpcObject: {} }
+    var landscape = { name: "Virtual-1", id: 0, activeWorkspace: { id: 1 } }
+    var portrait = { name: "HEADLESS-2", id: 1, activeWorkspace: ws }
+    compare(WindowGeometry.workspaceMonitor(ws, [landscape, portrait]), portrait)
+    var viaIpc = { name: "HEADLESS-2", id: 1, activeWorkspace: null,
+      lastIpcObject: { activeWorkspace: { id: 3 } } }
+    compare(WindowGeometry.workspaceMonitor(ws, [landscape, viaIpc]), viaIpc)
+  }
+
+  // Acceptance test from the #30 review: a workspace moved between outputs
+  // takes the new owner's aspect ratio without restarting.
+  function test_movedWorkspaceFollowsItsNewMonitor() {
+    var landscape = { name: "Virtual-1", id: 0, x: 0, y: 0, width: 1920, height: 1080, scale: 1, transform: 0 }
+    var portrait = { name: "HEADLESS-2", id: 1, x: 1920, y: 0, width: 1920, height: 1080, scale: 1, transform: 1 }
+    var monitors = [landscape, portrait]
+    var ws = { id: 3, monitor: portrait, lastIpcObject: { monitor: "HEADLESS-2" } }
+    function aspect() {
+      return WindowGeometry.workspaceAspectRatio(WindowGeometry.workspaceMonitor(ws, monitors), null)
+    }
+    verify(aspect() < 1)
+    ws.monitor = landscape
+    verify(aspect() > 1)
+    ws.monitor = portrait
+    verify(aspect() < 1)
+  }
+
+  function test_rotatedMonitorWithoutScreenIsPortrait() {
+    var rotated = { name: "HEADLESS-2", x: 1920, y: 0, width: 1920, height: 1080, scale: 1,
+      lastIpcObject: { transform: 1 } }
+    var geometry = WindowGeometry.logicalMonitorGeometry(rotated, null)
+    compare(geometry.width, 1080)
+    compare(geometry.height, 1920)
+    var flipped = WindowGeometry.logicalMonitorGeometry(
+      { name: "X", x: 0, y: 0, width: 1920, height: 1080, scale: 2, transform: 2 }, null)
+    compare(flipped.width, 960)
+    compare(flipped.height, 540)
+  }
+}

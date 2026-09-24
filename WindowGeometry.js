@@ -203,6 +203,205 @@ function overviewGridGeometry(count, areaWidth, areaHeight, aspectRatio,
   return best
 }
 
+// Overview cards whose canvases follow each workspace's own monitor, so a
+// portrait desktop previews as a portrait card beside landscape ones. Every
+// canvas shares one height and keeps its monitor's aspect ratio; rows are
+// contiguous runs in workspace order. Two row strategies are measured:
+//   grouped - a monitor change always starts a new row, so each screen's
+//             workspaces stay together;
+//   flow    - rows break only where width runs out, then are rebalanced.
+// Grouping is kept unless it costs more than groupTolerance of the canvas
+// height, so numerically interleaved monitors (L P L P) flow instead of
+// degenerating into one row per workspace. When all aspect ratios match, this
+// is exactly overviewGridGeometry.
+function overviewMonitorGridGeometry(aspectRatios, groupKeys, areaWidth, areaHeight,
+                                     spacing, previewInset, groupTolerance) {
+  var raw = aspectRatios || []
+  var keys = groupKeys || []
+  var fallbackAspect = 16 / 9
+  for (var f = 0; f < raw.length; f++) {
+    if (finiteNumber(raw[f]) > 0) { fallbackAspect = Number(raw[f]); break }
+  }
+  var aspects = []
+  var uniform = true
+  for (var i = 0; i < raw.length; i++) {
+    var value = finiteNumber(raw[i]) > 0 ? Math.max(0.01, Number(raw[i])) : fallbackAspect
+    aspects.push(value)
+    if (Math.abs(value - aspects[0]) > 0.001) uniform = false
+  }
+  var count = aspects.length
+  if (count === 0 || uniform) {
+    return overviewGridGeometry(count, areaWidth, areaHeight,
+      count > 0 ? aspects[0] : fallbackAspect, null, spacing, previewInset)
+  }
+
+  var safeWidth = Math.max(1, finiteNumber(areaWidth) || 1)
+  var safeHeight = Math.max(1, finiteNumber(areaHeight) || 1)
+  var gap = Math.min(Math.max(0, finiteNumber(spacing) || 0),
+    Math.min(safeWidth, safeHeight) / (2 * Math.max(1, count - 1)))
+  var inset = Math.min(Math.max(0, finiteNumber(previewInset) || 0),
+    safeWidth / 8, safeHeight / 8)
+  var tolerance = finiteNumber(groupTolerance)
+  if (!isFinite(tolerance) || tolerance < 0) tolerance = 0.1
+
+  // Width of cards [from, to) laid side by side at canvas height h.
+  function runWidth(from, to, h) {
+    var width = gap * (to - from - 1)
+    for (var k = from; k < to; k++) width += h * aspects[k] + 2 * inset
+    return width
+  }
+
+  // Minimal contiguous rows for a run at height h: greedy first-fit is optimal
+  // for ordered bins. Returns null when a single card is wider than the area.
+  function greedyBreaks(from, to, h) {
+    var rows = []
+    var rowStart = from
+    for (var k = from; k < to; k++) {
+      if (runWidth(k, k + 1, h) > safeWidth) return null
+      if (k > rowStart && runWidth(rowStart, k + 1, h) > safeWidth) {
+        rows.push({ start: rowStart, count: k - rowStart })
+        rowStart = k
+      }
+    }
+    rows.push({ start: rowStart, count: to - rowStart })
+    return rows
+  }
+
+  // Split a run into exactly rowCount contiguous rows minimizing the widest
+  // row, so a flowed layout does not leave a lone card on its last row.
+  function balancedBreaks(from, to, rowCount, h) {
+    var n = to - from
+    if (rowCount >= n) {
+      var singles = []
+      for (var q = from; q < to; q++) singles.push({ start: q, count: 1 })
+      return singles
+    }
+    var best = []
+    var cut = []
+    for (var r = 0; r <= rowCount; r++) {
+      best.push([])
+      cut.push([])
+      for (var c = 0; c <= n; c++) { best[r].push(Infinity); cut[r].push(-1) }
+    }
+    best[0][0] = 0
+    for (r = 1; r <= rowCount; r++) {
+      for (c = r; c <= n; c++) {
+        for (var p = r - 1; p < c; p++) {
+          if (!isFinite(best[r - 1][p])) continue
+          var cost = Math.max(best[r - 1][p], runWidth(from + p, from + c, h))
+          if (cost < best[r][c]) { best[r][c] = cost; cut[r][c] = p }
+        }
+      }
+    }
+    var rows = []
+    var end = n
+    for (r = rowCount; r >= 1; r--) {
+      var begin = cut[r][end]
+      rows.unshift({ start: from + begin, count: end - begin })
+      end = begin
+    }
+    return rows
+  }
+
+  // Runs that must start a new row: one per monitor change when grouping,
+  // otherwise the whole sequence.
+  function runsFor(grouped) {
+    var runs = []
+    for (var k = 0; k < count; k++) {
+      var key = keys[k] !== undefined && keys[k] !== null ? String(keys[k]) : aspects[k].toFixed(3)
+      var last = runs.length > 0 ? runs[runs.length - 1] : null
+      if (!last || (grouped && last.key !== key)) {
+        last = { key: key, start: k, end: k }
+        runs.push(last)
+      }
+      last.end = k + 1
+    }
+    return runs
+  }
+
+  function rowsAt(runs, h) {
+    var rows = []
+    for (var k = 0; k < runs.length; k++) {
+      var runRows = greedyBreaks(runs[k].start, runs[k].end, h)
+      if (!runRows) return null
+      rows = rows.concat(runRows)
+    }
+    return rows
+  }
+
+  function fits(runs, h) {
+    var rows = rowsAt(runs, h)
+    return rows !== null && rows.length * (h + 2 * inset) + gap * (rows.length - 1) <= safeHeight
+  }
+
+  // Row counts only grow with the canvas height, so the largest height that
+  // still fits can be found by bisection.
+  function largestHeight(runs) {
+    var lo = 0
+    var hi = safeHeight
+    for (var iter = 0; iter < 48; iter++) {
+      var mid = (lo + hi) / 2
+      if (fits(runs, mid)) lo = mid
+      else hi = mid
+    }
+    return lo
+  }
+
+  function layout(grouped) {
+    var runs = runsFor(grouped)
+    var h = largestHeight(runs)
+    var rows = []
+    for (var k = 0; k < runs.length; k++) {
+      var greedy = greedyBreaks(runs[k].start, runs[k].end, h) || []
+      rows = rows.concat(balancedBreaks(runs[k].start, runs[k].end,
+        Math.max(1, greedy.length), h))
+    }
+    return { previewHeight: h, rows: rows, grouped: grouped }
+  }
+
+  var groupedLayout = layout(true)
+  var flowLayout = layout(false)
+  var chosen = groupedLayout.previewHeight >= flowLayout.previewHeight * (1 - tolerance)
+    ? groupedLayout : flowLayout
+  var previewH = chosen.previewHeight
+  var rowSpecs = chosen.rows
+
+  var cardH = previewH + 2 * inset
+  var gridH = rowSpecs.length * cardH + gap * (rowSpecs.length - 1)
+  var gridY = (safeHeight - gridH) / 2
+  var cards = []
+  var distribution = []
+  var gridX = safeWidth
+  var gridW = 0
+  var maxColumns = 0
+  for (var r = 0; r < rowSpecs.length; r++) {
+    var spec = rowSpecs[r]
+    var rowW = runWidth(spec.start, spec.start + spec.count, previewH)
+    var cardX = (safeWidth - rowW) / 2
+    gridX = Math.min(gridX, cardX)
+    gridW = Math.max(gridW, rowW)
+    maxColumns = Math.max(maxColumns, spec.count)
+    distribution.push(spec.count)
+    for (var c = 0; c < spec.count; c++) {
+      var previewW = previewH * aspects[spec.start + c]
+      cards.push({
+        index: spec.start + c, x: cardX, y: gridY + r * (cardH + gap),
+        width: previewW + 2 * inset, height: cardH, row: r, col: c,
+        previewWidth: previewW, previewHeight: previewH
+      })
+      cardX += previewW + 2 * inset + gap
+    }
+  }
+
+  return {
+    columns: maxColumns, rows: rowSpecs.length,
+    cardWidth: cards[0].width, cardHeight: cardH,
+    gridWidth: gridW, gridHeight: gridH, x: gridX, y: gridY,
+    previewWidth: cards[0].previewWidth, previewHeight: previewH, previewInset: inset,
+    spacing: gap, rowDistribution: distribution, grouped: chosen.grouped, cards: cards
+  }
+}
+
 // Fit a carousel hero with neighboring cards and a compact indicator strip.
 // Optional enlargement trades neighbor visibility for preview size while keeping
 // the hero inside the viewport. All dimensions are logical; callers snap edges on
@@ -385,17 +584,26 @@ function focusedOverviewGeometry(count, primaryIndex, areaWidth, areaHeight,
 // Hyprland reports client positions in global compositor coordinates. Monitor
 // x/y share that coordinate space, while the monitor mode dimensions need to
 // be converted to logical dimensions on scaled outputs. A matching QScreen is
-// preferred for the logical extent because it also accounts for transforms.
+// preferred for the logical extent because it also accounts for transforms;
+// without one, the mode is swapped for 90/270-degree transforms by hand.
 function logicalMonitorGeometry(monitor, screen) {
   if (!monitor) return null
 
   var x = finiteNumber(monitor.x)
   var y = finiteNumber(monitor.y)
-  var scale = finiteNumber(monitor.scale)
-  var width = screen && screen.name === monitor.name
-    ? finiteNumber(screen.width) : finiteNumber(monitor.width) / (scale > 0 ? scale : 1)
-  var height = screen && screen.name === monitor.name
-    ? finiteNumber(screen.height) : finiteNumber(monitor.height) / (scale > 0 ? scale : 1)
+  var width
+  var height
+  if (screen && screen.name === monitor.name) {
+    width = finiteNumber(screen.width)
+    height = finiteNumber(screen.height)
+  } else {
+    var scale = finiteNumber(monitor.scale)
+    var modeWidth = finiteNumber(monitor.width) / (scale > 0 ? scale : 1)
+    var modeHeight = finiteNumber(monitor.height) / (scale > 0 ? scale : 1)
+    var rotated = monitorTransform(monitor) % 2 === 1
+    width = rotated ? modeHeight : modeWidth
+    height = rotated ? modeWidth : modeHeight
+  }
 
   if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height)
       || width <= 0 || height <= 0)
@@ -463,6 +671,54 @@ function usableMonitorGeometry(monitor, screen) {
     logicalHeight: logical.height,
     reserved: reserved
   }
+}
+
+// Hyprland's wl_output transform (0-7); odd values are rotated 90 or 270 degrees.
+function monitorTransform(monitor) {
+  if (!monitor) return 0
+  var value = finiteNumber(monitor.transform)
+  if (!isFinite(value) && monitor.lastIpcObject)
+    value = finiteNumber(monitor.lastIpcObject.transform)
+  return isFinite(value) ? Math.max(0, Math.round(value)) : 0
+}
+
+// Resolve the monitor that currently owns a workspace. Quickshell's
+// workspace.monitor is the primary, reactive link (moveworkspacev2 updates it
+// in place); when it is unset, fall back to the owner named by the last
+// j/workspaces IPC object and finally to the monitor showing the workspace.
+// Every input is a notifying property, so bindings follow ownership changes.
+function workspaceMonitor(workspace, monitors) {
+  if (!workspace) return null
+  if (workspace.monitor) return workspace.monitor
+
+  var list = monitors || []
+  var ipc = workspace.lastIpcObject || null
+  var ownerName = ipc && ipc.monitor ? String(ipc.monitor) : ""
+  var ownerId = ipc ? finiteNumber(ipc.monitorID) : NaN
+  var i
+  var monitor
+
+  if (ownerName) {
+    for (i = 0; i < list.length; i++) {
+      monitor = list[i]
+      if (monitor && monitor.name === ownerName) return monitor
+    }
+  }
+  if (isFinite(ownerId) && ownerId >= 0) {
+    for (i = 0; i < list.length; i++) {
+      monitor = list[i]
+      if (monitor && finiteNumber(monitor.id) === ownerId) return monitor
+    }
+  }
+  for (i = 0; i < list.length; i++) {
+    monitor = list[i]
+    if (!monitor) continue
+    var active = monitor.activeWorkspace
+    if (active && (active === workspace || active.id === workspace.id)) return monitor
+    var activeIpc = monitor.lastIpcObject ? monitor.lastIpcObject.activeWorkspace : null
+    if (activeIpc && finiteNumber(activeIpc.id) === finiteNumber(workspace.id)) return monitor
+  }
+  return null
 }
 
 // Normal overview canvas proportions follow the actual desktop, including

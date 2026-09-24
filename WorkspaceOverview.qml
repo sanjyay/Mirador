@@ -513,9 +513,41 @@ Item {
   readonly property real usableGridY: root.usableY
   readonly property real usableGridHeight: root.usableHeight
 
-  readonly property var gridGeometry: WindowGeometry.overviewGridGeometry(
-    cardCount, usableWidth, usableGridHeight, gridAspectRatio,
-    null, gridSpacing, gridPreviewInset)
+  // Each card's canvas follows the monitor its workspace lives on. Insertion
+  // targets borrow the monitor of the card before them.
+  readonly property var gridCardMonitors: {
+    var monitors = []
+    var previous = null
+    var monitorValues = Hyprland.monitors ? Hyprland.monitors.values : []
+    for (var i = 0; i < root.overviewCardModel.length; i++) {
+      var item = root.overviewCardModel[i]
+      var ws = item && !item.isInsertion ? root.workspaceById(item.workspaceId) : null
+      var monitor = WindowGeometry.workspaceMonitor(ws, monitorValues) || previous
+      monitors.push(monitor)
+      if (monitor) previous = monitor
+    }
+    for (var j = 0; j < monitors.length; j++) {
+      if (!monitors[j]) monitors[j] = previous || root.targetMonitor
+    }
+    return monitors
+  }
+  readonly property var gridCardAspectRatios: {
+    var aspects = []
+    for (var i = 0; i < root.gridCardMonitors.length; i++) {
+      var monitor = root.gridCardMonitors[i]
+      aspects.push(monitor
+        ? WindowGeometry.workspaceAspectRatio(monitor, root.screenForMonitor(monitor))
+        : root.gridAspectRatio)
+    }
+    return aspects
+  }
+  readonly property var gridCardGroups: root.gridCardMonitors.map(function(monitor) {
+    return monitor ? monitor.name : ""
+  })
+
+  readonly property var gridGeometry: WindowGeometry.overviewMonitorGridGeometry(
+    gridCardAspectRatios, gridCardGroups, usableWidth, usableGridHeight,
+    gridSpacing, gridPreviewInset)
   readonly property int columns: Math.max(1, gridGeometry.columns)
   readonly property int rows: Math.max(1, gridGeometry.rows)
   readonly property real cardWidth: Math.max(1, gridGeometry.cardWidth)
@@ -648,6 +680,15 @@ Item {
         Hyprland.dispatch("togglespecialworkspace")
       }
     }
+  }
+
+  function screenForMonitor(monitor) {
+    if (!monitor) return null
+    var screens = Quickshell.screens || []
+    for (var i = 0; i < screens.length; i++) {
+      if (screens[i] && screens[i].name === monitor.name) return screens[i]
+    }
+    return null
   }
 
   function workspaceById(id) {

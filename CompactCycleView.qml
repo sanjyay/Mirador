@@ -26,8 +26,8 @@ Item {
     ? (typeof currentItem === "object" && Boolean(currentItem.isScratchpad)) : false
 
   readonly property var selectedWorkspace: overview ? overview.workspaceById(selectedWorkspaceId) : null
-  readonly property var selectedMonitor: (selectedWorkspace && selectedWorkspace.monitor)
-    ? selectedWorkspace.monitor : Hyprland.focusedMonitor
+  readonly property var selectedMonitor: WindowGeometry.workspaceMonitor(
+    selectedWorkspace, Hyprland.monitors ? Hyprland.monitors.values : []) || Hyprland.focusedMonitor
   readonly property string monitorName: selectedMonitor ? String(selectedMonitor.name || "") : ""
   readonly property bool isMultiMonitor: {
     var scrs = Quickshell.screens ? Quickshell.screens.length : 0
