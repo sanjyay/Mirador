@@ -301,19 +301,24 @@ function selectCloseTarget(clients, activeAddress, excludedAddresses, preferredA
   return best
 }
 
+// Canonical test for special workspace name strings
+function isSpecialWorkspaceName(name) {
+  if (typeof name !== "string") return false
+  return name === "special" || name.indexOf("special:") === 0
+}
+
 // Check whether a workspace object or ID represents a special/scratchpad workspace.
 // Prioritizes explicit name and type checks (e.g. "special:scratchpad", isSpecial, isScratchpad)
-// while retaining negative IDs as compositor fallback metadata.
+// while retaining negative IDs as compositor fallback metadata only when name is omitted.
 function isSpecialWorkspace(ws) {
   if (ws === null || ws === undefined) return false
-  if (typeof ws === "string") {
-    return ws === "special" || ws.indexOf("special:") === 0
-  }
+  if (typeof ws === "string") return isSpecialWorkspaceName(ws)
   if (typeof ws === "object") {
     if (ws.isSpecial !== undefined && ws.isSpecial !== null) return Boolean(ws.isSpecial)
     if (ws.isScratchpad !== undefined && ws.isScratchpad !== null) return Boolean(ws.isScratchpad)
     var name = String(ws.name || "")
     if (name === "special" || name.indexOf("special:") === 0) return true
+    if (name.length > 0) return false
     var idNum = Number(ws.id)
     if (!isNaN(idNum) && idNum < 0) return true
     return false
@@ -338,10 +343,17 @@ function specialWorkspaceName(ws) {
 }
 
 // Compute the badge display label for any workspace card ("S" for scratchpads, "0" for 10)
-function workspaceBadgeText(workspaceId, isScratchpad) {
-  if (isScratchpad || (typeof workspaceId === "number" && workspaceId < 0)) return "S"
+function workspaceBadgeText(workspaceId, isScratchpad, ws) {
+  if (isScratchpad) return "S"
+  if (ws) {
+    if (isSpecialWorkspace(ws)) return "S"
+    if (ws.name && ws.name !== String(ws.id)) return String(ws.name)
+  }
   var idNum = Number(workspaceId)
   if (idNum === 10) return "0"
+  if (!isNaN(idNum) && idNum > 0) return String(idNum)
+  if (typeof workspaceId === "string" && !isSpecialWorkspaceName(workspaceId)) return workspaceId
+  if (idNum < 0 && (!ws || isSpecialWorkspace(ws))) return "S"
   return String(workspaceId !== undefined && workspaceId !== null ? workspaceId : "")
 }
 
@@ -349,23 +361,58 @@ function workspaceBadgeText(workspaceId, isScratchpad) {
 function findWorkspaceCardIndex(cardModel, target) {
   if (!cardModel || cardModel.length === 0) return -1
 
-  var isScratchTarget = (target === "scratchpad" || target === "special" || target === -1)
+  var targetStr = String(target !== undefined && target !== null ? target : "")
   var targetNum = typeof target === "number" ? target : parseInt(target, 10)
 
-  if (isScratchTarget) {
+  // 1. Special scratchpad target matching (e.g. "scratchpad", "special", "special:music", or -1)
+  var isGenericScratch = (target === "scratchpad" || target === "special" || target === -1)
+  var isNamedSpecial = isSpecialWorkspaceName(targetStr) || targetStr.indexOf("special:") === 0
+
+  if (isNamedSpecial) {
+    var specTargetName = specialWorkspaceName(targetStr)
+    for (var sn = 0; sn < cardModel.length; sn++) {
+      var snItem = cardModel[sn]
+      if (typeof snItem === "object" && Boolean(snItem.isScratchpad)) {
+        var snWsId = snItem.workspaceId
+        if (snWsId === target || snWsId === targetStr) return sn
+        if (specialWorkspaceName(snItem) === specTargetName) return sn
+        if (snItem.workspace && specialWorkspaceName(snItem.workspace) === specTargetName) return sn
+        if (specialWorkspaceName(snWsId) === specTargetName) return sn
+      }
+    }
+  }
+
+  for (var sp = 0; sp < cardModel.length; sp++) {
+    var spItem = cardModel[sp]
+    if (typeof spItem === "object" && Boolean(spItem.isScratchpad)) {
+      if (specialWorkspaceName(spItem) === targetStr) return sp
+      if (spItem.workspace && specialWorkspaceName(spItem.workspace) === targetStr) return sp
+    }
+  }
+
+  if (isGenericScratch) {
     for (var s = 0; s < cardModel.length; s++) {
       var sItem = cardModel[s]
       var sWsId = typeof sItem === "object" ? sItem.workspaceId : sItem
       var isScratch = (typeof sItem === "object" && Boolean(sItem.isScratchpad))
-        || (typeof sWsId === "number" && sWsId < 0)
+        || (typeof sWsId === "number" && sWsId < 0 && (!sItem || sItem.isScratchpad !== false))
       if (isScratch) return s
     }
     return -1
   }
 
+  // 2. Direct string match for named workspaces (e.g. "Web")
+  if (typeof target === "string" && isNaN(targetNum)) {
+    for (var strIdx = 0; strIdx < cardModel.length; strIdx++) {
+      var strItem = cardModel[strIdx]
+      var strWsId = typeof strItem === "object" ? strItem.workspaceId : strItem
+      if (strWsId === target) return strIdx
+    }
+  }
+
   if (isNaN(targetNum)) return -1
 
-  // 1. Direct workspaceId match (skipping insertion targets)
+  // 3. Direct workspaceId match (skipping insertion targets)
   for (var i = 0; i < cardModel.length; i++) {
     var item = cardModel[i]
     var wsId = typeof item === "object" ? item.workspaceId : item
@@ -373,7 +420,7 @@ function findWorkspaceCardIndex(cardModel, target) {
     if (!isIns && wsId === targetNum) return i
   }
 
-  // 2. Key '0' maps to workspace 10, but if 10 is missing, check if workspace 0 exists
+  // 4. Key 0 maps to workspace 10, but if 10 is missing, check if workspace 0 exists
   if (targetNum === 10) {
     for (var j = 0; j < cardModel.length; j++) {
       var it0 = cardModel[j]
@@ -383,7 +430,7 @@ function findWorkspaceCardIndex(cardModel, target) {
     }
   }
 
-  // 3. Conversely, if 0 was passed and missing, check if workspace 10 exists
+  // 5. Conversely, if 0 was passed and missing, check if workspace 10 exists
   if (targetNum === 0) {
     for (var k = 0; k < cardModel.length; k++) {
       var it10 = cardModel[k]
