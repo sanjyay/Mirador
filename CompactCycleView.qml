@@ -187,7 +187,7 @@ Item {
             Text {
               id: badgeLabel
               anchors.centerIn: parent
-              text: WindowModel.workspaceBadgeText(root.selectedWorkspaceId, root.isScratchpad)
+              text: WindowModel.workspaceBadgeText(root.selectedWorkspaceId, root.isScratchpad, root.selectedWorkspace ? root.selectedWorkspace.name : "")
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.body
               font.bold: true

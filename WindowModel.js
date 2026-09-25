@@ -342,22 +342,34 @@ function specialWorkspaceName(ws) {
   return name || "scratchpad"
 }
 
-// Compute the badge display label for any workspace card ("S" for scratchpads, "0" for 10)
-function workspaceBadgeText(workspaceId, isScratchpad, ws) {
+// Compute the badge display label for any workspace card ("S" for scratchpads, "0" for 10, or custom name)
+function workspaceBadgeText(workspaceId, isScratchpad, wsOrName) {
   if (isScratchpad) return "S"
-  if (ws) {
-    if (isSpecialWorkspace(ws)) return "S"
-    if (ws.name && ws.name !== String(ws.id)) return String(ws.name)
+  if (wsOrName) {
+    if (typeof wsOrName === "string" && wsOrName.length > 0) {
+      if (wsOrName === "special" || wsOrName.indexOf("special:") === 0) return "S"
+      var nameNum = Number(wsOrName)
+      if (nameNum === 10) return "0"
+      return wsOrName
+    }
+    if (typeof wsOrName === "object") {
+      if (isSpecialWorkspace(wsOrName)) return "S"
+      if (wsOrName.name && wsOrName.name !== String(wsOrName.id)) {
+        var objNameNum = Number(wsOrName.name)
+        if (objNameNum === 10) return "0"
+        return String(wsOrName.name)
+      }
+    }
   }
   var idNum = Number(workspaceId)
   if (idNum === 10) return "0"
   if (!isNaN(idNum) && idNum > 0) return String(idNum)
   if (typeof workspaceId === "string" && !isSpecialWorkspaceName(workspaceId)) return workspaceId
-  if (idNum < 0 && (!ws || isSpecialWorkspace(ws))) return "S"
+  if (idNum < 0 && (!wsOrName || isSpecialWorkspace(wsOrName))) return "S"
   return String(workspaceId !== undefined && workspaceId !== null ? workspaceId : "")
 }
 
-// Find the index in cardModel corresponding to a target workspace number or scratchpad
+// Find the index in cardModel corresponding to a target workspace number, name, or scratchpad
 function findWorkspaceCardIndex(cardModel, target) {
   if (!cardModel || cardModel.length === 0) return -1
 
@@ -401,12 +413,17 @@ function findWorkspaceCardIndex(cardModel, target) {
     return -1
   }
 
-  // 2. Direct string match for named workspaces (e.g. "Web")
+  // 2. Direct name match (e.g. "DP-1:1", "Web", or "code")
   if (typeof target === "string" && isNaN(targetNum)) {
-    for (var strIdx = 0; strIdx < cardModel.length; strIdx++) {
-      var strItem = cardModel[strIdx]
-      var strWsId = typeof strItem === "object" ? strItem.workspaceId : strItem
-      if (strWsId === target) return strIdx
+    for (var n = 0; n < cardModel.length; n++) {
+      var nItem = cardModel[n]
+      if (typeof nItem === "object" && !nItem.isInsertion) {
+        var strWsId = nItem.workspaceId
+        var nName = String(nItem.workspaceName || nItem.name || "")
+        if (strWsId === target || nName === target) return n
+      } else if (nItem === target) {
+        return n
+      }
     }
   }
 
@@ -420,7 +437,21 @@ function findWorkspaceCardIndex(cardModel, target) {
     if (!isIns && wsId === targetNum) return i
   }
 
-  // 4. Key 0 maps to workspace 10, but if 10 is missing, check if workspace 0 exists
+  // 4. Named workspace suffix match (e.g. target 1 matches "DP-1:1")
+  if (targetNum >= 0 && targetNum <= 10) {
+    var numSuffix = ":" + (targetNum === 0 ? "10" : targetNum)
+    for (var m = 0; m < cardModel.length; m++) {
+      var mItem = cardModel[m]
+      if (typeof mItem === "object" && !mItem.isInsertion && !mItem.isScratchpad) {
+        var mName = String(mItem.workspaceName || mItem.name || "")
+        if (mName === String(targetNum) || (mName.length >= numSuffix.length && mName.indexOf(numSuffix) === mName.length - numSuffix.length)) {
+          return m
+        }
+      }
+    }
+  }
+
+  // 5. Key 0 maps to workspace 10, but if 10 is missing, check if workspace 0 exists
   if (targetNum === 10) {
     for (var j = 0; j < cardModel.length; j++) {
       var it0 = cardModel[j]

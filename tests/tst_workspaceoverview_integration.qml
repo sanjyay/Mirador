@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.3
 import "../WindowGeometry.js" as WindowGeometry
+import "../WindowModel.js" as WindowModel
 
 TestCase {
   name: "WorkspaceOverviewIntegration"
@@ -1058,5 +1059,33 @@ TestCase {
     compare(simulateCycleStep(ring8.length, 1, 1), 0) // scratchpad -> Web
     compare(simulateCycleStep(ring8.length, 0, -1), 1) // Web -> scratchpad
     compare(simulateCycleStep(ring8.length, 1, -1), 0) // scratchpad -> Web
+  }
+
+  function test_namedWorkspacesNotTreatedAsScratchpads() {
+    var source = workspaceOverviewSource()
+    var cardSource = workspaceCardSource()
+
+    // 1. WorkspaceCard isScratchpad must not blindly treat any negative ID as scratchpad
+    verify(!/isScratchpad\s*:[\s\S]*?\(\s*typeof\s+root\.workspaceId\s*===\s*"number"\s*&&\s*root\.workspaceId\s*<\s*0\s*\)/.test(cardSource),
+      "WorkspaceCard isScratchpad must not blindly classify negative IDs as scratchpad")
+
+    // 2. WindowModel.isSpecialWorkspace must return false for named workspaces with negative IDs
+    verify(!WindowModel.isSpecialWorkspace({ id: -1337, name: "DP-1:1" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1338, name: "DP-1:2" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1340, name: "code" }))
+
+    // 3. Named workspaces display their name instead of "S"
+    compare(WindowModel.workspaceBadgeText(-1337, false, "DP-1:1"), "DP-1:1")
+    compare(WindowModel.workspaceBadgeText(-1338, false, "DP-1:2"), "DP-1:2")
+
+    // 4. dispatchWorkspace must support named workspaces
+    var dspMatch = source.match(/function\s+dispatchWorkspace\(workspaceId\)[\s\S]*?\n  \}/)
+    verify(dspMatch && /name:/.test(dspMatch[0]),
+      "dispatchWorkspace must support name: prefix for named workspaces")
+
+    // 5. activateWorkspace must not classify negative IDs as scratchpad without checking special prefix
+    var actMatch = source.match(/function\s+activateWorkspace\(workspace,\s*workspaceId,\s*occupied\)[\s\S]*?\n  \}/)
+    verify(actMatch && !/return\s+typeof\s+workspaceId\s*===\s*"number"\s*&&\s*workspaceId\s*<\s*0/.test(actMatch[0]),
+      "activateWorkspace must not blindly classify negative workspaceId as scratchpad")
   }
 }

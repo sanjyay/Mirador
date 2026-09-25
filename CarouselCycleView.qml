@@ -283,7 +283,7 @@ Item {
                 Text {
                   id: badgeLabel
                   anchors.centerIn: parent
-                  text: WindowModel.workspaceBadgeText(slotItem.workspaceId, slotItem.isScratchpad)
+                  text: WindowModel.workspaceBadgeText(slotItem.workspaceId, slotItem.isScratchpad, slotItem.workspace ? slotItem.workspace.name : "")
                   font.family: Style.font.menuFamily
                   font.pixelSize: Style.font.body
                   font.bold: true

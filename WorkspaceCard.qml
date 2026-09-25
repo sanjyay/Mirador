@@ -29,7 +29,8 @@ BorderSurface {
       if (root.isScratchpad) {
         overview.showDemoHint("DRAG → SCRATCHPAD", true)
       } else {
-        overview.showDemoHint("DRAG → WS " + root.workspaceId, true)
+        var wsLabel = (root.workspace && root.workspace.name) ? root.workspace.name : root.workspaceId
+        overview.showDemoHint("DRAG → WS " + wsLabel, true)
       }
     }
   }
@@ -225,7 +226,9 @@ BorderSurface {
       Text {
         id: badgeLabel
         anchors.centerIn: parent
-        text: (root.workspace && root.workspace.name && !root.isScratchpad && root.workspace.name !== String(root.workspaceId)) ? root.workspace.name : WindowModel.workspaceBadgeText(root.workspaceId, root.isScratchpad)
+        text: (root.workspace && root.workspace.name && !root.isScratchpad && root.workspace.name !== String(root.workspaceId))
+          ? (Number(root.workspace.name) === 10 ? "0" : root.workspace.name)
+          : WindowModel.workspaceBadgeText(root.workspaceId, root.isScratchpad)
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
         font.bold: true
