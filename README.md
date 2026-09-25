@@ -182,19 +182,10 @@ omarchy plugin remove mirador
 
 </details>
 
-
-* **First-Class Drag-to-Create Insertion Cards**: Temporary workspace insertion targets now render as full-sized workspace cards (`InsertionWorkspaceCard`) with matching KDE badges, centered `+` icons, and `"Drop to create WS N"` cues. The overview grid dynamically reflows during drag to give insertion targets proper card presence.
-* **Seamless Single-Pull Drag & Drop**: Persistent delegate architecture ensures that window previews and drag sessions remain uninterrupted when the layout expands, allowing windows to be moved to existing or new workspaces on the very first pull.
-* **KDE-Style Workspace Number Badges**: Streamlined card headers with clean, prominent number badges (`[1]`, `[2]`, ... `[0]`) in the top-left corner, removing visual clutter and maximizing window preview area.
-* **Fast Keyboard Navigation & Activation**: Move card selection smoothly using arrow keys or Vim bindings (`h`, `j`, `k`, `l`) and press `Enter`/`Return` to immediately jump to that workspace and dismiss the overview. Press `+` or `=` to create the next contextual workspace.
-* **Crisp, Content-Independent Card Borders**: Dedicated topmost border overlay (`z: 100`) with integer pixel-aligned layout ensures complete, uniform 4-sided borders around all inactive workspaces regardless of dark terminal backgrounds or child preview contents.
-
-</details>
-
 <details>
-<summary><b>Version 2 — click to reveal all changes</b></summary>
+<summary><b>Version 2.3 — click to reveal all changes</b></summary>
 
-### 🚀 Key Changes in Version 2.3
+### Key Changes in Version 2.3
 
 #### Fullscreen Workspace Overview
 ![Mirador version 2 fullscreen workspace overview](screenshots/mirador-v2-workspace-overview.png)
