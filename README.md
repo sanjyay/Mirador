@@ -209,8 +209,6 @@ omarchy plugin remove mirador
 
 </details>
 
-## Previous releases
-
 <details>
 <summary><b>Version 2.2.1 — click to reveal all changes</b></summary>
 
