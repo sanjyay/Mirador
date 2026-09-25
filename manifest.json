@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "mirador",
   "name": "Mirador",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": "sanjyay",
   "description": "Visual overview of workspaces and their windows. Setup required: copy the keyboard bindings from the repository README into ~/.config/hypr/bindings.lua.",
   "kinds": [
