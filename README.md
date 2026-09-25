@@ -154,6 +154,37 @@ omarchy plugin remove mirador
 ## What's new
 
 <details>
+<summary><b>Version 2.3.2 — click to reveal all changes</b></summary>
+
+### Features & Fixes
+
+* **Named & Per-Monitor Workspace Support**:
+  * Hyprland named workspaces (e.g. `DP-1:1`, `Web`, `code`) are properly recognized and handled as standard desktop workspaces rather than misclassified as scratchpads due to negative IDs.
+  * Custom badges display their alphanumeric name (or formatted numeric representation) instead of a generic `"S"` badge.
+  * Full navigation and interaction support: direct name matching, numeric suffix matching (e.g. key `1` navigates to `DP-1:1`), window drag-and-drop targeting, and proper `name:<name>` dispatching.
+
+* **Scratchpad & Special Workspace Cycle Wraparound**:
+  * Scratchpad and special workspaces are now first-class destinations in cycle mode (`Super + Tab` and `Super + Shift + Tab`).
+  * Continuous forward cycle (`1 → 2 → ... → Scratchpad → 1`) and symmetrical reverse cycle (`1 → Scratchpad → ... → 1`).
+  * Full multi-special workspace support with exact canonical name matching for initial card selection.
+  * Live synchronization with compositor socket events (`liveSpecialWorkspaceName`) to prevent stale monitor snapshots or active toplevel pointers from overriding state.
+
+* **Rapid Modifier-Release Switching**:
+  * Resolved a race condition during rapid `Super + Tab` taps where modifier release occurred before or during initial window creation.
+  * Cycle mode now commits and switches workspaces deterministically even on instant taps (0ms modifier hold) as well as sustained held cycling.
+
+* **Per-Card Monitor Aspect Ratio Sizing**:
+  * In multi-monitor setups with mixed aspect ratios (ultrawide, 16:9, portrait), each workspace card in the grid is rendered using its respective monitor's true aspect ratio rather than forcing the focused monitor's aspect ratio across all cards.
+
+* **CI & Documentation**:
+  * Added automated CI validation workflow with GitHub Actions running QML tests and plugin validation.
+  * Added uninstallation instructions and keybinding cleanup warnings.
+
+</details>
+
+## Previous releases
+
+<details>
 <summary><b>Version 2.3.0 — click to reveal all changes</b></summary>
 
 ### Carousel Cycle View (Super + Tab)
