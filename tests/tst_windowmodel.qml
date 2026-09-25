@@ -420,4 +420,43 @@ TestCase {
     compare(WindowModel.findWorkspaceCardIndex(model, NaN), -1)
     compare(WindowModel.findWorkspaceCardIndex(model, "invalid"), -1)
   }
+
+  function test_isSpecialWorkspace_namedOrdinaryNotSpecial() {
+    verify(!WindowModel.isSpecialWorkspace({ id: -1337, name: "Web" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1338, name: "Music" }))
+    verify(!WindowModel.isSpecialWorkspace({ id: -1339, name: "Chat" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -98, name: "special:scratchpad" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -99, name: "special:terminal" }))
+    verify(WindowModel.isSpecialWorkspace({ id: -100, name: "special:music" }))
+    verify(WindowModel.isSpecialWorkspaceName("special:terminal"))
+    verify(WindowModel.isSpecialWorkspaceName("special:music"))
+    verify(!WindowModel.isSpecialWorkspaceName("Web"))
+    verify(!WindowModel.isSpecialWorkspaceName("Music"))
+  }
+
+  function test_findWorkspaceCardIndex_multipleSpecialsAndNamed() {
+    var model = [
+      { workspaceId: 1, isInsertion: false, isScratchpad: false },
+      { workspaceId: 4, isInsertion: false, isScratchpad: false },
+      { workspaceId: 9, isInsertion: false, isScratchpad: false },
+      { workspaceId: -1337, isInsertion: false, isScratchpad: false }, // named Web
+      { workspaceId: -98, isInsertion: false, isScratchpad: true, specialName: "terminal" },
+      { workspaceId: -99, isInsertion: false, isScratchpad: true, specialName: "music" }
+    ]
+
+    // Named workspace by string name or negative ID
+    compare(WindowModel.findWorkspaceCardIndex(model, -1337), 3)
+
+    // Multiple specials: exact matching by target name
+    compare(WindowModel.findWorkspaceCardIndex(model, -98), 4)
+    compare(WindowModel.findWorkspaceCardIndex(model, -99), 5)
+    compare(WindowModel.findWorkspaceCardIndex(model, "special:terminal"), 4)
+    compare(WindowModel.findWorkspaceCardIndex(model, "special:music"), 5)
+    compare(WindowModel.findWorkspaceCardIndex(model, "terminal"), 4)
+    compare(WindowModel.findWorkspaceCardIndex(model, "music"), 5)
+
+    // Generic scratchpad targets first scratchpad
+    compare(WindowModel.findWorkspaceCardIndex(model, "scratchpad"), 4)
+    compare(WindowModel.findWorkspaceCardIndex(model, "special"), 4)
+  }
 }

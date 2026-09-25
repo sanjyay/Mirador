@@ -954,4 +954,109 @@ TestCase {
     verify(simulateIsSummoningModifier(Qt_Key_Alt, Qt_AltModifier, "super"))
     verify(!simulateIsSummoningModifier(Qt_Key_Super_L, Qt_AltModifier, "super"))
   }
+
+  function simulateCycleStep(count, current, delta) {
+    if (count <= 0) return -1
+    var stepVal = delta < 0 ? -1 : 1
+    return (current + stepVal % count + count) % count
+  }
+
+  function simulateFindInitialSpecial(cardModel, curSpecialName, specialNameMap) {
+    for (var i = 0; i < cardModel.length; i++) {
+      var item = cardModel[i]
+      if (item && item.isScratchpad) {
+        var specName = specialNameMap[item.workspaceId] || ""
+        if (specName === curSpecialName) return i
+      }
+    }
+    return -1
+  }
+
+  function test_scratchpadCycleWraparoundTopologies() {
+    // 1. Standard: [1, 2, 3, special:scratchpad]
+    var ring1 = [1, 2, 3, -98]
+    // Forward: 1 -> 2 -> 3 -> scratchpad -> 1
+    compare(simulateCycleStep(ring1.length, 0, 1), 1) // 1 -> 2
+    compare(simulateCycleStep(ring1.length, 1, 1), 2) // 2 -> 3
+    compare(simulateCycleStep(ring1.length, 2, 1), 3) // 3 -> scratchpad
+    compare(simulateCycleStep(ring1.length, 3, 1), 0) // scratchpad -> 1
+    // Reverse: 1 -> scratchpad -> 3 -> 2 -> 1
+    compare(simulateCycleStep(ring1.length, 0, -1), 3) // 1 -> scratchpad
+    compare(simulateCycleStep(ring1.length, 3, -1), 2) // scratchpad -> 3
+    compare(simulateCycleStep(ring1.length, 2, -1), 1) // 3 -> 2
+    compare(simulateCycleStep(ring1.length, 1, -1), 0) // 2 -> 1
+
+    // 2. Non-contiguous: [1, 4, 9, special:scratchpad]
+    var ring2 = [1, 4, 9, -98]
+    // Forward: 1 -> 4 -> 9 -> scratchpad -> 1
+    compare(simulateCycleStep(ring2.length, 0, 1), 1) // 1 -> 4
+    compare(simulateCycleStep(ring2.length, 1, 1), 2) // 4 -> 9
+    compare(simulateCycleStep(ring2.length, 2, 1), 3) // 9 -> scratchpad
+    compare(simulateCycleStep(ring2.length, 3, 1), 0) // scratchpad -> 1
+    // Reverse: 1 -> scratchpad -> 9 -> 4 -> 1
+    compare(simulateCycleStep(ring2.length, 0, -1), 3) // 1 -> scratchpad
+    compare(simulateCycleStep(ring2.length, 3, -1), 2) // scratchpad -> 9
+    compare(simulateCycleStep(ring2.length, 2, -1), 1) // 9 -> 4
+    compare(simulateCycleStep(ring2.length, 1, -1), 0) // 4 -> 1
+
+    // 3. Mixed numeric + ordinary named + special: [1, 3, Music (-1338), Web (-1337), scratchpad (-98)]
+    var ring3 = [1, 3, -1338, -1337, -98]
+    // Forward: 1 -> 3 -> Music -> Web -> scratchpad -> 1
+    compare(simulateCycleStep(ring3.length, 0, 1), 1) // 1 -> 3
+    compare(simulateCycleStep(ring3.length, 1, 1), 2) // 3 -> Music
+    compare(simulateCycleStep(ring3.length, 2, 1), 3) // Music -> Web
+    compare(simulateCycleStep(ring3.length, 3, 1), 4) // Web -> scratchpad
+    compare(simulateCycleStep(ring3.length, 4, 1), 0) // scratchpad -> 1
+    // Reverse: 1 -> scratchpad -> Web -> Music -> 3 -> 1
+    compare(simulateCycleStep(ring3.length, 0, -1), 4) // 1 -> scratchpad
+    compare(simulateCycleStep(ring3.length, 4, -1), 3) // scratchpad -> Web
+    compare(simulateCycleStep(ring3.length, 3, -1), 2) // Web -> Music
+    compare(simulateCycleStep(ring3.length, 2, -1), 1) // Music -> 3
+    compare(simulateCycleStep(ring3.length, 1, -1), 0) // 3 -> 1
+
+    // 4. Multiple ordinary named: [Music (-1338), Web (-1337), scratchpad (-98)]
+    var ring4 = [-1338, -1337, -98]
+    compare(simulateCycleStep(ring4.length, 0, 1), 1) // Music -> Web
+    compare(simulateCycleStep(ring4.length, 1, 1), 2) // Web -> scratchpad
+    compare(simulateCycleStep(ring4.length, 2, 1), 0) // scratchpad -> Music
+    compare(simulateCycleStep(ring4.length, 0, -1), 2) // Music -> scratchpad
+    compare(simulateCycleStep(ring4.length, 2, -1), 1) // scratchpad -> Web
+    compare(simulateCycleStep(ring4.length, 1, -1), 0) // Web -> Music
+
+    // 5. Multiple special workspaces: [1, 2, 3, special:music (-100), special:terminal (-99)]
+    var ring5 = [1, 2, 3, -100, -99]
+    compare(simulateCycleStep(ring5.length, 2, 1), 3) // 3 -> special:music
+    compare(simulateCycleStep(ring5.length, 3, 1), 4) // special:music -> special:terminal
+    compare(simulateCycleStep(ring5.length, 4, 1), 0) // special:terminal -> 1
+    compare(simulateCycleStep(ring5.length, 0, -1), 4) // 1 -> special:terminal
+    compare(simulateCycleStep(ring5.length, 4, -1), 3) // special:terminal -> special:music
+    compare(simulateCycleStep(ring5.length, 3, -1), 2) // special:music -> 3
+
+    // 6. Exact matching of initial selection for each special workspace
+    var cardModel5 = [
+      { workspaceId: 1, isScratchpad: false },
+      { workspaceId: 2, isScratchpad: false },
+      { workspaceId: 3, isScratchpad: false },
+      { workspaceId: -100, isScratchpad: true }, // music
+      { workspaceId: -99, isScratchpad: true }   // terminal
+    ]
+    var specNames5 = { "-100": "music", "-99": "terminal" }
+    compare(simulateFindInitialSpecial(cardModel5, "music", specNames5), 3)
+    compare(simulateFindInitialSpecial(cardModel5, "terminal", specNames5), 4)
+    compare(simulateFindInitialSpecial(cardModel5, "nonexistent", specNames5), -1)
+
+    // 7. Single ordinary + special: [1, scratchpad (-98)]
+    var ring7 = [1, -98]
+    compare(simulateCycleStep(ring7.length, 0, 1), 1) // 1 -> scratchpad
+    compare(simulateCycleStep(ring7.length, 1, 1), 0) // scratchpad -> 1
+    compare(simulateCycleStep(ring7.length, 0, -1), 1) // 1 -> scratchpad
+    compare(simulateCycleStep(ring7.length, 1, -1), 0) // scratchpad -> 1
+
+    // 8. Ordinary named + special: [Web (-1337), scratchpad (-98)]
+    var ring8 = [-1337, -98]
+    compare(simulateCycleStep(ring8.length, 0, 1), 1) // Web -> scratchpad
+    compare(simulateCycleStep(ring8.length, 1, 1), 0) // scratchpad -> Web
+    compare(simulateCycleStep(ring8.length, 0, -1), 1) // Web -> scratchpad
+    compare(simulateCycleStep(ring8.length, 1, -1), 0) // scratchpad -> Web
+  }
 }

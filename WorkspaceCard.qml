@@ -23,7 +23,6 @@ BorderSurface {
 
   readonly property bool isScratchpad: root.isSpecial
     || WindowModel.isSpecialWorkspace(root.workspace)
-    || (typeof root.workspaceId === "number" && root.workspaceId < 0)
 
   onDropHoveredChanged: {
     if (dropHovered && root.draggedToplevel && overview) {
@@ -56,7 +55,7 @@ BorderSurface {
     ? Number(draggedToplevel.workspace.id) : -1
   readonly property bool validDropTarget: draggedToplevel !== null
     && String(draggedToplevel.address || "") !== ""
-    && (workspaceId > 0 || root.isScratchpad)
+    && ((workspaceId > 0 || root.isScratchpad) || root.workspace !== null)
     && draggedSourceWorkspaceId !== workspaceId
   readonly property bool dropHovered: validDropTarget && dropArea.containsDrag
 
@@ -226,7 +225,7 @@ BorderSurface {
       Text {
         id: badgeLabel
         anchors.centerIn: parent
-        text: WindowModel.workspaceBadgeText(root.workspaceId, root.isScratchpad)
+        text: (root.workspace && root.workspace.name && !root.isScratchpad && root.workspace.name !== String(root.workspaceId)) ? root.workspace.name : WindowModel.workspaceBadgeText(root.workspaceId, root.isScratchpad)
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
         font.bold: true
