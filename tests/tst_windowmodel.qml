@@ -491,4 +491,11 @@ TestCase {
     compare(WindowModel.findWorkspaceCardIndex(model, "scratchpad"), 4)
     compare(WindowModel.findWorkspaceCardIndex(model, "special"), 4)
   }
+
+  function test_luaStringLiteralEscapesWorkspaceNames() {
+    compare(WindowModel.luaStringLiteral("name:Web"), '"name:Web"')
+    compare(WindowModel.luaStringLiteral('name:team"blue'), '"name:team\\"blue"')
+    compare(WindowModel.luaStringLiteral("name:path\\tools"), '"name:path\\\\tools"')
+    compare(WindowModel.luaStringLiteral("name:line\nbreak"), '"name:line\\010break"')
+  }
 }
