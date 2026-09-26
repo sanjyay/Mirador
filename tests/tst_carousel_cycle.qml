@@ -369,13 +369,13 @@ TestCase {
   function test_carouselWorkspaceSyncAndCancellation() {
     var source = readSource("../WorkspaceOverview.qml")
 
-    // 1. initialWorkspaceId property declaration
-    verify(/property\s+int\s+initialWorkspaceId\s*:\s*-1/.test(source),
-      "WorkspaceOverview must declare initialWorkspaceId initialized to -1")
+    // 1. initialWorkspaceTarget property declaration
+    verify(/property\s+var\s+initialWorkspaceTarget\s*:\s*null/.test(source),
+      "WorkspaceOverview must declare initialWorkspaceTarget initialized to null")
 
     // 2. open() records origin workspace
-    verify(/root\.initialWorkspaceId\s*=\s*\(Hyprland\.focusedWorkspace\s*&&\s*Hyprland\.focusedWorkspace\.id\s*>\s*0\)/.test(source),
-      "open() must record initialWorkspaceId from Hyprland.focusedWorkspace")
+    verify(/root\.initialWorkspaceTarget\s*=\s*WindowModel\.restoreWorkspaceTarget\(Hyprland\.focusedWorkspace\)/.test(source),
+      "open() must record initialWorkspaceTarget from Hyprland.focusedWorkspace")
 
     // 3. cycleStep dispatches to compositor in carousel mode
     verify(/cycleStep[\s\S]*activePresentation\s*===\s*"carousel"[\s\S]*dispatchWorkspace\(curWsId\)/.test(source),
@@ -389,20 +389,20 @@ TestCase {
     verify(/onSelectedCardIndexChanged\s*:\s*\{[\s\S]*root\.opened\s*&&\s*root\.activePresentation\s*===\s*"carousel"[\s\S]*dispatchWorkspace\(curWsId\)/.test(source),
       "onSelectedCardIndexChanged must dispatch workspace in carousel mode")
 
-    // 6. Activation functions clear initialWorkspaceId
-    verify(/function\s+activateSelectedCard\(\)\s*\{[\s\S]*root\.initialWorkspaceId\s*=\s*-1/.test(source),
-      "activateSelectedCard must clear initialWorkspaceId to keep selection")
-    verify(/function\s+activateWorkspace[\s\S]*root\.initialWorkspaceId\s*=\s*-1/.test(source),
-      "activateWorkspace must clear initialWorkspaceId to keep selection")
-    verify(/function\s+activateWindow[\s\S]*root\.initialWorkspaceId\s*=\s*-1/.test(source),
-      "activateWindow must clear initialWorkspaceId to keep selection")
+    // 6. Activation functions clear initialWorkspaceTarget
+    verify(/function\s+activateSelectedCard\(\)\s*\{[\s\S]*root\.initialWorkspaceTarget\s*=\s*null/.test(source),
+      "activateSelectedCard must clear initialWorkspaceTarget to keep selection")
+    verify(/function\s+activateWorkspace[\s\S]*root\.initialWorkspaceTarget\s*=\s*null/.test(source),
+      "activateWorkspace must clear initialWorkspaceTarget to keep selection")
+    verify(/function\s+activateWindow[\s\S]*root\.initialWorkspaceTarget\s*=\s*null/.test(source),
+      "activateWindow must clear initialWorkspaceTarget to keep selection")
 
     // 7. Dismiss and close schedule restoration after the exclusive layer hides
-    verify(/function\s+close\(\)[\s\S]*scheduleCompositorFocusRestore\(restoreWorkspaceId, restoreWindowAddress\)/.test(source),
+    verify(/function\s+close\(\)[\s\S]*scheduleCompositorFocusRestore\(restoreWorkspaceTarget, restoreWindowAddress\)/.test(source),
       "close() must schedule compositor focus restoration")
-    verify(/function\s+dismiss\(\)[\s\S]*scheduleCompositorFocusRestore\(restoreWorkspaceId, restoreWindowAddress\)/.test(source),
+    verify(/function\s+dismiss\(\)[\s\S]*scheduleCompositorFocusRestore\(restoreWorkspaceTarget, restoreWindowAddress\)/.test(source),
       "dismiss() must schedule compositor focus restoration")
-    verify(/restoreCompositorFocusTimer[\s\S]*dispatchWorkspace\(workspaceId\)/.test(source),
+    verify(/restoreCompositorFocusTimer[\s\S]*dispatchWorkspace\(workspaceTarget\)/.test(source),
       "focus restoration must switch back after the exclusive layer hides")
   }
 

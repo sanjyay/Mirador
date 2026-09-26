@@ -327,6 +327,17 @@ function isSpecialWorkspace(ws) {
   return false
 }
 
+// Keep a named workspace's stable dispatch name for cycle cancellation.
+// Hyprland assigns ordinary named workspaces negative internal IDs.
+function restoreWorkspaceTarget(ws) {
+  if (!ws || isSpecialWorkspace(ws)) return 1
+  var id = Number(ws.id)
+  if (isFinite(id) && id > 0) return id
+  var name = String(ws.name || "")
+  if (name) return name.indexOf("name:") === 0 ? name : "name:" + name
+  return 1
+}
+
 // Extract the target name for Hyprland dispatchers (e.g. "scratchpad" for togglespecialworkspace)
 function specialWorkspaceName(ws) {
   if (ws === null || ws === undefined) return "scratchpad"
