@@ -493,3 +493,45 @@ function findWorkspaceCardIndex(cardModel, target) {
 
   return -1
 }
+
+function contextualNextWorkspaceId(currentId, existingIds) {
+  var c = Number(currentId) || 1
+  if (c < 1) c = 1
+  var existing = existingIds || []
+
+  for (var d = 1; d <= 100; d++) {
+    var lower = c - d
+    if (lower >= 1 && existing.indexOf(lower) === -1) {
+      return lower
+    }
+    var higher = c + d
+    if (higher >= 1 && existing.indexOf(higher) === -1) {
+      return higher
+    }
+  }
+  return c + 1
+}
+
+function computeInsertionTargets(workspaceIds) {
+  var raw = workspaceIds || []
+  var ids = []
+  for (var k = 0; k < raw.length; k++) {
+    if (raw[k] > 0) ids.push(raw[k])
+  }
+  ids.sort(function(a, b) { return a - b })
+  if (ids.length === 0) return []
+
+  var targets = []
+  if (ids[0] > 1) {
+    targets.push(ids[0] - 1)
+  }
+
+  for (var i = 0; i < ids.length - 1; i++) {
+    if (ids[i + 1] > ids[i] + 1) {
+      targets.push(ids[i] + 1)
+    }
+  }
+
+  targets.push(ids[ids.length - 1] + 1)
+  return targets
+}

@@ -124,93 +124,55 @@ TestCase {
     verify(/focused[\s\S]*Color\.accent[\s\S]*activeBorderWidth/.test(source))
   }
 
-  function contextualNextWorkspaceId(currentId, existingIds) {
-    var c = Number(currentId) || 1
-    var existing = existingIds || []
-
-    for (var d = 1; d <= 100; d++) {
-      var lower = c - d
-      if (lower >= 1 && existing.indexOf(lower) === -1) {
-        return lower
-      }
-      var higher = c + d
-      if (higher >= 1 && existing.indexOf(higher) === -1) {
-        return higher
-      }
-    }
-    return c + 1
-  }
-
   function test_contextualNextWorkspaceAlgorithm() {
     // Example A: existing 1, 3, 4, 5 with current 3 -> creates 2
-    compare(contextualNextWorkspaceId(3, [1, 3, 4, 5]), 2)
+    compare(WindowModel.contextualNextWorkspaceId(3, [1, 3, 4, 5]), 2)
 
     // Example B: existing 1, 3, 5 with current 3 -> creates 2
-    compare(contextualNextWorkspaceId(3, [1, 3, 5]), 2)
+    compare(WindowModel.contextualNextWorkspaceId(3, [1, 3, 5]), 2)
 
     // Example C: existing 1, 2, 3, 5 with current 3 -> creates 4
-    compare(contextualNextWorkspaceId(3, [1, 2, 3, 5]), 4)
+    compare(WindowModel.contextualNextWorkspaceId(3, [1, 2, 3, 5]), 4)
 
     // Example D (Outward search): existing 1, 2, 3, 4, 5 with current 3 -> creates 6
-    compare(contextualNextWorkspaceId(3, [1, 2, 3, 4, 5]), 6)
+    compare(WindowModel.contextualNextWorkspaceId(3, [1, 2, 3, 4, 5]), 6)
 
     // Equal distance prefers lower side: existing [2] with current 2 -> creates 1
-    compare(contextualNextWorkspaceId(2, [2]), 1)
-  }
-
-  function computeInsertionTargets(workspaceIds) {
-    var raw = workspaceIds || []
-    var ids = []
-    for (var k = 0; k < raw.length; k++) {
-      if (raw[k] > 0) ids.push(raw[k])
-    }
-    ids.sort(function(a, b) { return a - b })
-    if (ids.length === 0) return []
-
-    var targets = []
-    if (ids[0] > 1) {
-      targets.push(ids[0] - 1)
-    }
-
-    for (var i = 0; i < ids.length - 1; i++) {
-      if (ids[i + 1] > ids[i] + 1) {
-        targets.push(ids[i] + 1)
-      }
-    }
-
-    targets.push(ids[ids.length - 1] + 1)
-    return targets
+    compare(WindowModel.contextualNextWorkspaceId(2, [2]), 1)
+    compare(WindowModel.contextualNextWorkspaceId(-1337, [1, 2]), 3)
   }
 
   function test_insertionDropZoneTargets() {
     // Basic contiguous [1, 2, 3] -> only append target [4]
-    var t1 = computeInsertionTargets([1, 2, 3])
+    var t1 = WindowModel.computeInsertionTargets([1, 2, 3])
     compare(t1.length, 1)
     compare(t1[0], 4)
 
     // With leading gap [3, 4] -> prepend target [2] and append [5]
-    var t2 = computeInsertionTargets([3, 4])
+    var t2 = WindowModel.computeInsertionTargets([3, 4])
     compare(t2.length, 2)
     compare(t2[0], 2)
     compare(t2[1], 5)
 
     // With middle gap [1, 3, 5] -> targets [2, 4, 6]
-    var t3 = computeInsertionTargets([1, 3, 5])
+    var t3 = WindowModel.computeInsertionTargets([1, 3, 5])
     compare(t3.length, 3)
     compare(t3[0], 2)
     compare(t3[1], 4)
     compare(t3[2], 6)
 
     // Single workspace [1] -> target [2]
-    var t4 = computeInsertionTargets([1])
+    var t4 = WindowModel.computeInsertionTargets([1])
     compare(t4.length, 1)
     compare(t4[0], 2)
 
     // Single workspace > 1 [2] -> targets [1, 3]
-    var t5 = computeInsertionTargets([2])
+    var t5 = WindowModel.computeInsertionTargets([2])
     compare(t5.length, 2)
     compare(t5[0], 1)
     compare(t5[1], 3)
+
+    compare(WindowModel.computeInsertionTargets([-98, -1337]), [])
   }
 
   function test_insertionWorkspaceCardStructure() {
@@ -225,58 +187,21 @@ TestCase {
   }
 
   function buildOverviewItems(workspaceIds, isDragging) {
-    var raw = workspaceIds || []
-    if (raw.length === 0) return []
-
-    var numericIds = []
-    var specialIds = []
-    for (var i = 0; i < raw.length; i++) {
-      var id = raw[i]
-      if (id > 0) numericIds.push(id)
-      else specialIds.push(id)
+    var source = workspaceOverviewSource()
+    var start = source.indexOf("  function buildOverviewItems(workspaceIds, isDragging) {")
+    var end = source.indexOf("  function computeInsertionTargets(", start)
+    verify(start >= 0 && end > start)
+    var root = {
+      workspaceById: function(id) {
+        if (id === -98) return { id: id, name: "special:scratchpad" }
+        return { id: id, name: String(id) }
+      },
+      isSpecialWorkspace: WindowModel.isSpecialWorkspace,
+      specialWorkspaceName: WindowModel.specialWorkspaceName,
+      specialWorkspaces: function() { return [{ id: -98, name: "special:scratchpad" }] }
     }
-    numericIds.sort(function(a, b) { return a - b })
-
-    if (!isDragging) {
-      var items = []
-      for (var n = 0; n < numericIds.length; n++) {
-        items.push({ workspaceId: numericIds[n], isInsertion: false, isScratchpad: false })
-      }
-      for (var s = 0; s < specialIds.length; s++) {
-        items.push({ workspaceId: specialIds[s], isInsertion: false, isScratchpad: true })
-      }
-      return items
-    }
-
-    var items = []
-    // 1. Before first workspace (if first > 1)
-    if (numericIds.length > 0 && numericIds[0] > 1) {
-      items.push({ workspaceId: numericIds[0] - 1, isInsertion: true, isScratchpad: false })
-    }
-
-    for (var j = 0; j < numericIds.length; j++) {
-      // Add the real workspace
-      items.push({ workspaceId: numericIds[j], isInsertion: false, isScratchpad: false })
-
-      // If there is a gap before the next workspace, insert target (cur + 1)
-      if (j < numericIds.length - 1) {
-        if (numericIds[j + 1] > numericIds[j] + 1) {
-          items.push({ workspaceId: numericIds[j] + 1, isInsertion: true, isScratchpad: false })
-        }
-      }
-    }
-
-    // 3. After last numeric workspace
-    if (numericIds.length > 0) {
-      items.push({ workspaceId: numericIds[numericIds.length - 1] + 1, isInsertion: true, isScratchpad: false })
-    }
-
-    // 4. Scratchpad cards appended at the end without insertion targets
-    for (var k = 0; k < specialIds.length; k++) {
-      items.push({ workspaceId: specialIds[k], isInsertion: false, isScratchpad: true })
-    }
-
-    return items
+    var productionFunction = eval("(" + source.slice(start, end).trim() + ")")
+    return productionFunction(workspaceIds, isDragging)
   }
 
   function test_buildOverviewItemsInterleaving() {
@@ -708,11 +633,11 @@ TestCase {
     compare(dragging[3].isScratchpad, true)
 
     // 3. computeInsertionTargets ignores negative special workspace IDs
-    var targets = computeInsertionTargets([1, 2, -98])
+    var targets = WindowModel.computeInsertionTargets([1, 2, -98])
     compare(targets.length, 1)
     compare(targets[0], 3)
 
-    var targetsWithGap = computeInsertionTargets([1, 4, -98])
+    var targetsWithGap = WindowModel.computeInsertionTargets([1, 4, -98])
     compare(targetsWithGap.length, 2)
     compare(targetsWithGap[0], 2)
     compare(targetsWithGap[1], 5)
