@@ -14,6 +14,20 @@ TestCase {
     return request.responseText
   }
 
+  function test_toggleOverviewModeEntersAndLeavesFocusedMode() {
+    var source = workspaceOverviewSource()
+    var match = source.match(/  function toggleOverviewMode\(\) \{[\s\S]*?\n  \}/)
+    verify(match !== null)
+    var root = {
+      overviewMode: "normal",
+      setOverviewMode: function(mode) { this.overviewMode = mode }
+    }
+    eval(match[0] + "\ntoggleOverviewMode()")
+    compare(root.overviewMode, "focused")
+    eval(match[0] + "\ntoggleOverviewMode()")
+    compare(root.overviewMode, "normal")
+  }
+
   function workspaceCardSource() {
     var request = new XMLHttpRequest()
     request.open("GET", Qt.resolvedUrl("../WorkspaceCard.qml"), false)
