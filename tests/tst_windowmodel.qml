@@ -5,6 +5,14 @@ import "../WindowModel.js" as WindowModel
 TestCase {
   name: "WindowModel"
 
+  function test_restoreWorkspaceTargetPreservesNamedWorkspace() {
+    compare(WindowModel.restoreWorkspaceTarget({ id: -1337, name: "Web" }), "name:Web")
+    compare(WindowModel.restoreWorkspaceTarget({ id: -1338, name: "DP-1:2" }), "name:DP-1:2")
+    compare(WindowModel.restoreWorkspaceTarget({ id: -1339, name: "name:code" }), "name:code")
+    compare(WindowModel.restoreWorkspaceTarget({ id: 3, name: "3" }), 3)
+    compare(WindowModel.restoreWorkspaceTarget({ id: -99, name: "special:terminal" }), 1)
+  }
+
   function client(address, grouped, acceptsInput, focusHistoryID, extra) {
     var ipc = {
       address: address,

@@ -30,10 +30,10 @@ Item {
   property string activePresentation: "full"
   property bool cycled: false
   property int activeCycleModifier: 0
-  property int initialWorkspaceId: -1
+  property var initialWorkspaceTarget: null
   property string initialActiveWindowAddress: ""
   property var closingWindowAddresses: ({})
-  property int pendingRestoreWorkspaceId: -1
+  property var pendingRestoreWorkspaceTarget: null
   property string pendingRestoreWindowAddress: ""
   property string pendingCarouselWindowAddress: ""
   property double pendingCarouselWindowExpiresAt: 0
@@ -45,14 +45,13 @@ Item {
     interval: 50
     repeat: false
     onTriggered: {
-      var workspaceId = root.pendingRestoreWorkspaceId
+      var workspaceTarget = root.pendingRestoreWorkspaceTarget
       var address = root.pendingRestoreWindowAddress
-      root.pendingRestoreWorkspaceId = -1
+      root.pendingRestoreWorkspaceTarget = null
       root.pendingRestoreWindowAddress = ""
 
-      var restoreWs = root.workspaceById(workspaceId)
-      if (workspaceId > 0 || (restoreWs && !root.isSpecialWorkspace(restoreWs))) {
-        root.dispatchWorkspace(workspaceId)
+      if (workspaceTarget !== null && workspaceTarget !== undefined) {
+        root.dispatchWorkspace(workspaceTarget)
       }
       if (!address) return
       if (Hyprland.usingLua)
@@ -1321,7 +1320,7 @@ Item {
   }
 
   function activateSelectedCard() {
-    root.initialWorkspaceId = -1
+    root.initialWorkspaceTarget = null
     root.initialActiveWindowAddress = ""
     root.cycled = false
     root.activeCycleModifier = 0
@@ -1565,7 +1564,7 @@ Item {
     }
 
     restoreCompositorFocusTimer.stop()
-    root.pendingRestoreWorkspaceId = -1
+    root.pendingRestoreWorkspaceTarget = null
     root.pendingRestoreWindowAddress = ""
     root.closingWindowAddresses = ({})
     root.clearPendingCarouselWindow()
@@ -1575,8 +1574,7 @@ Item {
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
-    root.initialWorkspaceId = (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id > 0)
-      ? Hyprland.focusedWorkspace.id : 1
+    root.initialWorkspaceTarget = WindowModel.restoreWorkspaceTarget(Hyprland.focusedWorkspace)
     root.initialActiveWindowAddress = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : ""
     root.overviewMode = "normal"
     root.railScrollY = 0
@@ -1663,10 +1661,10 @@ Item {
   }
 
   function close() {
-    var restoreWorkspaceId = root.keybindMode === "cycle" ? root.initialWorkspaceId : -1
+    var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
     var restoreWindowAddress = root.keybindMode === "cycle"
       ? root.normalizedAddress(root.initialActiveWindowAddress) : ""
-    root.initialWorkspaceId = -1
+    root.initialWorkspaceTarget = null
     root.initialActiveWindowAddress = ""
     root.cycled = false
     root.activeCycleModifier = 0
@@ -1692,14 +1690,14 @@ Item {
     root.opened = false
     if (carouselCycleView) carouselCycleView.animatingEnabled = false
     if (demoOverlay) demoOverlay.hideHint()
-    root.scheduleCompositorFocusRestore(restoreWorkspaceId, restoreWindowAddress)
+    root.scheduleCompositorFocusRestore(restoreWorkspaceTarget, restoreWindowAddress)
   }
 
   function dismiss() {
-    var restoreWorkspaceId = root.keybindMode === "cycle" ? root.initialWorkspaceId : -1
+    var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
     var restoreWindowAddress = root.keybindMode === "cycle"
       ? root.normalizedAddress(root.initialActiveWindowAddress) : ""
-    root.initialWorkspaceId = -1
+    root.initialWorkspaceTarget = null
     root.initialActiveWindowAddress = ""
     root.cycled = false
     root.activeCycleModifier = 0
@@ -1727,12 +1725,12 @@ Item {
     if (demoOverlay) demoOverlay.hideHint()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "mirador")
-    root.scheduleCompositorFocusRestore(restoreWorkspaceId, restoreWindowAddress)
+    root.scheduleCompositorFocusRestore(restoreWorkspaceTarget, restoreWindowAddress)
   }
 
-  function scheduleCompositorFocusRestore(workspaceId, address) {
-    if ((workspaceId === undefined || workspaceId === null || workspaceId === -1) && !address) return
-    root.pendingRestoreWorkspaceId = workspaceId
+  function scheduleCompositorFocusRestore(workspaceTarget, address) {
+    if ((workspaceTarget === undefined || workspaceTarget === null) && !address) return
+    root.pendingRestoreWorkspaceTarget = workspaceTarget
     root.pendingRestoreWindowAddress = address || ""
     restoreCompositorFocusTimer.restart()
   }
@@ -1746,7 +1744,7 @@ Item {
   // When clicking inside an empty workspace or scratchpad, transports/toggles that workspace and closes Mirador.
   // When clicking a non-empty workspace, switches active workspace and keeps Mirador open.
   function activateWorkspace(workspace, workspaceId, occupied) {
-    root.initialWorkspaceId = -1
+    root.initialWorkspaceTarget = null
     root.initialActiveWindowAddress = ""
     root.cycled = false
     root.activeCycleModifier = 0
@@ -1796,7 +1794,7 @@ Item {
 
   // Window preview activation: focuses target window AND CLOSES MIRADOR
   function activateWindow(toplevel) {
-    root.initialWorkspaceId = -1
+    root.initialWorkspaceTarget = null
     root.initialActiveWindowAddress = ""
     root.cycled = false
     root.activeCycleModifier = 0
