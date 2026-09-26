@@ -78,7 +78,6 @@ Item {
     if (root.overviewMode === "focused") {
       root.setOverviewMode("normal")
     } else {
-      console.log('[ACT_LOG_REGULAR] workspaceId=' + workspaceId)
       root.setOverviewMode("focused")
     }
   }
