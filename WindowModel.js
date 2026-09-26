@@ -1,5 +1,14 @@
 .pragma library
 
+// Quote a workspace target as a Lua string literal for Quattro dispatches.
+function luaStringLiteral(value) {
+  return '"' + String(value).replace(/[\x00-\x1f\\"]/g, function(ch) {
+    if (ch === "\\" || ch === '"') return "\\" + ch
+    var decimal = String(ch.charCodeAt(0))
+    return "\\" + ("000" + decimal).slice(-3)
+  }) + '"'
+}
+
 function normalizedAddress(value) {
   var address = String(value || "").trim().toLowerCase()
   if (!address.match(/^(0x)?[0-9a-f]+$/)) return ""

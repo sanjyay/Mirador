@@ -770,7 +770,7 @@ Item {
     var name = root.specialWorkspaceName(specialName)
     if (Hyprland.usingLua) {
       if (name.length > 0) {
-        Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + name + "\")")
+        Hyprland.dispatch("hl.dsp.workspace.toggle_special(" + WindowModel.luaStringLiteral(name) + ")")
       } else {
         Hyprland.dispatch("hl.dsp.workspace.toggle_special()")
       }
@@ -1418,7 +1418,7 @@ Item {
     }
 
     if (Hyprland.usingLua)
-      Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetStr + "\" })")
+      Hyprland.dispatch("hl.dsp.focus({ workspace = " + WindowModel.luaStringLiteral(targetStr) + " })")
     else
       Hyprland.dispatch("workspace " + targetStr)
     return true
@@ -1990,8 +1990,8 @@ Item {
 
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
-      Hyprland.dispatch("hl.dsp.window.move({ workspace = \"" + targetStr
-        + "\", window = \"address:" + address + "\", follow = false })")
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = " + WindowModel.luaStringLiteral(targetStr)
+        + ", window = \"address:" + address + "\", follow = false })")
     } else {
       Hyprland.dispatch("movetoworkspacesilent " + targetStr + ",address:" + address)
     }
