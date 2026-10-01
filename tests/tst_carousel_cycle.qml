@@ -646,10 +646,67 @@ TestCase {
     verify(!/headerHeight/.test(source), "Workspace badge must overlay the preview")
     verify(/renderGeometry: WindowGeometry\.snapRectToDevicePixels\(displayGeometry, root.dpr\)/.test(source))
     verify(/dpr: overview \? overview.gridDpr/.test(source), "Use destination display DPR for all source monitors")
-    verify(/liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewBox.visible/.test(source))
+    verify(/liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewItem.visible && previewBox.visible/.test(source))
     verify(/WindowModel\.syncPreviewDelegates/.test(source), "Keep the existing flicker fix")
     verify(/Flickable[\s\S]*?id: indicatorFlick[\s\S]*?clip: true/.test(source))
-    verify(/onCurrentIndexChanged: Qt.callLater\(ensureIndicatorVisible\)/.test(source))
+    verify(/onCurrentIndexChanged:[\s\S]*?Qt.callLater\(ensureIndicatorVisible\)/.test(source))
   }
 
+  function test_rosterRefreshDoesNotSlideTrackButNavigationDoes() {
+    var source = readSource("../CarouselCycleView.qml")
+    verify(/onCardModelChanged: rebaseTrack\(\)/.test(source))
+    // Run the production track behavior independently of Quickshell services.
+    var start = source.indexOf("  property string trackModelKey:")
+    var end = source.indexOf("  function step(delta)", start)
+    verify(start >= 0 && end > start)
+    var fixture = Qt.createQmlObject('import QtQuick 2.15; Item { id: root; '
+      + 'property int currentIndex: 0; property alias selectedCardIndex: root.currentIndex; property var overview: root; property real slotDistance: 100; onCurrentIndexChanged: rememberSelectedWorkspace(); '
+      + 'property var cardModel: [1,2,3]; onCardModelChanged: rebaseTrack(); '
+      + source.slice(start, end) + '}', this)
+    verify(fixture !== null)
+    fixture.rebaseTrack(); fixture.resetTo(0); wait(30)
+    fixture.currentIndex = 2; wait(40)
+    verify(fixture.trackOffset > 0 && fixture.trackOffset < 200)
+    fixture.cardModel = [1,2,3]
+    verify(fixture.animatingEnabled)
+    verify(fixture.trackOffset > 0 && fixture.trackOffset < 200)
+    wait(200); compare(fixture.trackOffset, 200)
+    fixture.cardModel = [1,3]
+    fixture.currentIndex = 1
+    compare(fixture.trackOffset, 100)
+    wait(30); compare(fixture.trackOffset, 100)
+    fixture.currentIndex = 0; wait(40)
+    verify(fixture.trackOffset > 0 && fixture.trackOffset < 100)
+    wait(200); compare(fixture.trackOffset, 0)
+    fixture.destroy()
+  }
+  function test_deletedPrecedingWorkspaceKeepsSelectedIdentityAndPosition() {
+    var source = readSource("../CarouselCycleView.qml")
+    var start = source.indexOf("  property string trackModelKey:")
+    var end = source.indexOf("  function step(delta)", start)
+    var fixture = Qt.createQmlObject('import QtQuick 2.15; Item { id: root; '
+      + 'property int currentIndex: 1; property alias selectedCardIndex: root.currentIndex; '
+      + 'property var overview: root; property real slotDistance: 100; '
+      + 'property var cardModel: [{workspaceId:1},{workspaceId:2},{workspaceId:3}]; '
+      + 'onCardModelChanged: rebaseTrack(); onCurrentIndexChanged: rememberSelectedWorkspace(); '
+      + source.slice(start, end) + '}', this)
+    fixture.rebaseTrack(); fixture.resetTo(1); wait(30)
+    compare(fixture.selectedWorkspaceKey, "2")
+    fixture.cardModel = [{workspaceId:2},{workspaceId:3}]
+    compare(fixture.currentIndex, 0); compare(fixture.trackOffset, 0)
+    compare(fixture.selectedWorkspaceKey, "2")
+    wait(50)
+    // A delayed compositor focus sync resolves the same identity, not a slide.
+    fixture.currentIndex = 0; compare(fixture.trackOffset, 0)
+    fixture.currentIndex = 1; wait(40)
+    verify(fixture.trackOffset > 0 && fixture.trackOffset < 100)
+    fixture.destroy()
+  }
+  function test_carouselUsesLivePreviewsWithoutSnapshotDelay() {
+    var source = readSource("../CarouselCycleView.qml")
+    verify(/animatedAffordances:\s*false/.test(source))
+    verify(!/liveFrameUpdates|refreshSnapshot|settledPreviewIpc|layoutIpc/.test(source))
+    verify(/liveCaptureEnabled: root.livePreviews && root.visible/.test(source))
+    verify(/WindowGeometry.previewGeometry\(\s*previewIpc/.test(source))
+  }
 }

@@ -8,6 +8,7 @@ import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "GestureHelper.js" as GestureHelper
 import "WindowModel.js" as WindowModel
+import "JigglePhysics.js" as JigglePhysics
 
 Item {
   id: root
@@ -20,6 +21,7 @@ Item {
   property bool demoMode: false
   property var targetScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
   property var draggedToplevel: null
+  onDraggedToplevelChanged: if (!root.draggedToplevel && jiggle) jiggle.endDrag()
   property int selectedCardIndex: -1
   property string selectedWindowAddress: ""
   property string overviewMode: "normal"
@@ -28,6 +30,54 @@ Item {
   property string liveSpecialWorkspaceName: ""
   property string cycleUI: "full"
   property string activePresentation: "full"
+  readonly property alias jiggleController: jiggle
+  readonly property alias jiggleScene: keyCatcher
+
+  // Copy primitives only. QObject identity, focus and revision counters are not
+  // physical events; the controller diffs membership and accepted geometry.
+  function jiggleSnapshot() {
+    var rows = [], tops = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var i = 0; i < tops.length; i++) {
+      var top = tops[i], ipc = top.lastIpcObject
+      var rect = WindowGeometry.clientGeometry(ipc)
+      // Wait for matching IPC membership so migration origin and geometry are
+      // committed together, rather than pairing a new workspace with old data.
+      if (!rect || !top.workspace || !ipc.workspace
+          || Number(ipc.workspace.id) !== Number(top.workspace.id)) continue
+      rows.push({ address: JigglePhysics.address(top.address), workspace: String(top.workspace.id),
+        x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+        grouped: !!(ipc.grouped && ipc.grouped.length > 1) })
+    }
+    return rows
+  }
+
+  JiggleController {
+    id: jiggle
+    scene: keyCatcher
+    enabled: root.opened && root.targetScreen !== null && root.activePresentation !== "compact"
+    presentation: root.activePresentation
+    dpr: root.gridDpr
+    snapshotProvider: root.jiggleSnapshot
+  }
+  onTargetScreenChanged: if (jiggle) jiggle.reset(root.opened ? root.jiggleSnapshot() : [])
+  onOverviewModeChanged: if (jiggle) jiggle.reset(root.opened ? root.jiggleSnapshot() : [])
+
+  Connections {
+    target: Hyprland.toplevels
+    function onValuesChanged() { jiggle.observe() }
+  }
+  Repeater {
+    model: root.opened ? Hyprland.toplevels : []
+    Item {
+      required property var modelData
+      Connections {
+        target: modelData
+        function onLastIpcObjectChanged() { jiggle.observe() }
+        function onWorkspaceChanged() { jiggle.observe() }
+      }
+    }
+  }
+
   property bool cycled: false
   property int activeCycleModifier: 0
   property var initialWorkspaceTarget: null
@@ -549,11 +599,12 @@ Item {
   // ── Layout calculation ──────────────────────────────────────────────────────
   readonly property var workspaceModel: root.workspaceIds()
   readonly property int workspaceCount: workspaceModel.length
-  readonly property var insertionModel: (root.draggedToplevel !== null)
+  readonly property bool showInsertionCards: root.activePresentation === "full" && root.draggedToplevel !== null
+  readonly property var insertionModel: root.showInsertionCards
     ? root.computeInsertionTargets(root.workspaceModel)
     : []
   readonly property var overviewCardModel: root.buildOverviewItems(
-    root.workspaceModel, root.draggedToplevel !== null)
+    root.workspaceModel, root.showInsertionCards)
   readonly property int cardCount: overviewCardModel.length
   // Focused mode keeps its existing card proportions.
   readonly property real cardAspectRatio: 1.55
@@ -671,6 +722,7 @@ Item {
   }
 
   onSelectedCardIndexChanged: {
+    jiggle.navigation()
     root.ensureCardVisible(root.selectedCardIndex)
     root.resetSelectedWindowSelection()
     if (root.opened && root.activePresentation === "carousel") {
@@ -1951,6 +2003,7 @@ Item {
       root.showDemoHint(app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId), false)
     }
 
+    jiggle.expectDrop(address, workspaceId)
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
       Hyprland.dispatch("hl.dsp.window.move({ workspace = " + WindowModel.luaStringLiteral(targetStr)
@@ -1972,6 +2025,7 @@ Item {
   }
 
   function endWindowDrag(toplevel) {
+    jiggle.endDrag()
     if (root.draggedToplevel === toplevel) {
       root.draggedToplevel = null
       if (demoOverlay) demoOverlay.hideHint()
@@ -2162,7 +2216,7 @@ Item {
             required property int modelData
             required property int index
 
-            readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.draggedToplevel !== null)
+            readonly property int slotIndex: root.slotIndexForWorkspace(modelData, root.showInsertionCards)
             readonly property var overviewItem: (slotIndex >= 0 && slotIndex < root.overviewCardModel.length) ? root.overviewCardModel[slotIndex] : null
 
             x: root.slotX(slotIndex)
@@ -2267,6 +2321,15 @@ Item {
     function onRawEvent(event) {
       if (!event || !event.name) return
       var name = String(event.name)
+      if (root.opened) {
+        var physicsAddress = String(event.data || "").split(",")[0]
+        if (name === "openwindow") jiggle.evidence("open", physicsAddress)
+        else if (name === "closewindow" || name === "destroywindow") jiggle.evidence("close", physicsAddress)
+        else if (name === "movewindow" || name === "movewindowv2") jiggle.evidence("move", physicsAddress)
+        else if (name === "workspace" || name === "workspacev2" || name === "focusedmon"
+                 || name === "activewindow" || name === "activewindowv2"
+                 || name === "activespecial" || name === "activespecialv2") jiggle.navigation()
+      }
 
       if (name === "activespecial" || name === "activespecialv2") {
         var rawData = String(event.data || "")

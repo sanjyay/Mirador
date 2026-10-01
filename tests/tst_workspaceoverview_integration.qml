@@ -510,7 +510,8 @@ TestCase {
     verify(/overlayBadge: root.normalGrid/.test(source))
     verify(/previewInset: WindowGeometry\.snapToDevicePixels\(root.gridGeometry.previewInset, root.gridDpr\)/.test(source))
     verify(/return WindowGeometry\.snapRectToDevicePixels\(root.gridGeometry.cards\[idx\], root.gridDpr\)/.test(source))
-    verify(/anchors.top: root.overlayBadge \? parent.top : cardHeader.bottom/.test(cardSource))
+    verify(/anchors.topMargin: root.overlayBadge \? root.previewInset : cardHeader.y \+ cardHeader.height \+ Style.spacing.xs/.test(cardSource),
+      "The stationary preview area retains the visual header inset")
     verify(/dpr: root.overlayBadge && root.overview\s*\? root.overview.gridDpr/.test(cardSource),
       "Normal previews must snap on the display DPR, including windows from another monitor")
     verify(/root.overlayBadge \? Color.menu.background/.test(cardSource),

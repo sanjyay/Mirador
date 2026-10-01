@@ -27,27 +27,37 @@ BorderSurface {
 
   // Resting state: soft translucent card surface.
   // Hovered state: active accent hover tint.
-  color: dropHovered
-    ? Style.hoverFillFor(Color.menu.text, Color.accent)
-    : Util.alpha(Color.menu.background, 0.70)
+  color: "transparent"
 
   borderSpec: Border.none()
 
-  clip: true
-  scale: dropHovered ? 1.012 : 1.0
+  clip: false
 
-  Behavior on scale {
-    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+  JiggleSurface {
+    id: physics
+    controller: root.overview ? root.overview.jiggleController : null
+    kind: "insertion"
+    workspace: String(root.targetWorkspaceId)
+    active: root.visible && root.overview && root.overview.opened
+    validDropTarget: root.draggedToplevel !== null
+    dropHovered: root.dropHovered
   }
-
-  Behavior on color {
-    ColorAnimation { duration: 100 }
+  Rectangle {
+    id: cardVisual
+    anchors.fill: parent
+    radius: root.radius
+    color: root.dropHovered ? Style.hoverFillFor(Color.menu.text, Color.accent)
+      : Util.alpha(Color.menu.background, 0.70)
+    clip: true
+    transform: Translate { x: physics.offsetX; y: physics.offsetY }
+    Behavior on color { ColorAnimation { duration: 100 } }
   }
 
   signal windowDropped(var toplevel)
 
   // Subtle interior fill tint that deepens when hovered
   Rectangle {
+    parent: cardVisual
     anchors.fill: parent
     z: 2
     color: root.dropHovered
@@ -63,6 +73,7 @@ BorderSurface {
   // Matches the KDE-style top area with prominent number badge in WorkspaceCard.
   Item {
     id: cardHeader
+    parent: cardVisual
     z: 30
     anchors.top: parent.top
     anchors.left: parent.left
@@ -110,6 +121,7 @@ BorderSurface {
   // Clean centered creation cue: '+' icon and 'Drop to create WS N' label.
   Item {
     id: previewArea
+    parent: cardVisual
     z: 10
     anchors.top: cardHeader.bottom
     anchors.bottom: parent.bottom
@@ -177,6 +189,7 @@ BorderSurface {
   // Topmost visual overlay (z: 100) ensuring insertion card border is crisp and visible.
   Rectangle {
     id: borderOverlay
+    parent: cardVisual
     anchors.fill: parent
     z: 100
     color: "transparent"

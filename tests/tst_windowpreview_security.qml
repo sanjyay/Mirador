@@ -49,4 +49,10 @@ TestCase {
       compare(securedText.text, hostileTitles[i])
     }
   }
+  function test_liveFramesKeepCaptureSourceReleaseGating() {
+    var source = windowPreviewSource()
+    verify(/live:\s*root.liveCaptureEnabled\s*\n/.test(source))
+    verify(!/liveFrameUpdates|refreshSnapshot/.test(source))
+    verify(/Behavior on opacity \{ enabled: root.animatedAffordances/.test(source))
+  }
 }

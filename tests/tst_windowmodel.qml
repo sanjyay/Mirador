@@ -498,4 +498,18 @@ TestCase {
     compare(WindowModel.luaStringLiteral("name:path\\tools"), '"name:path\\\\tools"')
     compare(WindowModel.luaStringLiteral("name:line\nbreak"), '"name:line\\010break"')
   }
+  function test_pendingCloseRemovedImmediatelyWithoutChangingDefaultResolver() {
+    var a = client("0x1", [], true, 0), b = client("0x2", [], false, 1)
+    compare(WindowModel.resolveWorkspacePreviews([a, b], "0x1").length, 2)
+    var result = WindowModel.resolveWorkspacePreviews([a, b], "0x1", { "0x1": true })
+    compare(result.length, 1); compare(result[0].toplevel, b)
+  }
+  function test_closingGroupMemberDoesNotHideRemainingMember() {
+    var a = client("0x1", ["0x1", "0x2"], true, 0)
+    var b = client("0x2", ["0x1", "0x2"], false, 1)
+    var result = WindowModel.resolveWorkspacePreviews([a, b], "0x1", { "0x1": true })
+    compare(result.length, 1); compare(result[0].activeMember, b)
+    compare(result[0].members.length, 1)
+    compare(WindowModel.resolveWorkspacePreviews([a, b], "0x1", { "0x1": true, "0x2": true }).length, 0)
+  }
 }

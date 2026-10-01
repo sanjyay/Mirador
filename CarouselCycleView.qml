@@ -43,8 +43,12 @@ Item {
   }, dpr)
 
   onSlotDistanceChanged: resetTo(currentIndex)
-  onCurrentIndexChanged: Qt.callLater(ensureIndicatorVisible)
+  onCurrentIndexChanged: {
+    rememberSelectedWorkspace()
+    Qt.callLater(ensureIndicatorVisible)
+  }
   onCardCountChanged: Qt.callLater(ensureIndicatorVisible)
+  onCardModelChanged: rebaseTrack()
 
   function ensureIndicatorVisible() {
     var pill = indicatorRepeater.itemAt(currentIndex)
@@ -54,6 +58,8 @@ Item {
   }
 
   // ── Animated Scrolling for Available Workspaces Strip ──────────────────────
+  property string trackModelKey: ""
+  property string selectedWorkspaceKey: ""
   readonly property real targetOffset: currentIndex >= 0 ? currentIndex * slotDistance : 0
   property real trackOffset: targetOffset
   property bool animatingEnabled: false
@@ -77,6 +83,38 @@ Item {
     Qt.callLater(function() {
       root.animatingEnabled = true
     })
+  }
+
+  function workspaceKey(card) {
+    return typeof card === "object" ? (card.isScratchpad ? "scratchpad" : String(card.workspaceId)) : String(card)
+  }
+  function modelKey() {
+    var keys = []
+    for (var i = 0; i < cardModel.length; i++) keys.push(workspaceKey(cardModel[i]))
+    return keys.join(",")
+  }
+  function rememberSelectedWorkspace() {
+    // A count clamp can notify before the model-change handler. Do not replace
+    // the previous workspace identity with the card at a transient new index.
+    if (modelKey() !== trackModelKey) return
+    selectedWorkspaceKey = currentIndex >= 0 && currentIndex < cardModel.length
+      ? workspaceKey(cardModel[currentIndex]) : ""
+  }
+  function rebaseTrack() {
+    var nextKey = modelKey()
+    if (nextKey === trackModelKey) return
+    animatingEnabled = false
+    trackModelKey = nextKey
+    var preservedIndex = -1
+    for (var i = 0; i < cardModel.length; i++) {
+      if (workspaceKey(cardModel[i]) === selectedWorkspaceKey) { preservedIndex = i; break }
+    }
+    if (overview && preservedIndex >= 0 && preservedIndex !== currentIndex)
+      overview.selectedCardIndex = preservedIndex
+    rememberSelectedWorkspace()
+    trackOffset = targetOffset
+    // All index/focus bindings now refer to the same surviving workspace.
+    Qt.callLater(function() { root.resetTo(root.currentIndex) })
   }
 
   function step(delta) {
@@ -120,6 +158,18 @@ Item {
     target: Hyprland
     function onActiveToplevelChanged() { root.toplevelRevision++ }
   }
+
+  // If a close request is refused, let the existing 1500ms close marker expire
+  // and restore its preview without polling or another compositor refresh.
+  Connections {
+    target: root.overview
+    function onClosingWindowAddressesChanged() {
+      if (root.overview && Object.keys(root.overview.closingWindowAddresses).length)
+        closingPreviewExpiry.restart()
+    }
+  }
+  Timer { id: closingPreviewExpiry; interval: 1500; onTriggered: root.toplevelRevision++ }
+  onVisibleChanged: if (!visible) closingPreviewExpiry.stop()
 
   function screenForMonitor(monitor) {
     if (!monitor) return null
@@ -170,7 +220,8 @@ Item {
           var rev = root.toplevelRevision
           var activeAddr = Hyprland.activeToplevel ? Hyprland.activeToplevel.address : ""
           var clients = workspace ? workspace.toplevels.values : []
-          return WindowModel.resolveWorkspacePreviews(clients, activeAddr)
+          var closing = root.overview ? root.overview.recentClosingWindowAddresses() : ({})
+          return WindowModel.resolveWorkspacePreviews(clients, activeAddr, closing)
         }
         readonly property int windowCount: effectiveToplevels.length
         readonly property bool occupied: windowCount > 0
@@ -239,15 +290,48 @@ Item {
         visible: normDist < 2.5 && itemOpacity > 0.05
         z: isHero ? 30 : Math.max(1, 20 - Math.round(normDist))
 
+        readonly property bool validDropTarget: root.overview && root.overview.draggedToplevel
+          && String(root.overview.draggedToplevel.address || "") !== ""
+          && root.overview.sourceWorkspaceId(root.overview.draggedToplevel) !== slotItem.workspaceId
+          && (slotItem.workspace !== null || slotItem.workspaceId > 0 || slotItem.isScratchpad)
+        JiggleSurface {
+          id: physics
+          controller: root.overview ? root.overview.jiggleController : null
+          workspace: String(slotItem.workspaceId)
+          presentation: "carousel"
+          active: root.livePreviews && root.visible && slotItem.visible
+            && slotItem.x < carouselTrack.width && slotItem.x + slotItem.width > 0
+            && slotItem.y < carouselTrack.height && slotItem.y + slotItem.height > 0
+          validDropTarget: slotItem.validDropTarget
+          dropHovered: carouselDrop.containsDrag && slotItem.validDropTarget
+        }
+        DropArea {
+          id: carouselDrop
+          anchors.fill: parent
+          z: 100
+          keys: ["omarchy-window"]
+          enabled: slotItem.validDropTarget
+          onDropped: function(drop) {
+            if (!slotItem.validDropTarget || !drop.source || !drop.source.toplevel) {
+              drop.accepted = false
+              return
+            }
+            drop.acceptProposedAction()
+            root.overview.moveWindowToWorkspace(drop.source.toplevel, slotItem.workspaceId)
+          }
+        }
+
         // ── Card Surface ────────────────────────────────────────────────────
         Rectangle {
           id: cardSurface
+          transform: Translate { x: physics.offsetX; y: physics.offsetY }
           anchors.fill: parent
           radius: Style.cornerRadiusLarge || Style.space(12)
           color: Color.menu.background
           clip: true
 
           MouseArea {
+            parent: slotItem
             anchors.fill: parent
             z: 1
             cursorShape: Qt.PointingHandCursor
@@ -332,7 +416,10 @@ Item {
               // Live Spatial Window Previews
               Item {
                 id: spatialPreview
+                parent: slotItem
+                z: 5
                 anchors.fill: parent
+                anchors.margins: root.previewInset
                 visible: slotItem.occupied
 
                 property var previewMap: ({})
@@ -377,6 +464,11 @@ Item {
 
                   WindowPreview {
                     id: previewItem
+                    visualParent: previewBox
+                    physicsOverview: root.overview
+                    animatedAffordances: false
+                    onDragStarted: function(top) { if (root.overview) root.overview.beginWindowDrag(top) }
+                    onDragFinished: function(top) { if (root.overview) root.overview.endWindowDrag(top) }
                     required property var modelData
                     property int itemIndex: 0
 
@@ -415,7 +507,7 @@ Item {
                     toplevel: previewToplevel
                     isGroup: Boolean(modelData && modelData.isGroup)
                     groupMembers: (modelData && modelData.members) ? modelData.members : []
-                    liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewBox.visible && slotItem.normDist < 1.6
+                    liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewItem.visible && previewBox.visible && slotItem.normDist < 1.6
                     showLabel: keyboardSelected
 
                     onActivated: {
@@ -429,6 +521,15 @@ Item {
               }
 
             }
+          }
+
+          Rectangle {
+            anchors.fill: parent
+            z: 100
+            color: "transparent"
+            radius: cardSurface.radius
+            border.width: physics.dropHovered ? Math.max(1, Style.focusBorderWidth) : 0
+            border.color: Color.accent
           }
 
           // Subtle dimming overlay for non-hero cards
