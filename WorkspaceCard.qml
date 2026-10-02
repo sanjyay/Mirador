@@ -377,6 +377,7 @@ BorderSurface {
           height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
           z: itemIndex + 1
           toplevel: previewToplevel
+          workspaceHighlighted: root.isCurrent && root.windowCount > 1
           isGroup: Boolean(modelData && modelData.isGroup)
           groupMembers: (modelData && modelData.members) ? modelData.members : []
           liveCaptureEnabled: root.livePreviews && root.visible && previewArea.visible
@@ -416,7 +417,7 @@ BorderSurface {
     z: 100
     color: "transparent"
     radius: root.radius
-    border.width: root.cardBorderWidth
+    border.width: root.windowCount > 1 ? 0 : root.cardBorderWidth
     border.color: root.cardBorderColor
   }
 }

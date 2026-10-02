@@ -532,7 +532,8 @@ Item {
             z: 100
             color: "transparent"
             radius: cardSurface.radius
-            border.width: physics.dropHovered ? Math.max(1, Style.focusBorderWidth)
+            border.width: slotItem.windowCount > 1 ? 0
+              : physics.dropHovered ? Math.max(1, Style.focusBorderWidth)
               : (slotItem.isHero ? Math.max(2, Style.normalBorderWidth * 2) : 0)
             border.color: Color.accent
           }
