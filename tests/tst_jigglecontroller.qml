@@ -20,7 +20,9 @@ TestCase {
       active: true
       validDropTarget: true
     }
-    Rectangle {
+    // Geometry assertions need a transform surface, not a painted scene graph
+    // node (which would require OpenGL on the headless CI runner).
+    Item {
       id: visual
       anchors.fill: parent
       transform: Translate { x: surface.offsetX; y: surface.offsetY }
