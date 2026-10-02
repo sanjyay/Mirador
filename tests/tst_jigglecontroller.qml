@@ -7,7 +7,6 @@ TestCase {
   id: test
   name: "JiggleController"
   width: 800; height: 600
-  when: windowShown
   property alias controllerRef: controller
   JiggleController { id: controller; scene: test; enabled: true }
   Item {
