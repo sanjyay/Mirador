@@ -43,6 +43,7 @@ Rectangle {
   property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
+  property bool showSelectionBorder: true
 
   signal activated()
   signal tabActivated(var targetToplevel)
@@ -164,7 +165,7 @@ Rectangle {
     z: 5
     color: "transparent"
     border.width: root.keyboardSelected
-      ? Math.max(2, Style.normalBorderWidth * 2)
+      ? (root.showSelectionBorder ? Math.max(2, Style.normalBorderWidth * 2) : 0)
       : (previewHover.hovered || root.dragging ? Math.max(1, Style.normalBorderWidth) : 0)
     border.color: root.keyboardSelected || root.dragging
       ? Color.accent : Util.alpha(Color.menu.text, 0.58)

@@ -326,7 +326,7 @@ Item {
           id: cardSurface
           transform: Translate { x: physics.offsetX; y: physics.offsetY }
           anchors.fill: parent
-          radius: Style.cornerRadiusLarge || Style.space(12)
+          radius: 0
           color: Color.menu.background
           clip: true
 
@@ -381,7 +381,7 @@ Item {
             Rectangle {
               id: previewBox
               anchors.fill: parent
-              radius: Style.cornerRadius
+              radius: cardSurface.radius
               color: Util.alpha(Color.menu.background, 0.75)
               clip: true
 
@@ -501,6 +501,9 @@ Item {
                     height: Math.max(1 / root.dpr, renderGeometry.height)
                     keyboardSelected: slotItem.isHero
                       && root.overview && root.overview.isSelectedWindow(previewToplevel)
+                    // A single preview uses the workspace outline. Keep an
+                    // individual selection outline when choosing among windows.
+                    showSelectionBorder: slotItem.windowCount > 1
 
                     z: keyboardSelected ? 90 : itemIndex + 1
 
@@ -524,11 +527,13 @@ Item {
           }
 
           Rectangle {
+            id: workspaceOutline
             anchors.fill: parent
             z: 100
             color: "transparent"
             radius: cardSurface.radius
-            border.width: physics.dropHovered ? Math.max(1, Style.focusBorderWidth) : 0
+            border.width: physics.dropHovered ? Math.max(1, Style.focusBorderWidth)
+              : (slotItem.isHero ? Math.max(2, Style.normalBorderWidth * 2) : 0)
             border.color: Color.accent
           }
 
