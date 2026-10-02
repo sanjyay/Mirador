@@ -132,15 +132,38 @@ BorderSurface {
 
   radius: Style.cornerRadius
   // Active and highlighted workspaces get full opaque background; resting gets near-opaque
-  color: (root.isCurrent || root.highlighted)
-    ? Color.menu.background
-    : (occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
+  color: "transparent"
   borderSpec: Border.none()
-  clip: true
+  clip: false
   opacity: root.cardOpacity
 
   Behavior on opacity {
     NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+  }
+
+  JiggleSurface {
+    id: physics
+    controller: root.overview ? root.overview.jiggleController : null
+    workspace: String(root.workspaceId)
+    active: root.livePreviews && root.visible
+    validDropTarget: root.validDropTarget
+    dropHovered: root.dropHovered
+  }
+  Rectangle {
+    id: cardVisual
+    anchors.fill: parent
+    radius: root.radius
+    color: (root.isCurrent || root.highlighted) ? Color.menu.background
+      : (root.occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
+    clip: true
+    transform: Translate { x: physics.offsetX; y: physics.offsetY }
+  }
+  Item {
+    id: visualCanvas
+    parent: cardVisual
+    x: previewArea.x; y: previewArea.y
+    width: previewArea.width; height: previewArea.height
+    z: 5
   }
 
   // Full-card click & hover tracking — sits below all interactive children.
@@ -170,6 +193,7 @@ BorderSurface {
   // Drag/keyboard/active fill overlay — provides surface tint during drag,
   // hover elevation, keyboard navigation, or subtle active state sheen.
   Rectangle {
+    parent: cardVisual
     anchors.fill: parent
     z: 2
     color: root.dropHovered
@@ -191,6 +215,7 @@ BorderSurface {
   // KDE-style top area with prominent number badge.
   Item {
     id: cardHeader
+    parent: cardVisual
     z: 30
     anchors.top: parent.top
     anchors.left: parent.left
@@ -246,17 +271,18 @@ BorderSurface {
   Item {
     id: previewArea
     z: 5
-    anchors.top: root.overlayBadge ? parent.top : cardHeader.bottom
+    anchors.top: parent.top
     anchors.bottom: parent.bottom
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.topMargin: root.overlayBadge ? root.previewInset : Style.spacing.xs
+    anchors.topMargin: root.overlayBadge ? root.previewInset : cardHeader.y + cardHeader.height + Style.spacing.xs
     anchors.bottomMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
     anchors.leftMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
     anchors.rightMargin: root.overlayBadge ? root.previewInset : Style.spacing.sm
 
     // Empty hint: subtle centred dot.
     Text {
+      parent: visualCanvas
       visible: !root.occupied
       anchors.centerIn: parent
       text: "·"
@@ -314,6 +340,8 @@ BorderSurface {
 
         WindowPreview {
           id: previewItem
+          visualParent: visualCanvas
+          physicsOverview: root.overview
           required property var modelData
           property int itemIndex: 0
 
@@ -383,6 +411,7 @@ BorderSurface {
   // all preview canvases, screencopy buffers, tint overlays, and child chrome.
   Rectangle {
     id: borderOverlay
+    parent: cardVisual
     anchors.fill: parent
     z: 100
     color: "transparent"

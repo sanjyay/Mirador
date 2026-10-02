@@ -9,6 +9,9 @@ Rectangle {
   id: root
 
   required property var toplevel
+  property Item visualParent: null
+  property var physicsOverview: null
+  property int hoveredTabIndex: -1
   property bool isGroup: false
   property var groupMembers: []
 
@@ -37,6 +40,7 @@ Rectangle {
     && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
+  property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
 
@@ -107,16 +111,28 @@ Rectangle {
   }
 
   radius: Style.cornerRadius
-  color: Util.alpha(Color.background, 0.52)
-  clip: true
-  opacity: dragging ? 0.58 : 1
+  color: "transparent"
+  clip: false
 
-  Behavior on opacity {
-    NumberAnimation { duration: 60 }
+  Rectangle {
+    id: visualSurface
+    parent: root.visualParent || root
+    x: root.visualParent ? root.x : 0
+    y: root.visualParent ? root.y : 0
+    width: root.width
+    height: root.height
+    z: root.z
+    visible: root.visible
+    radius: root.radius
+    color: Util.alpha(Color.background, 0.52)
+    clip: true
+    opacity: root.dragging ? 0.58 : 1
+    Behavior on opacity { enabled: root.animatedAffordances; NumberAnimation { duration: 60 } }
   }
 
   Item {
     id: imageArea
+    parent: visualSurface
     anchors.fill: parent
 
     ScreencopyView {
@@ -143,6 +159,7 @@ Rectangle {
 
   // Interaction chrome
   Rectangle {
+    parent: visualSurface
     anchors.fill: parent
     z: 5
     color: "transparent"
@@ -157,6 +174,7 @@ Rectangle {
   // ── Group Tab Strip ────────────────────────────────────────────────────────
   Rectangle {
     id: groupTabBar
+    parent: visualSurface
     visible: root.showGroupTabs
     z: 10
     anchors.top: parent.top
@@ -194,7 +212,7 @@ Rectangle {
           radius: Math.max(2, (Style.cornerRadiusSmall || 4) - 1)
           color: isCurrentTab
             ? Util.alpha(Color.accent, 0.32)
-            : (tabHover.hovered ? Util.alpha(Color.menu.text, 0.08) : "transparent")
+            : (root.hoveredTabIndex === index ? Util.alpha(Color.menu.text, 0.08) : "transparent")
 
           border.width: isCurrentTab ? 1 : 0
           border.color: Util.alpha(Color.accent, 0.6)
@@ -231,21 +249,37 @@ Rectangle {
               verticalAlignment: Text.AlignVCenter
             }
           }
+        }
+      }
+    }
+  }
 
-          HoverHandler {
-            id: tabHover
-            cursorShape: Qt.PointingHandCursor
-          }
-
-          TapHandler {
-            acceptedButtons: Qt.LeftButton
-            onTapped: {
-              if (!isCurrentTab) {
-                root.tabActivated(modelData)
-              } else {
-                root.activated()
-              }
-            }
+  // Group tab input stays on the logical preview, even while its artwork moves.
+  Row {
+    x: groupTabBar.x + 1
+    y: groupTabBar.y + 1
+    width: groupTabBar.width - 2
+    height: groupTabBar.height - 2
+    spacing: 1
+    clip: true
+    visible: root.showGroupTabs
+    z: 10
+    Repeater {
+      model: root.groupMembers
+      Item {
+        required property var modelData
+        required property int index
+        width: Math.max(1, Math.floor((parent.width - (root.groupMembers.length - 1)) / Math.max(1, root.groupMembers.length)))
+        height: parent.height
+        HoverHandler {
+          cursorShape: Qt.PointingHandCursor
+          onHoveredChanged: root.hoveredTabIndex = hovered ? index : -1
+        }
+        TapHandler {
+          acceptedButtons: Qt.LeftButton
+          onTapped: {
+            if (!root.isSameToplevel(modelData, root.toplevel)) root.tabActivated(modelData)
+            else root.activated()
           }
         }
       }
@@ -271,6 +305,13 @@ Rectangle {
     target: null
     dragThreshold: Style.space(6)
 
+    onCentroidChanged: {
+      if (active && root.physicsOverview) {
+        var p = root.mapToItem(root.physicsOverview.jiggleScene, centroid.position.x, centroid.position.y)
+        root.physicsOverview.jiggleController.pointer(p.x, p.y, root.toplevel.address,
+          root.toplevel.workspace ? root.toplevel.workspace.id : "")
+      }
+    }
     onActiveChanged: {
       if (active) {
         dragProxy.dragSessionActive = true

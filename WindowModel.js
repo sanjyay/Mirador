@@ -112,8 +112,15 @@ function betterGroupRepresentative(candidate, current, activeAddress) {
 // Resolve workspace toplevels into structured spatial preview descriptors.
 // For Hyprland groups, exactly one spatial preview is produced with isGroup: true,
 // referencing the active member for screencopy/geometry and retaining all group members.
-function resolveWorkspacePreviews(clients, activeAddress) {
+function resolveWorkspacePreviews(clients, activeAddress, closingAddresses) {
   var values = clients || []
+  if (closingAddresses) {
+    var remaining = []
+    for (var closingIndex = 0; closingIndex < values.length; closingIndex++) {
+      if (!closingAddresses[toplevelAddress(values[closingIndex])]) remaining.push(values[closingIndex])
+    }
+    values = remaining
+  }
   var parents = {}
   var ownAddresses = []
 
