@@ -130,7 +130,7 @@ BorderSurface {
     return null
   }
 
-  radius: Style.cornerRadius
+  radius: 0
   // Active and highlighted workspaces get full opaque background; resting gets near-opaque
   color: "transparent"
   borderSpec: Border.none()

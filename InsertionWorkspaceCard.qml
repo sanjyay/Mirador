@@ -23,7 +23,7 @@ BorderSurface {
   readonly property color cardBorderColor: root.dropHovered ? Color.accent : Util.alpha(Color.accent, 0.38)
   readonly property string displayLabel: targetWorkspaceId === 10 ? "0" : String(targetWorkspaceId)
 
-  radius: Style.cornerRadius
+  radius: 0
 
   // Resting state: soft translucent card surface.
   // Hovered state: active accent hover tint.
