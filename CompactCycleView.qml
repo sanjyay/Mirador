@@ -444,6 +444,7 @@ Item {
 
             Text {
               text: root.activeWindowFullTitle
+              textFormat: Text.PlainText
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.bodySmall
               color: Util.alpha(Color.menu.text, 0.75)
