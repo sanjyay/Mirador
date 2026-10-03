@@ -5,20 +5,19 @@ workspaces and their windows. It supports keyboard navigation, window
 activation, spatial previews that reflect each window's compositor geometry,
 and dragging windows between workspaces.
 
+## Mirador 2.4.0
 
+Switch between a full workspace overview, a focused workspace with a side rail,
+and the Super+Tab carousel. Window previews preserve each window's layout, and
+you can select, close, or move windows directly from the overview.
 
+## Preview
 
+Captured in an Omarchy virtual machine running Mirador 2.4.0.
 
+![Mirador 2.4.0 full workspace overview in an Omarchy VM](screenshots/mirador-v2.4.0-overview-vm.png)
 
-
-
-
-
-https://github.com/user-attachments/assets/1c0dc10b-8c8f-4d8f-b4f3-abe63c77f123
-
-
-
-
+![Mirador 2.4.0 workspace carousel in an Omarchy VM](screenshots/mirador-v2.4.0-carousel-vm.png)
 
 ## Install
 
@@ -152,6 +151,23 @@ omarchy plugin remove mirador
 >    ```
 
 ## What's new
+
+### Version 2.4.0
+
+- **Workspace motion (experimental):** neighbouring workspace cards respond with
+  a vertical spring bounce when windows open, close, or move between workspaces.
+  The affected workspace stays steady and previews remain live.
+- **Clearer preview borders:** square workspace outlines in the overview and
+  carousel; workspaces containing multiple windows outline individual application
+  previews instead of adding an outer workspace border.
+- **Focused mode restored:** Space reliably toggles the focused overview again.
+- **Named workspace fixes:** closing a window during cycling restores the
+  originating named workspace, and workspace names containing quotes or
+  backslashes are escaped correctly in compositor commands.
+- **Plain-text compact titles:** window titles in the compact switcher display
+  literally, including text that resembles HTML.
+- **Regression coverage:** workspace tests exercise the production algorithms
+  directly, alongside coverage for motion, borders, and title rendering.
 
 <details>
 <summary><b>Version 2.3.2 — click to reveal all changes</b></summary>
@@ -313,7 +329,7 @@ mirador --workspace 5 # Navigate carousel/switch desktop to workspace 5
 mirador --move-window-to-workspace 5 # Move selected/active window to workspace 5
 mirador --demo       # Open Mirador with on-screen input overlay for demo recordings
 mirador --help       # Show command-line help
-mirador --version    # Show version information (2.3)
+mirador --version    # Show version information (2.4.0)
 ```
 
 ### Demo recording mode
