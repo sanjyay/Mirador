@@ -15,6 +15,10 @@ you can select, close, or move windows directly from the overview.
 
 Captured in an Omarchy virtual machine running Mirador 2.4.0.
 
+[Watch the VM demo (MP4)](screenshots/mirador-v2.4.0-demo-vm.mp4): full overview,
+focused mode, carousel navigation, and neighbouring workspace jiggle when a demo
+window opens and closes. The recording includes feature captions.
+
 ![Mirador 2.4.0 full workspace overview in an Omarchy VM](screenshots/mirador-v2.4.0-overview-vm.png)
 
 ![Mirador 2.4.0 workspace carousel in an Omarchy VM](screenshots/mirador-v2.4.0-carousel-vm.png)
