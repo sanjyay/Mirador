@@ -5,17 +5,9 @@ workspaces and their windows. It supports keyboard navigation, window
 activation, spatial previews that reflect each window's compositor geometry,
 and dragging windows between workspaces.
 
-## Mirador 2.4.0
+https://github.com/user-attachments/assets/09c0177a-f018-4ca7-8e4c-a7e059a66d4f
 
-Switch between a full workspace overview, a focused workspace with a side rail,
-and the Super+Tab carousel. Window previews preserve each window's layout, and
-you can select, close, or move windows directly from the overview.
 
-## Preview
-
-Captured in an Omarchy virtual machine running Mirador 2.4.0.
-
-[Watch the 22-second VM demo (MP4)](screenshots/mirador-v2.4.0-demo-vm.mp4):
 overview and focused modes, keyboard and wheel navigation, drag-to-create,
 scratchpad activation, workspace creation, and carousel window selection, moves,
 closing, and jiggle physics. Captions show the bindings alongside each action;
@@ -317,34 +309,6 @@ hyprctl configerrors
 | `Click workspace card` | Switch to workspace (in Focused mode, clicking a rail card promotes it to primary) |
 | `Click window preview` | Focus window and dismiss overview |
 | `Drag window preview` | Move window to target workspace, scratchpad, or drop onto insertion card |
-
-## CLI and demo recording mode
-
-Mirador includes a `mirador` CLI command:
-
-```bash
-mirador              # Toggle Mirador overview (Normal mode)
-mirador --full       # Toggle Mirador full workspace overview
-mirador --cycle-next # Step forward in carousel cycle mode (Super+Tab)
-mirador --cycle-prev # Step backward in carousel cycle mode (Super+Shift+Tab)
-mirador --focused    # Open directly in Focused overview mode
-mirador --cycle      # Open in cycle mode (step forward)
-mirador --compact    # Open in compact cycle mode (experimental)
-mirador --carousel   # Open in continuous carousel cycle mode (experimental)
-mirador --workspace 5 # Navigate carousel/switch desktop to workspace 5
-mirador --move-window-to-workspace 5 # Move selected/active window to workspace 5
-mirador --demo       # Open Mirador with on-screen input overlay for demo recordings
-mirador --help       # Show command-line help
-mirador --version    # Show version information (2.4.0)
-```
-
-### Demo recording mode
-
-Running `mirador --demo` opens Mirador in a session-scoped demo mode that renders a clean on-screen input HUD at the bottom of the overview.
-
-* Shows key combinations (e.g. `←`, `ENTER`, `CTRL + →`, `ESC`) and semantic interactions (e.g. `SWITCH → WS 3`, `DRAG WINDOW`, `MOVE → WS 4`, `NEW WS 2`).
-* The overlay is non-interactive, session-only, and displays only interactions received directly by Mirador.
-* Normal Mirador invocations (`mirador` or keyboard shortcuts) do not display the demo overlay, and demo state automatically resets when the overview is dismissed.
 
 ## License
 
