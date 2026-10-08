@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Item {
@@ -101,9 +102,9 @@ Item {
     implicitWidth: label.implicitWidth + Style.space(32)
     implicitHeight: Math.max(Style.space(36), label.implicitHeight + Style.space(16))
     radius: Math.min(Style.cornerRadius, Style.space(8))
-    color: Util.alpha(Color.menu.background, 0.92)
+    color: Util.alpha(Commons.Color.menu.background, 0.92)
     border.width: Math.max(1, Style.normalBorderWidth)
-    border.color: Util.alpha(Color.menu.text, 0.22)
+    border.color: Util.alpha(Commons.Color.menu.text, 0.22)
 
     Text {
       id: label
@@ -112,7 +113,7 @@ Item {
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.body
       font.bold: true
-      color: Color.menu.text
+      color: Commons.Color.menu.text
       horizontalAlignment: Text.AlignHCenter
       verticalAlignment: Text.AlignVCenter
     }

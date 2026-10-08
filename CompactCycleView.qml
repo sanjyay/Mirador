@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "WindowModel.js" as WindowModel
@@ -145,9 +146,9 @@ Item {
     id: cardSurface
     anchors.fill: parent
     radius: Style.cornerRadiusLarge || Style.space(12)
-    color: Color.menu.background
+    color: Commons.Color.menu.background
     border.width: 1
-    border.color: Util.alpha(Color.menu.border, 0.65)
+    border.color: Util.alpha(Commons.Color.menu.border, 0.65)
     clip: true
 
     // Outer click: switches to this workspace
@@ -181,7 +182,7 @@ Item {
             height: Style.space(26)
             width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md)
             radius: Math.min(Style.cornerRadius, Style.space(6))
-            color: Color.accent
+            color: Commons.Color.accent
             anchors.verticalCenter: parent.verticalCenter
 
             Text {
@@ -191,7 +192,7 @@ Item {
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.body
               font.bold: true
-              color: Color.menu.scrim
+              color: Commons.Color.menu.scrim
             }
           }
 
@@ -202,7 +203,7 @@ Item {
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
             font.bold: true
-            color: Color.menu.text
+            color: Commons.Color.menu.text
             anchors.verticalCenter: parent.verticalCenter
           }
         }
@@ -218,9 +219,9 @@ Item {
             height: Style.space(22)
             width: monitorLabel.implicitWidth + Style.spacing.sm * 2
             radius: Style.cornerRadiusSmall || Style.space(4)
-            color: Util.alpha(Color.menu.text, 0.08)
+            color: Util.alpha(Commons.Color.menu.text, 0.08)
             border.width: 1
-            border.color: Util.alpha(Color.menu.border, 0.25)
+            border.color: Util.alpha(Commons.Color.menu.border, 0.25)
             anchors.verticalCenter: parent.verticalCenter
 
             Text {
@@ -230,7 +231,7 @@ Item {
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.caption
               font.bold: true
-              color: Util.alpha(Color.menu.text, 0.75)
+              color: Util.alpha(Commons.Color.menu.text, 0.75)
             }
           }
 
@@ -241,7 +242,7 @@ Item {
               : "Empty"
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.bodySmall
-            color: Util.alpha(Color.menu.text, 0.55)
+            color: Util.alpha(Commons.Color.menu.text, 0.55)
             anchors.verticalCenter: parent.verticalCenter
           }
         }
@@ -253,9 +254,9 @@ Item {
         width: root.previewWidth
         height: root.previewHeight
         radius: Style.cornerRadius
-        color: Util.alpha(Color.menu.background, 0.75)
+        color: Util.alpha(Commons.Color.menu.background, 0.75)
         border.width: 1
-        border.color: Util.alpha(Color.menu.border, 0.40)
+        border.color: Util.alpha(Commons.Color.menu.border, 0.40)
         clip: true
 
         // Empty state cue
@@ -270,7 +271,7 @@ Item {
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
               text: "·"
-              color: Color.menu.text
+              color: Commons.Color.menu.text
               opacity: 0.35
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.displayLarge
@@ -281,7 +282,7 @@ Item {
               text: "Empty Workspace"
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.bodySmall
-              color: Util.alpha(Color.menu.text, 0.40)
+              color: Util.alpha(Commons.Color.menu.text, 0.40)
             }
           }
         }
@@ -391,7 +392,7 @@ Item {
           color: "transparent"
           radius: previewBox.radius
           border.width: 1
-          border.color: Util.alpha(Color.menu.border, 0.40)
+          border.color: Util.alpha(Commons.Color.menu.border, 0.40)
         }
       }
 
@@ -429,7 +430,7 @@ Item {
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true
-              color: Color.menu.text
+              color: Commons.Color.menu.text
               anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -438,7 +439,7 @@ Item {
               text: "—"
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.caption
-              color: Util.alpha(Color.menu.text, 0.40)
+              color: Util.alpha(Commons.Color.menu.text, 0.40)
               anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -447,7 +448,7 @@ Item {
               textFormat: Text.PlainText
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.bodySmall
-              color: Util.alpha(Color.menu.text, 0.75)
+              color: Util.alpha(Commons.Color.menu.text, 0.75)
               elide: Text.ElideRight
               width: Math.max(0, parent.width - (parent.spacing * 3 + Style.space(16) + (root.activeAppTitle ? 100 : 0)))
               anchors.verticalCenter: parent.verticalCenter
@@ -460,7 +461,7 @@ Item {
             text: "No active windows"
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.caption
-            color: Util.alpha(Color.menu.text, 0.35)
+            color: Util.alpha(Commons.Color.menu.text, 0.35)
           }
         }
 
@@ -498,16 +499,16 @@ Item {
                 width: Math.max(height, pillText.implicitWidth + Style.spacing.md)
                 radius: Math.min(Style.cornerRadius, Style.space(6))
                 color: isCurrentPill
-                  ? Color.accent
+                  ? Commons.Color.accent
                   : (pillMouseArea.containsMouse
-                    ? Util.alpha(Color.menu.text, 0.16)
-                    : Util.alpha(Color.menu.text, 0.08))
+                    ? Util.alpha(Commons.Color.menu.text, 0.16)
+                    : Util.alpha(Commons.Color.menu.text, 0.08))
                 border.width: isCurrentPill ? 0 : 1
                 border.color: isCurrentPill
                   ? "transparent"
                   : (pillMouseArea.containsMouse
-                    ? Util.alpha(Color.menu.border, 0.50)
-                    : Util.alpha(Color.menu.border, 0.25))
+                    ? Util.alpha(Commons.Color.menu.border, 0.50)
+                    : Util.alpha(Commons.Color.menu.border, 0.25))
 
                 Behavior on color {
                   ColorAnimation { duration: 80 }
@@ -521,8 +522,8 @@ Item {
                   font.pixelSize: Style.font.bodySmall
                   font.bold: isCurrentPill || isOccupied
                   color: isCurrentPill
-                    ? Color.menu.scrim
-                    : (isOccupied ? Color.menu.text : Util.alpha(Color.menu.text, 0.45))
+                    ? Commons.Color.menu.scrim
+                    : (isOccupied ? Commons.Color.menu.text : Util.alpha(Commons.Color.menu.text, 0.45))
                 }
 
                 // Subtle dot under occupied inactive workspace
@@ -534,7 +535,7 @@ Item {
                   width: 3
                   height: 3
                   radius: 1.5
-                  color: Util.alpha(Color.menu.text, 0.55)
+                  color: Util.alpha(Commons.Color.menu.text, 0.55)
                 }
 
                 MouseArea {

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "WindowModel.js" as WindowModel
 
@@ -126,7 +127,7 @@ Rectangle {
     z: root.z
     visible: root.visible
     radius: root.radius
-    color: Util.alpha(Color.background, 0.52)
+    color: Util.alpha(Commons.Color.background, 0.52)
     clip: true
     opacity: root.dragging ? 0.58 : 1
     Behavior on opacity { enabled: root.animatedAffordances; NumberAnimation { duration: 60 } }
@@ -169,7 +170,7 @@ Rectangle {
       ? (root.showSelectionBorder ? Math.max(2, Style.normalBorderWidth * 2) : 0)
       : (root.workspaceHighlighted || previewHover.hovered || root.dragging ? Math.max(1, Style.normalBorderWidth) : 0)
     border.color: root.workspaceHighlighted || root.keyboardSelected || root.dragging
-      ? Color.accent : Util.alpha(Color.menu.text, 0.58)
+      ? Commons.Color.accent : Util.alpha(Commons.Color.menu.text, 0.58)
     radius: root.radius
   }
 
@@ -187,9 +188,9 @@ Rectangle {
       Math.max(1, root.width - root.pillEdgeInset * 2))
     height: root.naturalPillHeight + 2
     radius: Math.max(3, Style.cornerRadiusSmall || (height / 4))
-    color: Util.alpha(Color.menu.background, 0.88)
+    color: Util.alpha(Commons.Color.menu.background, 0.88)
     border.width: 1
-    border.color: Util.alpha(Color.menu.border, 0.15)
+    border.color: Util.alpha(Commons.Color.menu.border, 0.15)
     clip: true
 
     Row {
@@ -213,11 +214,11 @@ Rectangle {
           height: parent.height
           radius: Math.max(2, (Style.cornerRadiusSmall || 4) - 1)
           color: isCurrentTab
-            ? Util.alpha(Color.accent, 0.32)
-            : (root.hoveredTabIndex === index ? Util.alpha(Color.menu.text, 0.08) : "transparent")
+            ? Util.alpha(Commons.Color.accent, 0.32)
+            : (root.hoveredTabIndex === index ? Util.alpha(Commons.Color.menu.text, 0.08) : "transparent")
 
           border.width: isCurrentTab ? 1 : 0
-          border.color: Util.alpha(Color.accent, 0.6)
+          border.color: Util.alpha(Commons.Color.accent, 0.6)
 
           Row {
             anchors.centerIn: parent
@@ -242,7 +243,7 @@ Rectangle {
                 - (tabAppIcon.visible ? tabAppIcon.width + parent.spacing : 0))
               text: tabTitle
               textFormat: Text.PlainText
-              color: isCurrentTab ? Color.menu.text : Util.alpha(Color.menu.text, 0.72)
+              color: isCurrentTab ? Commons.Color.menu.text : Util.alpha(Commons.Color.menu.text, 0.72)
               font.family: Style.font.menuFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: isCurrentTab
