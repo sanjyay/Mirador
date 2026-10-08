@@ -514,7 +514,7 @@ TestCase {
       "The stationary preview area retains the visual header inset")
     verify(/dpr: root.overlayBadge && root.overview\s*\? root.overview.gridDpr/.test(cardSource),
       "Normal previews must snap on the display DPR, including windows from another monitor")
-    verify(/root.overlayBadge \? Color.menu.background/.test(cardSource),
+    verify(/root.overlayBadge \? Commons.Color.menu.background/.test(cardSource),
       "Overlay badges need an opaque background to remain legible over windows")
     verify(!/return Math.round\(nCard\./.test(source),
       "Do not round physically snapped card coordinates back to logical integers")

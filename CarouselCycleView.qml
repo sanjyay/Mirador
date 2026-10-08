@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "WindowModel.js" as WindowModel
@@ -327,7 +328,7 @@ Item {
           transform: Translate { x: physics.offsetX; y: physics.offsetY }
           anchors.fill: parent
           radius: 0
-          color: Color.menu.background
+          color: Commons.Color.menu.background
           clip: true
 
           MouseArea {
@@ -360,9 +361,9 @@ Item {
                 height: Style.space(26)
                 width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md)
                 radius: Math.min(Style.cornerRadius, Style.space(6))
-                color: slotItem.isHero ? Color.accent : Color.menu.background
+                color: slotItem.isHero ? Commons.Color.accent : Commons.Color.menu.background
                 border.width: slotItem.isHero ? 0 : 1
-                border.color: Color.menu.border
+                border.color: Commons.Color.menu.border
 
                 Text {
                   id: badgeLabel
@@ -371,7 +372,7 @@ Item {
                   font.family: Style.font.menuFamily
                   font.pixelSize: Style.font.body
                   font.bold: true
-                  color: slotItem.isHero ? Color.menu.scrim : Color.menu.text
+                  color: slotItem.isHero ? Commons.Color.menu.scrim : Commons.Color.menu.text
                 }
               }
 
@@ -382,7 +383,7 @@ Item {
               id: previewBox
               anchors.fill: parent
               radius: cardSurface.radius
-              color: Util.alpha(Color.menu.background, 0.75)
+              color: Util.alpha(Commons.Color.menu.background, 0.75)
               clip: true
 
               // Empty state cue
@@ -397,7 +398,7 @@ Item {
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "·"
-                    color: Color.menu.text
+                    color: Commons.Color.menu.text
                     opacity: 0.35
                     font.family: Style.font.menuFamily
                     font.pixelSize: Style.font.displayLarge
@@ -408,7 +409,7 @@ Item {
                     text: "Empty Workspace"
                     font.family: Style.font.menuFamily
                     font.pixelSize: Style.font.bodySmall
-                    color: Util.alpha(Color.menu.text, 0.40)
+                    color: Util.alpha(Commons.Color.menu.text, 0.40)
                   }
                 }
               }
@@ -535,7 +536,7 @@ Item {
             border.width: slotItem.windowCount > 1 ? 0
               : physics.dropHovered ? Math.max(1, Style.focusBorderWidth)
               : (slotItem.isHero ? Math.max(2, Style.normalBorderWidth * 2) : 0)
-            border.color: Color.accent
+            border.color: Commons.Color.accent
           }
 
           // Subtle dimming overlay for non-hero cards
@@ -600,12 +601,12 @@ Item {
             width: Math.max(height, pillLabel.implicitWidth + Style.spacing.md)
             radius: Math.min(Style.cornerRadius, Style.space(6))
             color: isCurrentPill
-              ? Color.accent
-              : (isOccupied ? Util.alpha(Color.menu.text, 0.16) : Util.alpha(Color.menu.text, 0.07))
+              ? Commons.Color.accent
+              : (isOccupied ? Util.alpha(Commons.Color.menu.text, 0.16) : Util.alpha(Commons.Color.menu.text, 0.07))
             border.width: isCurrentPill ? 0 : 1
             border.color: isCurrentPill
               ? "transparent"
-              : (isOccupied ? Util.alpha(Color.menu.border, 0.45) : Util.alpha(Color.menu.border, 0.20))
+              : (isOccupied ? Util.alpha(Commons.Color.menu.border, 0.45) : Util.alpha(Commons.Color.menu.border, 0.20))
 
             Behavior on color {
               ColorAnimation { duration: 120 }
@@ -619,8 +620,8 @@ Item {
               font.pixelSize: Style.font.bodySmall
               font.bold: isCurrentPill
               color: isCurrentPill
-                ? Color.menu.scrim
-                : (isOccupied ? Color.menu.text : Util.alpha(Color.menu.text, 0.45))
+                ? Commons.Color.menu.scrim
+                : (isOccupied ? Commons.Color.menu.text : Util.alpha(Commons.Color.menu.text, 0.45))
             }
 
             MouseArea {

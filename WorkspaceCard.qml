@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "WindowModel.js" as WindowModel
@@ -72,11 +73,11 @@ BorderSurface {
 
   // ── Border styling ────────────────────────────────────────────────────────
   readonly property color cardBorderColor: {
-    if (dropHovered) return Color.accent
-    if (validDropTarget) return Util.alpha(Color.accent, 0.65)
-    if (isCurrent) return Color.accent
-    if (highlighted) return Util.alpha(Color.menu.text, 0.70)
-    return Color.menu.border
+    if (dropHovered) return Commons.Color.accent
+    if (validDropTarget) return Util.alpha(Commons.Color.accent, 0.65)
+    if (isCurrent) return Commons.Color.accent
+    if (highlighted) return Util.alpha(Commons.Color.menu.text, 0.70)
+    return Commons.Color.menu.border
   }
   readonly property int cardBorderWidth: (dropHovered || isCurrent) ? activeBorderWidth : normalBorderWidth
   readonly property var cardBorderSpec: Border.flat(cardBorderColor, cardBorderWidth)
@@ -153,8 +154,8 @@ BorderSurface {
     id: cardVisual
     anchors.fill: parent
     radius: root.radius
-    color: (root.isCurrent || root.highlighted) ? Color.menu.background
-      : (root.occupied ? Util.alpha(Color.menu.background, 0.96) : Util.alpha(Color.menu.background, 0.88))
+    color: (root.isCurrent || root.highlighted) ? Commons.Color.menu.background
+      : (root.occupied ? Util.alpha(Commons.Color.menu.background, 0.96) : Util.alpha(Commons.Color.menu.background, 0.88))
     clip: true
     transform: Translate { x: physics.offsetX; y: physics.offsetY }
   }
@@ -197,14 +198,14 @@ BorderSurface {
     anchors.fill: parent
     z: 2
     color: root.dropHovered
-      ? Style.selectedFillFor(Color.menu.text, Color.accent)
+      ? Style.selectedFillFor(Commons.Color.menu.text, Commons.Color.accent)
       : (root.validDropTarget
-        ? Style.hoverFillFor(Color.menu.text, Color.accent)
+        ? Style.hoverFillFor(Commons.Color.menu.text, Commons.Color.accent)
         : (root.isCurrent
-          ? Util.alpha(Color.accent, 0.05)
+          ? Util.alpha(Commons.Color.accent, 0.05)
           : (root.highlighted
-            ? Util.alpha(Color.menu.text, 0.05)
-            : Util.alpha(Color.menu.text, 0.02))))
+            ? Util.alpha(Commons.Color.menu.text, 0.05)
+            : Util.alpha(Commons.Color.menu.text, 0.02))))
 
     Behavior on color {
       ColorAnimation { duration: 100 }
@@ -232,17 +233,17 @@ BorderSurface {
       width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md * 2)
       radius: Math.min(Style.cornerRadius, Style.space(6))
       color: root.isCurrent
-        ? Color.accent
-        : (root.overlayBadge ? Color.menu.background
+        ? Commons.Color.accent
+        : (root.overlayBadge ? Commons.Color.menu.background
           : (root.highlighted
-            ? Util.alpha(Color.menu.text, 0.16)
-            : Util.alpha(Color.menu.text, 0.10)))
+            ? Util.alpha(Commons.Color.menu.text, 0.16)
+            : Util.alpha(Commons.Color.menu.text, 0.10)))
       border.width: root.isCurrent ? 0 : 1
       border.color: root.isCurrent
         ? "transparent"
         : (root.highlighted
-          ? Util.alpha(Color.menu.border, 0.60)
-          : Util.alpha(Color.menu.border, 0.38))
+          ? Util.alpha(Commons.Color.menu.border, 0.60)
+          : Util.alpha(Commons.Color.menu.border, 0.38))
 
       Behavior on color {
         ColorAnimation { duration: 100 }
@@ -257,7 +258,7 @@ BorderSurface {
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
         font.bold: true
-        color: root.isCurrent ? Color.menu.scrim : Color.menu.text
+        color: root.isCurrent ? Commons.Color.menu.scrim : Commons.Color.menu.text
         opacity: root.isCurrent ? 1.0 : (root.highlighted ? 0.95 : 0.85)
 
         Behavior on opacity {
@@ -286,7 +287,7 @@ BorderSurface {
       visible: !root.occupied
       anchors.centerIn: parent
       text: "·"
-      color: Color.menu.text
+      color: Commons.Color.menu.text
       opacity: root.isCurrent ? 0.55 : (root.highlighted ? 0.40 : 0.25)
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.displayLarge
