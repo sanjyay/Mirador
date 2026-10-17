@@ -33,6 +33,8 @@ jobs:
       - name: Run Mirador unit tests
         env:
           QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          QML_XHR_ALLOW_FILE_READ: 1
         run: |
           fail=0
           for f in tests/*.qml; do

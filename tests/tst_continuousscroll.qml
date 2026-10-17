@@ -1,10 +1,19 @@
 import QtQuick 2.15
 import QtTest 1.3
-import ".."
 TestCase {
+  id: testCase
   name: "ContinuousScroll"
   when: windowShown
-  ContinuousScroll { id: scroll; distance: 200 }
+  property var scroll: null
+  function initTestCase() {
+    var request=new XMLHttpRequest()
+    request.open("GET",Qt.resolvedUrl("../ContinuousScroll.qml"),false)
+    request.send()
+    verify(request.status===0 || request.status===200)
+    scroll=Qt.createQmlObject(request.responseText,testCase,"ContinuousScrollFixture")
+    scroll.distance=200
+  }
+  function cleanupTestCase() { if (scroll) scroll.destroy() }
   SignalSpy { id: spy; target: scroll; signalName: "finished" }
   function init() { scroll.cancel(); spy.clear() }
   function test_progressAndReverse() {
