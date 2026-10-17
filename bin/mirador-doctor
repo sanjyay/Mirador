@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Read-only setup checks. Reports omit window metadata and shortcut commands."""
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+def check(name, status, detail):
+    return {"name": name, "status": status, "detail": detail}
+
+def read_ipc(topic):
+    try:
+        result = subprocess.run(["hyprctl", "-j", topic], capture_output=True, text=True, timeout=2, check=False)
+        if result.returncode or len(result.stdout) > 1048576:
+            return None
+        return json.loads(result.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+def settings_check(path):
+    if not path.exists():
+        return check("Settings", "ok", "No saved file; built-in defaults apply.")
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(65537)
+        if len(raw) > 65536 or not isinstance(json.loads(raw), dict):
+            raise ValueError()
+        return check("Settings", "ok", "Saved settings contain a JSON object.")
+    except (OSError, ValueError, UnicodeError):
+        return check("Settings", "warning", "Settings cannot be read as a bounded JSON object. Open Settings and save a valid configuration.")
+
+def shortcut_checks(bindings):
+    if not isinstance(bindings, list):
+        return [check("Shortcuts", "warning", "Could not read active shortcuts. Check the compositor connection.")]
+    rows = [row for row in bindings if isinstance(row, dict)]
+    explicit = [row for row in rows if "mirador" in (str(row.get("arg", ""))+" "+str(row.get("description", ""))).lower()]
+    if not explicit:
+        message = "No named Mirador shortcut was found. Check the README setup block."
+        if any(row.get("dispatcher") == "__lua" for row in rows):
+            message = "Lua callback commands are hidden by IPC. Verify Mirador routing in your keyboard configuration."
+        return [check("Shortcuts", "warning", message)]
+    def identity(row):
+        return (row.get("submap", ""), row.get("modmask", 0), row.get("key", ""), row.get("keycode", 0), row.get("release", False))
+    keys = {identity(row) for row in explicit}
+    duplicates = sum(sum(identity(row) == key for row in rows) > 1 for key in keys)
+    return [check("Shortcuts", "warning" if duplicates else "ok",
+        str(duplicates)+" Mirador shortcut combinations have multiple active bindings; review them." if duplicates
+        else str(len(explicit))+" named Mirador shortcuts found. Callback contents are not inspected.")]
+
+def collect():
+    checks = []
+    for command in ["hyprctl", "omarchy-shell"]:
+        checks.append(check(command, "ok" if shutil.which(command) else "error",
+            "Command is available." if shutil.which(command) else "Command is missing from PATH. Check the desktop installation."))
+    version = read_ipc("version")
+    checks.append(check("Compositor connection", "ok" if isinstance(version, dict) else "error",
+        "IPC responded." if isinstance(version, dict) else "IPC did not respond. Run this inside the desktop session."))
+    monitors = read_ipc("monitors")
+    checks.append(check("Displays", "ok" if isinstance(monitors, list) and monitors else "warning",
+        str(len(monitors))+" active display(s)." if isinstance(monitors, list) else "Display information is unavailable."))
+    directory = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home()/".config")))
+    dedicated = directory/"mirador/settings.json"
+    legacy = directory/"omarchy/plugins/mirador/settings.json"
+    checks.append(settings_check(dedicated if dedicated.exists() or not legacy.exists() else legacy))
+    checks.extend(shortcut_checks(read_ipc("binds")))
+    return {"schemaVersion": 1, "checks": checks}
+
+def main():
+    parser = argparse.ArgumentParser(description="Check Mirador setup without changing configuration.")
+    parser.add_argument("--json", action="store_true", help="Print a structured report without window metadata.")
+    args = parser.parse_args()
+    report = collect()
+    if args.json:
+        print(json.dumps(report))
+    else:
+        for row in report["checks"]:
+            print(row["status"].upper()+": "+row["name"]+" — "+row["detail"])
+    return 1 if any(row["status"] == "error" for row in report["checks"]) else 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())

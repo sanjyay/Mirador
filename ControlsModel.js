@@ -8,11 +8,13 @@ function rows(presentation) {
     {key:"Z",action:"Enlarge the selected window"},
     {key:"V / Escape",action:"Return to workspace previews"},
     {key:"/",action:"Search open windows"},
+    {key:"F3",action:"Run read-only setup checks"},
     {key:"F1 / F2",action:"Help or Settings"}
   ]
   var result = [
     {key:"Enter", action:"Open the selected workspace or window"},
     {key:"Escape", action:"Cancel and close the overview"},
+    {key:"F3", action:"Run read-only setup checks"},
     {key:"F1", action:"Open or close shortcut help"},
     {key:"F2", action:"Open Settings"},
     {key:"/", action:"Search open windows by application or title"},

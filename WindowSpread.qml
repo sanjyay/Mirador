@@ -44,6 +44,7 @@ FocusScope {
     else if (event.key === Qt.Key_Down || event.text === "j") move(0,1)
     else if (event.key === Qt.Key_Tab) { currentIndex=(currentIndex+1)%Math.max(1,windows.length); selectedAddress=addressAt(currentIndex) }
     else if (event.text.toLowerCase() === "z") overview.showQuickLook(addressAt(currentIndex))
+    else if (event.key === Qt.Key_F3) overview.showDiagnostics()
     else if (event.key === Qt.Key_F1) overview.showHelp()
     else if (event.key === Qt.Key_F2) overview.showSettings()
     else if (event.text === "/") overview.showSearch()

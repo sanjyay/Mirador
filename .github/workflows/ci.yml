@@ -49,6 +49,9 @@ jobs:
           done
           exit "$fail"
 
+      - name: Test setup diagnostics
+        run: python3 -m unittest discover -s tests -p "test_*.py"
+
       - name: Validate shell scripts (bash -n)
         run: bash -n bin/mirador
 
