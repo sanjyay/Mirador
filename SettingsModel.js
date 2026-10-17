@@ -12,6 +12,7 @@ function normalized(raw) {
   result.showWindowIdentity = source.showWindowIdentity === true
   result.layoutDensity = ["compact","comfortable","airy"].indexOf(source.layoutDensity) >= 0 ? source.layoutDensity : "compact"
   result.neighborEmphasis = ["quiet","normal","strong"].indexOf(source.neighborEmphasis) >= 0 ? source.neighborEmphasis : "normal"
+  result.showShortcutHints = source.showShortcutHints !== false
   return result
 }
 function parse(text) {

@@ -348,3 +348,10 @@ Settings offers compact, comfortable, and airy spacing without changing desktop
 window geometry. Carousel neighbors can be quiet, normal, or strong. Defaults
 preserve the existing compact spacing and neighbor opacity. Settings scrolls
 when the display cannot fit every control, including during keyboard navigation.
+
+### Shortcut help
+
+Press F1 or click Help for shortcuts relevant to the current presentation.
+Escape closes help without activating the selected workspace. A contextual
+footer changes during dragging and focused mode; it can be hidden in Settings.
+The help panel scrolls with the mouse or Up/Down on smaller displays.
