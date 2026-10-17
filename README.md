@@ -394,3 +394,5 @@ Window previews show a close button on hover or keyboard selection when there is
 Ctrl+Shift+arrow swaps the selected window with a neighboring tiled window in the same workspace. This is an explicit layout-editing action; ordinary browsing still leaves the layout unchanged. Floating, pinned, fullscreen, and grouped windows are excluded. The overview stays open and selection continues to follow the same window address.
 
 Addressed window swapping requires the compositor's Lua API. Older configurations show an unavailable message and keep the window layout unchanged.
+
+Ctrl+Z or Undo move returns the last window moved through Mirador to its previous workspace. It stores only one move in memory, rechecks the window's current workspace, and skips windows that closed or moved elsewhere afterward. Undo restores workspace membership; it does not reopen closed applications or restore tiling positions. Text search keeps its normal editing keys.
