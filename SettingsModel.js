@@ -13,6 +13,7 @@ function normalized(raw) {
   result.layoutDensity = ["compact","comfortable","airy"].indexOf(source.layoutDensity) >= 0 ? source.layoutDensity : "compact"
   result.neighborEmphasis = ["quiet","normal","strong"].indexOf(source.neighborEmphasis) >= 0 ? source.neighborEmphasis : "normal"
   result.showShortcutHints = source.showShortcutHints !== false
+  result.allMonitors = source.allMonitors === true
   result.reducedMotion = source.reducedMotion === true
   return result
 }

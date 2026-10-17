@@ -19,6 +19,7 @@ BorderSurface {
   property bool keyboardSelected: false
   property var draggedToplevel: null
   property bool livePreviews: false
+  property bool physicsEnabled: true
   property int toplevelRevision: 0
   property bool isSpecial: false
   property bool overlayBadge: false
@@ -141,7 +142,7 @@ BorderSurface {
 
   JiggleSurface {
     id: physics
-    controller: root.overview ? root.overview.jiggleController : null
+    controller: root.overview && root.physicsEnabled ? root.overview.jiggleController : null
     workspace: String(root.workspaceId)
     active: root.livePreviews && root.visible
     validDropTarget: root.validDropTarget

@@ -13,6 +13,7 @@ import "JigglePhysics.js" as JigglePhysics
 import "SettingsModel.js" as SettingsModel
 import "ControlsModel.js" as ControlsModel
 import "SearchModel.js" as SearchModel
+import "MonitorModel.js" as MonitorModel
 
 Item {
   id: root
@@ -2169,6 +2170,20 @@ Item {
     if (root.draggedToplevel === toplevel) {
       root.draggedToplevel = null
       if (demoOverlay) demoOverlay.hideHint()
+    }
+  }
+
+  Variants {
+    model: root.preferences.allMonitors ? MonitorModel.secondary(Quickshell.screens,root.targetScreen) : []
+    MonitorOverview { overview: root }
+  }
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      if (root.targetScreen && Quickshell.screens.indexOf(root.targetScreen) >= 0) return
+      root.livePreviewsReady=false
+      root.targetScreen=root.focusedScreen()
+      if (root.opened) livePreviewStartTimer.restart()
     }
   }
 
