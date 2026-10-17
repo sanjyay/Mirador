@@ -14,6 +14,7 @@ function normalized(raw) {
   result.neighborEmphasis = ["quiet","normal","strong"].indexOf(source.neighborEmphasis) >= 0 ? source.neighborEmphasis : "normal"
   result.showShortcutHints = source.showShortcutHints !== false
   result.cycleOrder = source.cycleOrder === "recent" ? "recent" : "numeric"
+  result.showCloseControls = source.showCloseControls !== false
   result.allMonitors = source.allMonitors === true
   result.reducedMotion = source.reducedMotion === true
   return result

@@ -2041,6 +2041,12 @@ Item {
   }
 
   // Closes a window in Hyprland and refreshes UI WITHOUT exiting Mirador
+  function requestPreviewClose(toplevel) {
+    var address=root.normalizedAddress(toplevel)
+    if (!address || root.recentClosingWindowAddresses()[address]) return false
+    var target=root.toplevelForAddress(address)
+    return target ? root.closeWindow(target) : false
+  }
   function closeWindow(toplevel) {
     if (!toplevel) return false
     var address = root.normalizedAddress(toplevel)

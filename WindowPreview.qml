@@ -42,6 +42,7 @@ Rectangle {
 
   property bool liveCaptureEnabled: false
   property bool dragEnabled: true
+  property bool closeEnabled: false
   property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
@@ -49,6 +50,7 @@ Rectangle {
   property bool showSelectionBorder: true
   property bool workspaceHighlighted: false
 
+  signal closeRequested()
   signal activated()
   signal tabActivated(var targetToplevel)
   signal dragStarted(var toplevel)
@@ -330,6 +332,32 @@ Rectangle {
     }
   }
 
+  Rectangle {
+    id: closeButton
+    z: 30
+    anchors { top:parent.top; right:parent.right; margins:Style.space(6) }
+    width:Style.space(32);height:width
+    visible:root.closeEnabled && !root.dragging && (previewHover.hovered || root.keyboardSelected || closeMouse.containsMouse)
+      && root.width>=Style.space(120) && root.height>=Style.space(70)
+    color:closeMouse.containsMouse ? Commons.Color.accent : Commons.Color.background
+    border.width:Style.normalBorderWidth;border.color:Commons.Color.foreground
+    Text {
+      anchors.centerIn:parent;text:"×";textFormat:Text.PlainText
+      color:closeMouse.containsMouse ? Commons.Color.background : Commons.Color.foreground
+      font.family:Style.font.family;font.pixelSize:Style.font.heading
+    }
+    Accessible.role:Accessible.Button
+    Accessible.name:"Close "+root.title
+    MouseArea {
+      id:closeMouse
+      anchors.fill:parent;hoverEnabled:true;preventStealing:true
+      cursorShape:Qt.PointingHandCursor
+      onClicked:root.closeRequested()
+    }
+  }
+  function closeButtonContains(point) {
+    return closeButton.visible && closeButton.contains(closeButton.mapFromItem(root,point.x,point.y))
+  }
   HoverHandler {
     id: previewHover
     cursorShape: root.dragging ? Qt.ClosedHandCursor
@@ -339,13 +367,13 @@ Rectangle {
   TapHandler {
     acceptedButtons: Qt.LeftButton
     enabled: root.activatable
-    onTapped: root.activated()
+    onTapped: function(point) { if (!root.closeButtonContains(point.position)) root.activated() }
   }
 
   DragHandler {
     id: previewDrag
     acceptedButtons: Qt.LeftButton
-    enabled: root.movable && root.dragEnabled
+    enabled: root.movable && root.dragEnabled && !root.closeButtonContains(centroid.pressPosition)
     target: null
     dragThreshold: Style.space(6)
 

@@ -373,6 +373,8 @@ Item {
               z: itemIndex + 1
 
               toplevel: previewToplevel
+          closeEnabled: root.overview && root.overview.preferences.showCloseControls
+          onCloseRequested: { if (root.overview) root.overview.requestPreviewClose(previewToplevel) }
               isGroup: Boolean(modelData && modelData.isGroup)
               groupMembers: (modelData && modelData.members) ? modelData.members : []
               liveCaptureEnabled: root.livePreviews && root.visible && previewBox.visible
