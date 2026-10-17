@@ -380,3 +380,5 @@ their tabs, and hidden underlying views release their captures while spread
 previews are active.
 
 Press Z to inspect a larger preview of the selected window. Enter opens it; Z or Escape returns. This leaves the window size, tiling, and workspace unchanged.
+
+Carousel supports continuous horizontal two-finger scrolling on touchpads that provide pixel scroll events. Short strokes return to the current workspace; strokes beyond 35% select a neighbor after a 140 ms quiet period. Reversing a stroke reverses the preview. Mouse wheels retain stepped navigation. The optional three-finger summon/dismiss bindings remain discrete because the compositor's Lua callbacks do not provide gesture progress.

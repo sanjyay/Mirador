@@ -605,6 +605,19 @@ Item {
   property real wheelDeltaAccumulatorX: 0
   property real wheelDeltaAccumulatorY: 0
 
+  function handleTouchpadScroll(dx,dy) {
+    if (root.activePresentation !== "carousel" || root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen || root.quickLookAddress) return false
+    return continuousScroll.feed(dx,dy)
+  }
+  ContinuousScroll {
+    id: continuousScroll
+    onProgressChanged: carouselCycleView.previewScroll(progress)
+    onFinished: function(step) {
+      if (step) root.moveCardSelection(step,0)
+      carouselCycleView.resetTo(root.selectedCardIndex)
+    }
+  }
+
   function handleWheelNavigation(deltaX, deltaY) {
     var threshold = 60
     if (Math.abs(deltaY) >= Math.abs(deltaX) && deltaY !== 0) {
@@ -1603,6 +1616,10 @@ Item {
       payload = null
     }
 
+    if (payload && payload.action === "scrollOverview") {
+      if (root.opened) root.handleTouchpadScroll(Number(payload.dx),Number(payload.dy))
+      return
+    }
     // Global compositor bindings can be consumed before an exclusive
     // layer-shell client receives the matching key event. Route numeric
     // workspace navigation through IPC so carousel selection is deterministic,
@@ -1797,6 +1814,7 @@ Item {
 
   function close() {
     root.quickLookAddress = ""
+    continuousScroll.cancel()
     root.spreadOpen = false
     root.searchOpen = false
     root.helpOpen = false
@@ -2202,6 +2220,15 @@ Item {
       horizontalAlignment: Text.AlignHCenter
       wrapMode: Text.WordWrap
     }
+    Item {
+      z: 175
+      anchors.fill: parent
+      visible: root.opened && root.activePresentation === "carousel" && !root.settingsOpen && !root.helpOpen && !root.searchOpen && !root.spreadOpen && !root.quickLookAddress
+      WheelHandler {
+        acceptedDevices: PointerDevice.TouchPad
+        onWheel: function(event) { event.accepted=root.handleTouchpadScroll(event.pixelDelta.x,event.pixelDelta.y) }
+      }
+    }
     WindowSpread {
       id: spreadView
       z: 180
@@ -2284,7 +2311,7 @@ Item {
         id: catcherWheelHandler
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: function(event) {
-          root.handleWheelNavigation(event.angleDelta.x, event.angleDelta.y)
+          if (!root.handleTouchpadScroll(event.pixelDelta.x,event.pixelDelta.y)) root.handleWheelNavigation(event.angleDelta.x, event.angleDelta.y)
         }
       }
 
