@@ -14,6 +14,7 @@ import "SettingsModel.js" as SettingsModel
 import "ControlsModel.js" as ControlsModel
 import "SearchModel.js" as SearchModel
 import "MonitorModel.js" as MonitorModel
+import "WorkspaceHistory.js" as WorkspaceHistory
 
 Item {
   id: root
@@ -83,6 +84,12 @@ Item {
     }
   }
 
+  property var workspaceHistory: []
+  property var cycleHistorySnapshot: []
+  function rememberWorkspace(id) {
+    var workspace=root.workspaceById(id)
+    if (workspace && !root.isSpecialWorkspace(workspace)) root.workspaceHistory=WorkspaceHistory.remember(root.workspaceHistory,Number(id))
+  }
   property bool cycled: false
   property int activeCycleModifier: 0
   property var initialWorkspaceTarget: null
@@ -446,7 +453,13 @@ Item {
     root.cycled = true
     holdWatchdog.restart()
     var stepVal = delta < 0 ? -1 : 1
-    root.moveCardSelection(stepVal, 0)
+    if (root.preferences.cycleOrder === "recent") {
+      var current=root.overviewCardModel[root.selectedCardIndex]
+      var ids=root.overviewCardModel.filter(function(item){return !item.isInsertion}).map(function(item){return item.workspaceId})
+      var nextId=WorkspaceHistory.next(ids,root.cycleHistorySnapshot,current ? current.workspaceId : null,stepVal)
+      var nextIndex=WindowModel.findWorkspaceCardIndex(root.overviewCardModel,nextId)
+      if (nextIndex>=0) root.selectedCardIndex=nextIndex
+    } else root.moveCardSelection(stepVal, 0)
     if (root.activePresentation === "carousel") {
       var curItem = (root.selectedCardIndex >= 0 && root.selectedCardIndex < root.overviewCardModel.length)
         ? root.overviewCardModel[root.selectedCardIndex] : null
@@ -1490,6 +1503,7 @@ Item {
     var workspaceId = typeof item === "object" ? item.workspaceId : item
     var isInsertion = typeof item === "object" ? Boolean(item.isInsertion) : false
     var ws = root.workspaceById(workspaceId)
+    root.rememberWorkspace(Number(workspaceId))
     var isScratch = (typeof item === "object" && Boolean(item.isScratchpad))
                     || root.isSpecialWorkspace(ws)
 
@@ -1724,6 +1738,8 @@ Item {
     root.carouselAddressedActionHandled = false
     root.pendingWorkspaceNavigationTarget = -1
     root.selectedWindowAddress = ""
+    root.rememberWorkspace(Hyprland.focusedWorkspace ? Number(Hyprland.focusedWorkspace.id) : 0)
+    root.cycleHistorySnapshot=root.workspaceHistory.slice()
     root.targetScreen = root.focusedScreen()
     root.draggedToplevel = null
     root.selectedCardIndex = root.initialSelectedCardIndex()
@@ -2727,6 +2743,7 @@ Item {
     }
 
     function onFocusedWorkspaceChanged() {
+      if (!root.opened && Hyprland.focusedWorkspace) root.rememberWorkspace(Number(Hyprland.focusedWorkspace.id))
       if (!root.opened || root.activePresentation !== "carousel" || root.keybindMode === "cycle") return
       var fw = Hyprland.focusedWorkspace
       if (fw) {
