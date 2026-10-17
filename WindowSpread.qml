@@ -41,6 +41,7 @@ FocusScope {
     else if (event.key === Qt.Key_Up || event.text === "k") move(0,-1)
     else if (event.key === Qt.Key_Down || event.text === "j") move(0,1)
     else if (event.key === Qt.Key_Tab) { currentIndex=(currentIndex+1)%Math.max(1,windows.length); selectedAddress=addressAt(currentIndex) }
+    else if (event.text.toLowerCase() === "z") overview.showQuickLook(addressAt(currentIndex))
     else if (event.key === Qt.Key_F1) overview.showHelp()
     else if (event.key === Qt.Key_F2) overview.showSettings()
     else if (event.text === "/") overview.showSearch()
@@ -87,7 +88,7 @@ FocusScope {
           width: cell.geometry.previewWidth; height: cell.geometry.previewHeight
           toplevel: cell.previewToplevel
           dragEnabled: false
-          liveCaptureEnabled: root.visible && overview.livePreviewsReady
+          liveCaptureEnabled: root.visible && overview.opened && overview.livePreviewsReady && !overview.quickLookAddress
           keyboardSelected: root.currentIndex === cell.index
           showSelectionBorder: false
           animatedAffordances: overview.motionEnabled

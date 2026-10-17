@@ -378,3 +378,5 @@ Escape returns to the workspace overview. Window positions and sizes in the
 desktop are never changed. Labels remain plain text, grouped previews retain
 their tabs, and hidden underlying views release their captures while spread
 previews are active.
+
+Press Z to inspect a larger preview of the selected window. Enter opens it; Z or Escape returns. This leaves the window size, tiling, and workspace unchanged.
