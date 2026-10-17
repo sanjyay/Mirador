@@ -87,6 +87,8 @@ FocusScope {
           x: cell.geometry.previewX; y: cell.geometry.previewY
           width: cell.geometry.previewWidth; height: cell.geometry.previewHeight
           toplevel: cell.previewToplevel
+          closeEnabled: overview.preferences.showCloseControls
+          onCloseRequested: overview.requestPreviewClose(cell.previewToplevel)
           dragEnabled: false
           liveCaptureEnabled: root.visible && overview.opened && overview.livePreviewsReady && !overview.quickLookAddress
           keyboardSelected: root.currentIndex === cell.index

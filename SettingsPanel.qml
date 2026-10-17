@@ -19,6 +19,7 @@ FocusScope {
     {key:"layoutDensity", label:"Preview spacing", choices:["compact","comfortable","airy"]},
     {key:"neighborEmphasis", label:"Carousel neighbors", choices:["quiet","normal","strong"]},
     {key:"showShortcutHints", label:"Shortcut footer", choices:[false,true]},
+    {key:"showCloseControls", label:"Window close buttons", choices:[false,true]},
     {key:"allMonitors", label:"Overview on every monitor", choices:[false,true]},
     {key:"reducedMotion", label:"Reduced motion", choices:[false,true]}
   ]

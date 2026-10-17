@@ -34,6 +34,8 @@ FocusScope {
     width: root.arranged.previewWidth; height: root.arranged.previewHeight
     visible: root.toplevel !== null
     toplevel: root.toplevel
+    closeEnabled: overview.preferences.showCloseControls
+    onCloseRequested: overview.requestPreviewClose(root.toplevel)
     dragEnabled: false
     liveCaptureEnabled: root.visible && overview.opened && overview.livePreviewsReady
     keyboardSelected: true

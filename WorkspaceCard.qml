@@ -384,6 +384,8 @@ BorderSurface {
           height: Math.max(1, WindowGeometry.snapToDevicePixels(displayGeometry.height, dpr))
           z: itemIndex + 1
           toplevel: previewToplevel
+          closeEnabled: root.overview && root.overview.preferences.showCloseControls
+          onCloseRequested: { if (root.overview) root.overview.requestPreviewClose(previewToplevel) }
           workspaceHighlighted: root.isCurrent && root.windowCount > 1
           keyboardSelected: root.keyboardSelected && root.overview && root.overview.isSelectedWindow(previewToplevel)
           showSelectionBorder: root.windowCount > 1
