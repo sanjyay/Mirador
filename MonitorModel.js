@@ -9,3 +9,11 @@ function belongs(workspace,monitor) {
 function secondary(screens,target) {
   return (screens || []).filter(function(screen) { return screen && screen.name && (!target || screen.name!==target.name) })
 }
+
+function destination(window,monitor) {
+  if (!window || !monitor || !monitor.activeWorkspace || !(monitor.activeWorkspace.id>0)) return null
+  var ipc=window.lastIpcObject || window
+  if (ipc.monitor!==undefined && Number(ipc.monitor)===Number(monitor.id)) return null
+  if (window.workspace && Number(window.workspace.id)===Number(monitor.activeWorkspace.id)) return null
+  return Number(monitor.activeWorkspace.id)
+}
