@@ -3,6 +3,7 @@ function rows(presentation) {
   if (presentation === "spread") return [
     {key:"Arrows / H J K L / Tab",action:"Select a window"},
     {key:"Enter / click",action:"Open the selected window"},
+    {key:"Ctrl + Shift + arrows",action:"Swap with a neighboring tiled window"},
     {key:"Z",action:"Enlarge the selected window"},
     {key:"V / Escape",action:"Return to workspace previews"},
     {key:"/",action:"Search open windows"},
@@ -14,6 +15,7 @@ function rows(presentation) {
     {key:"F1", action:"Open or close shortcut help"},
     {key:"F2", action:"Open Settings"},
     {key:"/", action:"Search open windows by application or title"},
+    {key:"Ctrl + Shift + arrows", action:"Swap with a neighboring tiled window"},
     {key:"Z", action:"Enlarge the selected window without changing its size"},
     {key:"V", action:"Spread the selected workspace windows"},
     {key:"← ↑ ↓ → / H J K L", action:presentation === "carousel" ? "Select a window in the highlighted workspace" : "Navigate workspace previews"},

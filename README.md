@@ -390,3 +390,7 @@ While dragging a window with multiple displays attached, labeled monitor targets
 Workspace cycle order can be Numeric (default) or Recent. Recent cycles through workspaces visited in this shell session, using a fixed history snapshot for the duration of a cycle. The displayed workspace order remains stable and numeric, and numeric workspace shortcuts still address the same workspace. History is kept in memory and is not written to disk.
 
 Window previews show a close button on hover or keyboard selection when there is enough room. The button sends the application's normal close request and keeps Mirador open; applications may ask to save work. It closes the visible member of a window group. Disable Window close buttons in Settings to hide them.
+
+Ctrl+Shift+arrow swaps the selected window with a neighboring tiled window in the same workspace. This is an explicit layout-editing action; ordinary browsing still leaves the layout unchanged. Floating, pinned, fullscreen, and grouped windows are excluded. The overview stays open and selection continues to follow the same window address.
+
+Addressed window swapping requires the compositor's Lua API. Older configurations show an unavailable message and keep the window layout unchanged.

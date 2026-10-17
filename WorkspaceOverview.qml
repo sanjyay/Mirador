@@ -15,6 +15,7 @@ import "ControlsModel.js" as ControlsModel
 import "SearchModel.js" as SearchModel
 import "MonitorModel.js" as MonitorModel
 import "WorkspaceHistory.js" as WorkspaceHistory
+import "WindowActions.js" as WindowActions
 
 Item {
   id: root
@@ -2041,6 +2042,41 @@ Item {
   }
 
   // Closes a window in Hyprland and refreshes UI WITHOUT exiting Mirador
+  property string actionNotice: ""
+  property double lastSwapAt: 0
+  Timer { id:actionNoticeTimer;interval:2400;onTriggered:root.actionNotice="" }
+  function announceAction(message) { root.actionNotice=message;actionNoticeTimer.restart() }
+  function handleSwapKey(event,address) {
+    if ((event.modifiers & (Qt.ControlModifier|Qt.ShiftModifier)) !== (Qt.ControlModifier|Qt.ShiftModifier)
+        || (event.modifiers & (Qt.MetaModifier|Qt.AltModifier))) return false
+    var dx=event.key===Qt.Key_Left ? -1 : (event.key===Qt.Key_Right ? 1 : 0)
+    var dy=event.key===Qt.Key_Up ? -1 : (event.key===Qt.Key_Down ? 1 : 0)
+    if (!dx && !dy) return false
+    if (!event.isAutoRepeat) root.swapSelectedWindow(address,dx,dy)
+    event.accepted=true
+    return true
+  }
+  function swapSelectedWindow(address,dx,dy) {
+    if (!Hyprland.usingLua) { root.announceAction("Window swapping requires the Lua compositor API"); return false }
+    if (Date.now()-root.lastSwapAt<300) return false
+    var source=address ? root.toplevelForAddress(address) : root.activeToplevelForWorkspace(root.selectedSpreadWorkspace)
+    if (!source) return false
+    var values=Hyprland.toplevels ? Hyprland.toplevels.values : []
+    var rows=values.map(function(top){return top.lastIpcObject || {}})
+    var target=WindowActions.neighbor(rows,root.normalizedAddress(source),dx,dy)
+    if (!target) {root.announceAction("No eligible tiled window in that direction");return false}
+    var targetAddress=root.normalizedAddress(target.address)
+    if (!targetAddress || !root.toplevelForAddress(targetAddress)) return false
+    root.lastSwapAt=Date.now()
+    if (Hyprland.usingLua)
+      Hyprland.dispatch("hl.dsp.window.swap({ window = "+WindowModel.luaStringLiteral("address:"+root.normalizedAddress(source))
+        +", target = "+WindowModel.luaStringLiteral("address:"+targetAddress)+" })")
+
+    root.announceAction("Swapped neighboring tiled windows")
+    Hyprland.refreshToplevels()
+    return true
+  }
+
   function requestPreviewClose(toplevel) {
     var address=root.normalizedAddress(toplevel)
     if (!address || root.recentClosingWindowAddresses()[address]) return false
@@ -2284,6 +2320,16 @@ Item {
       y: Math.max(root.gridViewport.y,root.gridViewport.y+root.gridViewport.height-height)
       width: root.gridViewport.width
     }
+    Rectangle {
+      z:215
+      visible:root.opened && root.actionNotice!==""
+      anchors { horizontalCenter:parent.horizontalCenter;bottom:parent.bottom;bottomMargin:Style.space(32) }
+      width:Math.min(parent.width-Style.space(24),noticeText.implicitWidth+Style.space(24))
+      height:noticeText.implicitHeight+Style.space(16)
+      color:Commons.Color.background
+      border.width:Style.normalBorderWidth;border.color:Commons.Color.accent
+      Text { id:noticeText;anchors.centerIn:parent;width:Math.min(implicitWidth,parent.width-Style.space(16));text:root.actionNotice;textFormat:Text.PlainText;wrapMode:Text.WordWrap;color:Commons.Color.foreground;font.family:Style.font.family;font.pixelSize:Style.font.body }
+    }
     WindowSpread {
       id: spreadView
       z: 180
@@ -2399,6 +2445,7 @@ Item {
 
       Keys.onPressed: function(event) {
         if (root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen) return
+        if (root.handleSwapKey(event,"")) return
         if (event.text === "z" || event.text === "Z") {
           root.showQuickLook("")
           event.accepted=true

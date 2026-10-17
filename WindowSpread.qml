@@ -33,6 +33,7 @@ FocusScope {
     selectedAddress=windows.length ? addressAt(currentIndex) : ""
   }
   Keys.onPressed: function(event) {
+    if (overview.handleSwapKey(event,addressAt(currentIndex))) return
     if (event.key === Qt.Key_Escape || event.text === "v" || event.text === "V") root.dismissed()
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
       if (windows.length) root.activated(addressAt(currentIndex))
