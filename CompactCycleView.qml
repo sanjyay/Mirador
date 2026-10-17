@@ -1,4 +1,5 @@
 import QtQuick
+import "SettingsModel.js" as SettingsModel
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -10,6 +11,7 @@ import "WindowModel.js" as WindowModel
 
 Item {
   id: root
+  readonly property bool motionEnabled: !overview || !overview.preferences || !overview.preferences.reducedMotion
 
   required property var overview
   property bool livePreviews: false
@@ -511,7 +513,7 @@ Item {
                     : Util.alpha(Commons.Color.menu.border, 0.25))
 
                 Behavior on color {
-                  ColorAnimation { duration: 80 }
+                  ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 80) }
                 }
 
                 Text {

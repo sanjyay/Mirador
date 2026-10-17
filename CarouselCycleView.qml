@@ -11,6 +11,7 @@ import "SettingsModel.js" as SettingsModel
 
 Item {
   id: root
+  readonly property bool motionEnabled: !overview || !overview.preferences || !overview.preferences.reducedMotion
 
   required property var overview
   property bool livePreviews: false
@@ -71,7 +72,7 @@ Item {
   }
 
   Behavior on trackOffset {
-    enabled: root.animatingEnabled
+    enabled: root.animatingEnabled && root.motionEnabled !== false
     NumberAnimation {
       duration: 150
       easing.type: Easing.OutCubic
@@ -611,7 +612,7 @@ Item {
               : (isOccupied ? Util.alpha(Commons.Color.menu.border, 0.45) : Util.alpha(Commons.Color.menu.border, 0.20))
 
             Behavior on color {
-              ColorAnimation { duration: 120 }
+              ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 120) }
             }
 
             Text {

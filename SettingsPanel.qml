@@ -17,7 +17,8 @@ FocusScope {
     {key:"showWindowIdentity", label:"Window names and icons", choices:[false,true]},
     {key:"layoutDensity", label:"Preview spacing", choices:["compact","comfortable","airy"]},
     {key:"neighborEmphasis", label:"Carousel neighbors", choices:["quiet","normal","strong"]},
-    {key:"showShortcutHints", label:"Shortcut footer", choices:[false,true]}
+    {key:"showShortcutHints", label:"Shortcut footer", choices:[false,true]},
+    {key:"reducedMotion", label:"Reduced motion", choices:[false,true]}
   ]
   function displayValue(field) {
     var value = draft[field.key]
