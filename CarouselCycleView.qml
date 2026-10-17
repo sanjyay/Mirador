@@ -7,6 +7,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "WindowModel.js" as WindowModel
+import "SettingsModel.js" as SettingsModel
 
 Item {
   id: root
@@ -26,7 +27,7 @@ Item {
   readonly property real monitorAspect: WindowGeometry.workspaceAspectRatio(
     overview ? overview.targetMonitor : null, overview ? overview.targetScreen : null)
   readonly property real sideScale: 0.68
-  readonly property real sideOpacity: 0.58
+  readonly property real sideOpacity: SettingsModel.neighborOpacity(overview && overview.preferences ? overview.preferences.neighborEmphasis : "normal")
   readonly property var layoutGeometry: WindowGeometry.carouselGeometry(
     viewport.width, viewport.height, monitorAspect, {
       count: cardCount, spacing: Style.space(24), sideVisibility: 0.8, previewSizeMultiplier: 1.32,
@@ -544,7 +545,7 @@ Item {
           Rectangle {
             anchors.fill: parent
             z: 50
-            color: "#000000"
+            color: Commons.Color.background
             opacity: Math.min(0.28, slotItem.normDist * 0.28)
             radius: cardSurface.radius
           }

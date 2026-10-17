@@ -14,7 +14,9 @@ FocusScope {
     {key:"modifier", label:"Cycle modifier", choices:["super","alt","ctrl"]},
     {key:"backdropDim", label:"Backdrop dimming", choices:[0,0.25,0.5,0.75]},
     {key:"backdropBlur", label:"Blur wallpaper backdrop", choices:[false,true]},
-    {key:"showWindowIdentity", label:"Window names and icons", choices:[false,true]}
+    {key:"showWindowIdentity", label:"Window names and icons", choices:[false,true]},
+    {key:"layoutDensity", label:"Preview spacing", choices:["compact","comfortable","airy"]},
+    {key:"neighborEmphasis", label:"Carousel neighbors", choices:["quiet","normal","strong"]}
   ]
   function displayValue(field) {
     var value = draft[field.key]
@@ -28,7 +30,17 @@ FocusScope {
   onVisibleChanged: if (visible) {
     draft = SettingsModel.normalized(preferences)
     selectedRow = 0
+    settingsScroll.contentY = 0
     forceActiveFocus()
+  }
+  onSelectedRowChanged: Qt.callLater(ensureRowVisible)
+  function ensureRowVisible() {
+    var row = fieldsRepeater.itemAt(selectedRow)
+    if (!row) return
+    var top = row.mapToItem(settingsScroll.contentItem, 0, 0).y
+    if (top < settingsScroll.contentY) settingsScroll.contentY = top
+    else if (top + row.height > settingsScroll.contentY + settingsScroll.height)
+      settingsScroll.contentY = top + row.height - settingsScroll.height
   }
   function change(direction) {
     var updated = SettingsModel.normalized(draft)
@@ -53,9 +65,18 @@ FocusScope {
     border.color: Commons.Color.menu.border
     MouseArea { anchors.fill: parent }
   }
-  Column {
+  Flickable {
+    id: settingsScroll
+    anchors.fill: parent
+    clip: true
+    contentWidth: width
+    contentHeight: content.implicitHeight + Style.space(40)
+    boundsBehavior: Flickable.StopAtBounds
+    Column {
     id: content
-    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(20) }
+    x: Style.space(20)
+    y: Style.space(20)
+    width: Math.max(1, settingsScroll.width - Style.space(40))
     spacing: Style.space(14)
     Text {
       text: "Mirador settings"
@@ -74,6 +95,7 @@ FocusScope {
       font.pixelSize: Style.font.body
     }
     Repeater {
+      id: fieldsRepeater
       model: root.fields
       Button {
         required property var modelData
@@ -99,6 +121,7 @@ FocusScope {
       Button { text: "Save"; onClicked: root.applyRequested(root.draft) }
       Button { text: "Cancel"; onClicked: root.cancelled() }
     }
+  }
   }
   implicitHeight: content.implicitHeight + Style.space(40)
 }

@@ -673,8 +673,8 @@ Item {
     Math.max(4, Style.space(4), Style.space(2), Style.focusBorderWidth), gridDpr)
 
   // Optimized breathing outer margin & inter-card spacing to maximize preview dimensions
-  readonly property real outerMargin: Math.max(16, Style.space(16))
-  readonly property real gridSpacing: Style.space(24)
+  readonly property real outerMargin: Math.max(16, Style.space(16)) * SettingsModel.spacingScale(root.preferences.layoutDensity)
+  readonly property real gridSpacing: Style.space(24) * SettingsModel.spacingScale(root.preferences.layoutDensity)
 
   // Safe area geometry calculation across any bar position (top/bottom/left/right)
   readonly property var safeArea: WindowGeometry.safeAreaGeometry(
@@ -2129,6 +2129,7 @@ Item {
       z: 210
       anchors.centerIn: parent
       width: Math.min(Style.space(500), parent.width - Style.space(24))
+      height: Math.min(implicitHeight, parent.height - Style.space(24))
       visible: root.settingsOpen
       enabled: !root.savingPreferences
       preferences: root.preferences

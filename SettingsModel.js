@@ -10,6 +10,8 @@ function normalized(raw) {
   result.backdropDim = typeof source.backdropDim === "number" && isFinite(source.backdropDim) ? Math.max(0, Math.min(0.85, source.backdropDim)) : 0.5
   result.backdropBlur = source.backdropBlur === true
   result.showWindowIdentity = source.showWindowIdentity === true
+  result.layoutDensity = ["compact","comfortable","airy"].indexOf(source.layoutDensity) >= 0 ? source.layoutDensity : "compact"
+  result.neighborEmphasis = ["quiet","normal","strong"].indexOf(source.neighborEmphasis) >= 0 ? source.neighborEmphasis : "normal"
   return result
 }
 function parse(text) {
@@ -22,4 +24,10 @@ function parse(text) {
 function next(value, choices, direction) {
   var index = choices.indexOf(value)
   return choices[(Math.max(0, index) + (direction < 0 ? choices.length - 1 : 1)) % choices.length]
+}
+function spacingScale(density) {
+  return density === "airy" ? 1.5 : (density === "comfortable" ? 1.25 : 1)
+}
+function neighborOpacity(emphasis) {
+  return emphasis === "quiet" ? 0.4 : (emphasis === "strong" ? 0.75 : 0.58)
 }
