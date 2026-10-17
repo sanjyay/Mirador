@@ -16,7 +16,8 @@ FocusScope {
     {key:"backdropBlur", label:"Blur wallpaper backdrop", choices:[false,true]},
     {key:"showWindowIdentity", label:"Window names and icons", choices:[false,true]},
     {key:"layoutDensity", label:"Preview spacing", choices:["compact","comfortable","airy"]},
-    {key:"neighborEmphasis", label:"Carousel neighbors", choices:["quiet","normal","strong"]}
+    {key:"neighborEmphasis", label:"Carousel neighbors", choices:["quiet","normal","strong"]},
+    {key:"showShortcutHints", label:"Shortcut footer", choices:[false,true]}
   ]
   function displayValue(field) {
     var value = draft[field.key]

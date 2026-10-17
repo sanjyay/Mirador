@@ -11,6 +11,7 @@ import "GestureHelper.js" as GestureHelper
 import "WindowModel.js" as WindowModel
 import "JigglePhysics.js" as JigglePhysics
 import "SettingsModel.js" as SettingsModel
+import "ControlsModel.js" as ControlsModel
 
 Item {
   id: root
@@ -135,6 +136,14 @@ Item {
 
   property var preferences: SettingsModel.normalized({})
   property bool settingsOpen: false
+  property bool helpOpen: false
+  function showHelp() {
+    root.keybindMode = "normal"
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
+    root.helpOpen = true
+    helpPanel.forceActiveFocus()
+  }
   property string settingsError: ""
   property var pendingPreferences: ({})
   property bool savingPreferences: false
@@ -673,7 +682,7 @@ Item {
     Math.max(4, Style.space(4), Style.space(2), Style.focusBorderWidth), gridDpr)
 
   // Optimized breathing outer margin & inter-card spacing to maximize preview dimensions
-  readonly property real outerMargin: Math.max(16, Style.space(16)) * SettingsModel.spacingScale(root.preferences.layoutDensity)
+  readonly property real outerMargin: Math.max(16, Style.space(16)) * SettingsModel.spacingScale(root.preferences.layoutDensity) + (root.preferences.showShortcutHints ? Style.space(24) : 0)
   readonly property real gridSpacing: Style.space(24) * SettingsModel.spacingScale(root.preferences.layoutDensity)
 
   // Safe area geometry calculation across any bar position (top/bottom/left/right)
@@ -1736,6 +1745,7 @@ Item {
   }
 
   function close() {
+    root.helpOpen = false
     root.settingsOpen = false
     var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
     var restoreWindowAddress = root.keybindMode === "cycle"
@@ -2117,12 +2127,36 @@ Item {
       }
     }
 
-    Button {
+    Row {
       z: 200
       anchors { right: parent.right; top: parent.top; margins: Style.space(12) }
-      text: "Settings · F2"
-      visible: root.opened && !root.settingsOpen && root.keybindMode !== "cycle"
-      onClicked: root.showSettings()
+      spacing: Style.space(8)
+      visible: root.opened && !root.settingsOpen && !root.helpOpen && root.keybindMode !== "cycle"
+      Button { text: "Help · F1"; onClicked: root.showHelp() }
+      Button { text: "Settings · F2"; onClicked: root.showSettings() }
+    }
+    Text {
+      z: 200
+      anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Style.space(5) }
+      width: Math.max(1, parent.width - Style.space(24))
+      visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.settingsOpen
+      text: ControlsModel.footer(root.activePresentation, root.overviewMode === "focused", root.draggedToplevel !== null)
+      textFormat: Text.PlainText
+      color: Commons.Color.foreground
+      font.family: Style.font.family
+      font.pixelSize: Style.font.bodySmall
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
+    }
+    OverviewHelp {
+      id: helpPanel
+      z: 210
+      anchors.centerIn: parent
+      width: Math.min(Style.space(520), parent.width - Style.space(24))
+      height: Math.min(implicitHeight, parent.height - Style.space(24))
+      visible: root.helpOpen
+      shortcuts: ControlsModel.rows(root.activePresentation)
+      onDismissed: { root.helpOpen = false; keyCatcher.forceActiveFocus() }
     }
     SettingsPanel {
       id: settingsPanel
@@ -2140,7 +2174,7 @@ Item {
 
     PanelKeyCatcher {
       id: keyCatcher
-      blocked: root.settingsOpen
+      blocked: root.settingsOpen || root.helpOpen
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2188,7 +2222,12 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
-        if (root.settingsOpen) return
+        if (root.settingsOpen || root.helpOpen) return
+        if (event.key === Qt.Key_F1) {
+          root.showHelp()
+          event.accepted = true
+          return
+        }
         if (event.key === Qt.Key_F2) {
           root.showSettings()
           event.accepted = true
