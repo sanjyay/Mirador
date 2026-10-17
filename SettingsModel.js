@@ -13,6 +13,7 @@ function normalized(raw) {
   result.layoutDensity = ["compact","comfortable","airy"].indexOf(source.layoutDensity) >= 0 ? source.layoutDensity : "compact"
   result.neighborEmphasis = ["quiet","normal","strong"].indexOf(source.neighborEmphasis) >= 0 ? source.neighborEmphasis : "normal"
   result.showShortcutHints = source.showShortcutHints !== false
+  result.reducedMotion = source.reducedMotion === true
   return result
 }
 function parse(text) {
@@ -31,4 +32,8 @@ function spacingScale(density) {
 }
 function neighborOpacity(emphasis) {
   return emphasis === "quiet" ? 0.4 : (emphasis === "strong" ? 0.75 : 0.58)
+}
+function motionDuration(reduced, milliseconds) {
+  if (reduced) return 0
+  return typeof milliseconds === "number" && isFinite(milliseconds) ? Math.max(0, milliseconds) : 0
 }

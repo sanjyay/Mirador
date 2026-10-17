@@ -355,3 +355,9 @@ Press F1 or click Help for shortcuts relevant to the current presentation.
 Escape closes help without activating the selected workspace. A contextual
 footer changes during dragging and focused mode; it can be hidden in Settings.
 The help panel scrolls with the mouse or Up/Down on smaller displays.
+
+### Reduced motion
+
+Enable Reduced motion in Settings to stop workspace spring effects and make
+Mirador's preview transitions immediate. Navigation, capture updates, and drag
+targets continue to work. Shared shell button hover styling is unchanged.

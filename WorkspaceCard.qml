@@ -1,4 +1,5 @@
 import QtQuick
+import "SettingsModel.js" as SettingsModel
 import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
@@ -9,6 +10,7 @@ import "WindowModel.js" as WindowModel
 
 BorderSurface {
   id: root
+  readonly property bool motionEnabled: !overview || !overview.preferences || !overview.preferences.reducedMotion
 
   required property int workspaceId
   property var workspace: null
@@ -157,7 +159,7 @@ BorderSurface {
     color: Commons.Color.menu.background
     opacity: root.cardOpacity
     Behavior on opacity {
-      NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+      NumberAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 120); easing.type: Easing.OutQuad }
     }
     clip: true
     transform: Translate { x: physics.offsetX; y: physics.offsetY }
@@ -211,7 +213,7 @@ BorderSurface {
             : Util.alpha(Commons.Color.menu.text, 0.02))))
 
     Behavior on color {
-      ColorAnimation { duration: 100 }
+      ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
     }
   }
 
@@ -249,7 +251,7 @@ BorderSurface {
           : Util.alpha(Commons.Color.menu.border, 0.38))
 
       Behavior on color {
-        ColorAnimation { duration: 100 }
+        ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
       }
 
       Text {
@@ -265,7 +267,7 @@ BorderSurface {
         opacity: root.isCurrent ? 1.0 : (root.highlighted ? 0.95 : 0.85)
 
         Behavior on opacity {
-          NumberAnimation { duration: 100 }
+          NumberAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
         }
       }
     }
@@ -385,6 +387,7 @@ BorderSurface {
           keyboardSelected: root.keyboardSelected && root.overview && root.overview.isSelectedWindow(previewToplevel)
           showSelectionBorder: root.windowCount > 1
           identityEnabled: root.overview && root.overview.preferences.showWindowIdentity
+          animatedAffordances: root.motionEnabled
           isGroup: Boolean(modelData && modelData.isGroup)
           groupMembers: (modelData && modelData.members) ? modelData.members : []
           liveCaptureEnabled: root.livePreviews && root.visible && previewArea.visible

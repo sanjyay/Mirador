@@ -1,4 +1,5 @@
 import QtQuick
+import "SettingsModel.js" as SettingsModel
 import Quickshell
 import qs.Commons
 import qs.Commons as Commons
@@ -6,6 +7,7 @@ import qs.Ui
 
 BorderSurface {
   id: root
+  readonly property bool motionEnabled: !overview || !overview.preferences || !overview.preferences.reducedMotion
 
   required property int targetWorkspaceId
   property var draggedToplevel: null
@@ -51,7 +53,7 @@ BorderSurface {
       : Util.alpha(Commons.Color.menu.background, 0.70)
     clip: true
     transform: Translate { x: physics.offsetX; y: physics.offsetY }
-    Behavior on color { ColorAnimation { duration: 100 } }
+    Behavior on color { ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) } }
   }
 
   signal windowDropped(var toplevel)
@@ -66,7 +68,7 @@ BorderSurface {
       : Util.alpha(Commons.Color.accent, 0.03)
 
     Behavior on color {
-      ColorAnimation { duration: 100 }
+      ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
     }
   }
 
@@ -98,7 +100,7 @@ BorderSurface {
         : Util.alpha(Commons.Color.accent, 0.45)
 
       Behavior on color {
-        ColorAnimation { duration: 100 }
+        ColorAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
       }
 
       Text {
@@ -112,7 +114,7 @@ BorderSurface {
         opacity: root.dropHovered ? 1.0 : 0.90
 
         Behavior on opacity {
-          NumberAnimation { duration: 100 }
+          NumberAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
         }
       }
     }
@@ -147,7 +149,7 @@ BorderSurface {
         opacity: root.dropHovered ? 1.0 : 0.65
 
         Behavior on opacity {
-          NumberAnimation { duration: 100 }
+          NumberAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
         }
       }
 
@@ -161,7 +163,7 @@ BorderSurface {
         opacity: root.dropHovered ? 1.0 : 0.70
 
         Behavior on opacity {
-          NumberAnimation { duration: 100 }
+          NumberAnimation { duration: SettingsModel.motionDuration(!root.motionEnabled, 100) }
         }
       }
     }

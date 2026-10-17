@@ -57,7 +57,7 @@ Item {
   JiggleController {
     id: jiggle
     scene: keyCatcher
-    enabled: root.opened && root.targetScreen !== null && root.activePresentation !== "compact"
+    enabled: root.opened && root.motionEnabled && root.targetScreen !== null && root.activePresentation !== "compact"
     presentation: root.activePresentation
     dpr: root.gridDpr
     snapshotProvider: root.jiggleSnapshot
@@ -135,6 +135,7 @@ Item {
   }
 
   property var preferences: SettingsModel.normalized({})
+  readonly property bool motionEnabled: !root.preferences.reducedMotion
   property bool settingsOpen: false
   property bool helpOpen: false
   function showHelp() {

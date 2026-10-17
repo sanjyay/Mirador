@@ -32,6 +32,14 @@ TestCase {
     verify(SettingsModel.neighborOpacity("quiet") < SettingsModel.neighborOpacity("normal"))
     verify(SettingsModel.neighborOpacity("strong") > SettingsModel.neighborOpacity("normal"))
   }
+  function test_reducedMotionDurations() {
+    compare(SettingsModel.motionDuration(true, 150), 0)
+    compare(SettingsModel.motionDuration(false, 150), 150)
+    compare(SettingsModel.motionDuration(false, -1), 0)
+    compare(SettingsModel.motionDuration(false, NaN), 0)
+    compare(SettingsModel.normalized({reducedMotion:"true"}).reducedMotion, false)
+    compare(SettingsModel.normalized({reducedMotion:true}).reducedMotion, true)
+  }
   function test_cycleChoicesWrap() {
     compare(SettingsModel.next("full", ["full","carousel","compact"], -1), "compact")
     compare(SettingsModel.next("compact", ["full","carousel","compact"], 1), "full")
