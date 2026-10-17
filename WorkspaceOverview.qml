@@ -16,6 +16,7 @@ import "SearchModel.js" as SearchModel
 import "MonitorModel.js" as MonitorModel
 import "WorkspaceHistory.js" as WorkspaceHistory
 import "WindowActions.js" as WindowActions
+import "MoveHistory.js" as MoveHistory
 
 Item {
   id: root
@@ -79,7 +80,7 @@ Item {
       required property var modelData
       Connections {
         target: modelData
-        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen || root.spreadOpen || root.quickLookAddress) root.searchRevision++ }
+        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen || root.spreadOpen || root.quickLookAddress || root.lastWorkspaceMove) root.searchRevision++ }
         function onWorkspaceChanged() { jiggle.observe() }
       }
     }
@@ -2042,6 +2043,36 @@ Item {
   }
 
   // Closes a window in Hyprland and refreshes UI WITHOUT exiting Mirador
+  property var lastWorkspaceMove: null
+  readonly property bool canUndoWorkspaceMove: {
+    var revision=root.searchRevision
+    var top=root.lastWorkspaceMove ? root.toplevelForAddress(root.lastWorkspaceMove.address) : null
+    return MoveHistory.canUndo(root.lastWorkspaceMove,top ? top.lastIpcObject : null)
+  }
+  function handleUndoKey(event) {
+    if (event.key!==Qt.Key_Z || !(event.modifiers & Qt.ControlModifier)
+        || (event.modifiers & (Qt.AltModifier|Qt.MetaModifier|Qt.ShiftModifier))) return false
+    if (!event.isAutoRepeat) root.undoWorkspaceMove()
+    event.accepted=true
+    return true
+  }
+  function undoWorkspaceMove() {
+    var move=root.lastWorkspaceMove
+    var top=move ? root.toplevelForAddress(move.address) : null
+    if (!MoveHistory.canUndo(move,top ? top.lastIpcObject : null)) {
+      root.announceAction("No workspace move can be undone")
+      return false
+    }
+    if (Hyprland.usingLua)
+      Hyprland.dispatch("hl.dsp.window.move({ workspace = "+WindowModel.luaStringLiteral(move.sourceTarget)
+        +", window = "+WindowModel.luaStringLiteral("address:"+move.address)+", follow = false })")
+    else Hyprland.dispatch("movetoworkspacesilent "+move.sourceTarget+",address:"+move.address)
+    root.lastWorkspaceMove=null
+    root.announceAction("Returning window to workspace "+move.sourceTarget.replace(/^name:/,""))
+    Hyprland.refreshWorkspaces()
+    Hyprland.refreshToplevels()
+    return true
+  }
   property string actionNotice: ""
   property double lastSwapAt: 0
   Timer { id:actionNoticeTimer;interval:2400;onTriggered:root.actionNotice="" }
@@ -2202,6 +2233,11 @@ Item {
       root.showDemoHint(app ? (app + " → WS " + workspaceId) : ("MOVE → WS " + workspaceId), false)
     }
 
+    var sourceWorkspace=root.workspaceById(sourceId) || (toplevel ? toplevel.workspace : null)
+    var sourceTarget=root.isSpecialWorkspace(sourceWorkspace)
+      ? "special:"+root.specialWorkspaceName(sourceWorkspace)
+      : String(WindowModel.restoreWorkspaceTarget(sourceWorkspace))
+    root.lastWorkspaceMove=MoveHistory.record(address,sourceId,workspaceId,sourceTarget)
     jiggle.expectDrop(address, workspaceId)
     root.draggedToplevel = null
     if (Hyprland.usingLua) {
@@ -2288,6 +2324,7 @@ Item {
       anchors { right: parent.right; top: parent.top; margins: Style.space(12) }
       spacing: Style.space(8)
       visible: root.opened && !root.settingsOpen && !root.helpOpen && !root.searchOpen && root.keybindMode !== "cycle"
+      Button { visible:root.canUndoWorkspaceMove; text:"Undo move · Ctrl+Z"; onClicked:root.undoWorkspaceMove() }
       Button { text: "Help · F1"; onClicked: root.showHelp() }
       Button { text: "Settings · F2"; onClicked: root.showSettings() }
     }
@@ -2445,6 +2482,7 @@ Item {
 
       Keys.onPressed: function(event) {
         if (root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen) return
+        if (root.handleUndoKey(event)) return
         if (root.handleSwapKey(event,"")) return
         if (event.text === "z" || event.text === "Z") {
           root.showQuickLook("")

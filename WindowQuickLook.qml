@@ -11,6 +11,7 @@ FocusScope {
   signal activated()
   onVisibleChanged: if (visible) forceActiveFocus()
   Keys.onPressed: function(event) {
+    if (overview.handleUndoKey(event)) return
     if (event.key === Qt.Key_Escape || event.text.toLowerCase() === "z") root.dismissed()
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (root.toplevel) root.activated() }
     else return
