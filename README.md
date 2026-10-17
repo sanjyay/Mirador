@@ -313,3 +313,15 @@ hyprctl configerrors
 ## License
 
 Mirador is available under the [MIT License](LICENSE).
+
+## Settings panel
+
+Open Mirador and press **F2**, or click **Settings**. Use Up/Down to select a
+cycle preference, Left/Right to change it, Enter to save, and Escape to cancel.
+The panel supports the cycle presentation and modifier. Shortcut payloads that
+explicitly select a presentation or modifier take precedence.
+
+Preferences are saved atomically in the dedicated mirador/settings.json under
+the XDG configuration directory (normally ~/.config/mirador/settings.json).
+Existing plugin-local settings are read as a fallback. Unknown preference keys
+are retained when saving.

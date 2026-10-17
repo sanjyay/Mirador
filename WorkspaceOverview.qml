@@ -4,11 +4,13 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "WindowGeometry.js" as WindowGeometry
 import "GestureHelper.js" as GestureHelper
 import "WindowModel.js" as WindowModel
 import "JigglePhysics.js" as JigglePhysics
+import "SettingsModel.js" as SettingsModel
 
 Item {
   id: root
@@ -131,13 +133,66 @@ Item {
     }
   }
 
+  property var preferences: SettingsModel.normalized({})
+  property bool settingsOpen: false
+  property string settingsError: ""
+  property var pendingPreferences: ({})
+  property bool savingPreferences: false
+  readonly property string preferencesDirectory: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/mirador"
+  function showSettings() {
+    // Release-to-commit must not select a workspace behind an open dialog.
+    root.keybindMode = "normal"
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
+    root.settingsError = ""
+    root.settingsOpen = true
+    settingsPanel.forceActiveFocus()
+  }
+  function savePreferences(value) {
+    if (root.savingPreferences) return
+    root.pendingPreferences = SettingsModel.normalized(value)
+    root.savingPreferences = true
+    preferencesDirectoryProcess.running = true
+  }
+  FileView {
+    id: preferencesFile
+    path: root.preferencesDirectory + "/settings.json"
+    atomicWrites: true
+    printErrors: false
+    onSaved: {
+      root.preferences = root.pendingPreferences
+      root.cycleUI = root.preferences.cycleUI
+      root.configuredModifier = root.preferences.modifier
+      root.savingPreferences = false
+      root.settingsOpen = false
+      root.settingsError = ""
+      keyCatcher.forceActiveFocus()
+    }
+    onSaveFailed: {
+      root.savingPreferences = false
+      root.settingsError = "Could not save settings. Check the configuration directory permissions."
+    }
+  }
+  Process {
+    id: preferencesDirectoryProcess
+    command: ["/usr/bin/mkdir", "-p", root.preferencesDirectory]
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode !== 0) {
+        root.savingPreferences = false
+        root.settingsError = "Could not create the settings directory."
+        return
+      }
+      preferencesFile.setText(JSON.stringify(root.pendingPreferences, null, 2))
+    }
+  }
+
   // ── Hold-to-cycle ("cycle" keybindMode) & Settings Probe ────────────────────
   Process {
     id: settingsProbe
     running: true
     command: ["sh", "-c",
-      'f="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/mirador/settings.json"; ' +
-      '[ ! -f "$f" ] && f="${XDG_CONFIG_HOME:-$HOME/.config}/mirador/settings.json"; ' +
+      'f="${XDG_CONFIG_HOME:-$HOME/.config}/mirador/settings.json"; ' +
+      '[ ! -f "$f" ] && f="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/mirador/settings.json"; ' +
       '[ -f "$f" ] && exec timeout 2 head -c 65536 -- "$f"']
     stdout: StdioCollector {
       onStreamFinished: {
@@ -149,7 +204,9 @@ Item {
   function loadSettings(rawJson) {
     if (!rawJson || root.opened) return
     try {
-      var s = JSON.parse(String(rawJson).trim())
+      var s = SettingsModel.parse(String(rawJson).trim())
+      if (!s) return
+      root.preferences = s
       if (!root.opened) {
         if (s.keybindMode === "normal" || s.keybindMode === "cycle")
           root.keybindMode = s.keybindMode
@@ -1679,6 +1736,7 @@ Item {
   }
 
   function close() {
+    root.settingsOpen = false
     var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
     var restoreWindowAddress = root.keybindMode === "cycle"
       ? root.normalizedAddress(root.initialActiveWindowAddress) : ""
@@ -2061,8 +2119,29 @@ Item {
       }
     }
 
+    Button {
+      z: 200
+      anchors { right: parent.right; top: parent.top; margins: Style.space(12) }
+      text: "Settings · F2"
+      visible: root.opened && !root.settingsOpen && root.keybindMode !== "cycle"
+      onClicked: root.showSettings()
+    }
+    SettingsPanel {
+      id: settingsPanel
+      z: 210
+      anchors.centerIn: parent
+      width: Math.min(Style.space(500), parent.width - Style.space(24))
+      visible: root.settingsOpen
+      enabled: !root.savingPreferences
+      preferences: root.preferences
+      errorText: root.settingsError
+      onApplyRequested: function(settings) { root.savePreferences(settings) }
+      onCancelled: { root.settingsOpen = false; keyCatcher.forceActiveFocus() }
+    }
+
     PanelKeyCatcher {
       id: keyCatcher
+      blocked: root.settingsOpen
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2110,6 +2189,12 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
+        if (root.settingsOpen) return
+        if (event.key === Qt.Key_F2) {
+          root.showSettings()
+          event.accepted = true
+          return
+        }
         if (root.cycled) holdWatchdog.restart()
         if (event.modifiers & Qt.MetaModifier) {
           root.activeCycleModifier = Qt.MetaModifier
