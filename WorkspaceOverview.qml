@@ -12,6 +12,7 @@ import "WindowModel.js" as WindowModel
 import "JigglePhysics.js" as JigglePhysics
 import "SettingsModel.js" as SettingsModel
 import "ControlsModel.js" as ControlsModel
+import "SearchModel.js" as SearchModel
 
 Item {
   id: root
@@ -75,7 +76,7 @@ Item {
       required property var modelData
       Connections {
         target: modelData
-        function onLastIpcObjectChanged() { jiggle.observe() }
+        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen) root.searchRevision++ }
         function onWorkspaceChanged() { jiggle.observe() }
       }
     }
@@ -138,6 +139,19 @@ Item {
   readonly property bool motionEnabled: !root.preferences.reducedMotion
   property bool settingsOpen: false
   property bool helpOpen: false
+  property bool searchOpen: false
+  property int searchRevision: 0
+  readonly property var searchEntries: {
+    var revision = root.searchRevision
+    return SearchModel.entries(Hyprland.toplevels ? Hyprland.toplevels.values : [])
+  }
+  function showSearch() {
+    root.keybindMode = "normal"
+    root.activeCycleModifier = 0
+    holdWatchdog.stop()
+    root.searchRevision++
+    root.searchOpen = true
+  }
   function showHelp() {
     root.keybindMode = "normal"
     root.activeCycleModifier = 0
@@ -1746,6 +1760,7 @@ Item {
   }
 
   function close() {
+    root.searchOpen = false
     root.helpOpen = false
     root.settingsOpen = false
     var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
@@ -2132,7 +2147,7 @@ Item {
       z: 200
       anchors { right: parent.right; top: parent.top; margins: Style.space(12) }
       spacing: Style.space(8)
-      visible: root.opened && !root.settingsOpen && !root.helpOpen && root.keybindMode !== "cycle"
+      visible: root.opened && !root.settingsOpen && !root.helpOpen && !root.searchOpen && root.keybindMode !== "cycle"
       Button { text: "Help · F1"; onClicked: root.showHelp() }
       Button { text: "Settings · F2"; onClicked: root.showSettings() }
     }
@@ -2140,7 +2155,7 @@ Item {
       z: 200
       anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Style.space(5) }
       width: Math.max(1, parent.width - Style.space(24))
-      visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.settingsOpen
+      visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.settingsOpen && !root.searchOpen
       text: ControlsModel.footer(root.activePresentation, root.overviewMode === "focused", root.draggedToplevel !== null)
       textFormat: Text.PlainText
       color: Commons.Color.foreground
@@ -2148,6 +2163,22 @@ Item {
       font.pixelSize: Style.font.bodySmall
       horizontalAlignment: Text.AlignHCenter
       wrapMode: Text.WordWrap
+    }
+    WindowSearch {
+      id: windowSearch
+      z: 210
+      anchors.centerIn: parent
+      width: Math.min(Style.space(640), parent.width - Style.space(24))
+      height: Math.min(implicitHeight, parent.height - Style.space(24))
+      visible: root.searchOpen
+      entries: root.searchEntries
+      onActivated: function(address) {
+        var target = root.toplevelForAddress(address)
+        if (!target) return
+        root.searchOpen = false
+        root.activateWindow(target)
+      }
+      onDismissed: { root.searchOpen = false; keyCatcher.forceActiveFocus() }
     }
     OverviewHelp {
       id: helpPanel
@@ -2175,7 +2206,7 @@ Item {
 
     PanelKeyCatcher {
       id: keyCatcher
-      blocked: root.settingsOpen || root.helpOpen
+      blocked: root.settingsOpen || root.helpOpen || root.searchOpen
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2223,7 +2254,12 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
-        if (root.settingsOpen || root.helpOpen) return
+        if (root.settingsOpen || root.helpOpen || root.searchOpen) return
+        if (event.text === "/") {
+          root.showSearch()
+          event.accepted = true
+          return
+        }
         if (event.key === Qt.Key_F1) {
           root.showHelp()
           event.accepted = true

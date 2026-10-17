@@ -5,6 +5,7 @@ function rows(presentation) {
     {key:"Escape", action:"Cancel and close the overview"},
     {key:"F1", action:"Open or close shortcut help"},
     {key:"F2", action:"Open Settings"},
+    {key:"/", action:"Search open windows by application or title"},
     {key:"← ↑ ↓ → / H J K L", action:presentation === "carousel" ? "Select a window in the highlighted workspace" : "Navigate workspace previews"},
     {key:"Tab / Shift + Tab", action:"Select the next or previous workspace"},
     {key:"+ / =", action:"Create a workspace"}
@@ -23,5 +24,5 @@ function footer(presentation, focused, dragging) {
   if (dragging) return "Drop on a workspace to move · Release outside to cancel · F1 Help"
   if (presentation === "carousel") return "Tab Cycle · Super + arrows Select window · Enter Open · Esc Cancel · F1 Help"
   if (presentation === "compact") return "Tab Cycle · Enter Open · Esc Cancel · F1 Help"
-  return "Arrows Navigate · Enter Open · Space " + (focused ? "Show all" : "Focus workspace") + " · F1 Help · F2 Settings"
+  return "Arrows Navigate · Enter Open · Space " + (focused ? "Show all" : "Focus workspace") + " · / Search · F1 Help · F2 Settings"
 }
