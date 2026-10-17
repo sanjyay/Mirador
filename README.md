@@ -369,3 +369,12 @@ name or title. Words are matched without case sensitivity. Up/Down selects a
 result, Enter activates it, and Escape cancels without switching workspaces.
 H/J/K/L remain navigation keys outside search. Selection follows a window's
 address when the result list updates; closed windows cannot be activated.
+
+### Spread selected workspace windows
+
+Press V to show the selected workspace's windows in a non-overlapping layout.
+Arrows or H/J/K/L select a preview, Enter or a click activates it, and V or
+Escape returns to the workspace overview. Window positions and sizes in the
+desktop are never changed. Labels remain plain text, grouped previews retain
+their tabs, and hidden underlying views release their captures while spread
+previews are active.
