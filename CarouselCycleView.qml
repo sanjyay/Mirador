@@ -79,6 +79,11 @@ Item {
     }
   }
 
+  function previewScroll(progress) {
+    animatingEnabled=false
+    trackOffset=targetOffset+progress*slotDistance
+  }
+
   function resetTo(index) {
     animatingEnabled = false
     var idx = index >= 0 ? index : 0
