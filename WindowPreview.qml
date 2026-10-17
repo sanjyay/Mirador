@@ -44,6 +44,7 @@ Rectangle {
   property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
+  property bool identityEnabled: false
   property bool showSelectionBorder: true
   property bool workspaceHighlighted: false
 
@@ -169,9 +170,48 @@ Rectangle {
     border.width: root.keyboardSelected
       ? (root.showSelectionBorder ? Math.max(2, Style.normalBorderWidth * 2) : 0)
       : (root.workspaceHighlighted || previewHover.hovered || root.dragging ? Math.max(1, Style.normalBorderWidth) : 0)
-    border.color: root.workspaceHighlighted || root.keyboardSelected || root.dragging
+    border.color: root.keyboardSelected || root.dragging
       ? Commons.Color.accent : Util.alpha(Commons.Color.menu.text, 0.58)
     radius: root.radius
+  }
+
+  Rectangle {
+    id: identityBadge
+    parent: visualSurface
+    z: 15
+    anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: root.pillEdgeInset }
+    width: Math.min(titleMetrics.width + (root.iconSource !== "" ? root.pillIconSize + Style.space(5) : 0) + Style.space(16), Math.max(1, parent.width - Style.space(12)))
+    height: root.naturalPillHeight
+    color: Commons.Color.menu.background
+    visible: root.identityEnabled && !root.dragging
+      && (previewHover.hovered || root.keyboardSelected)
+      && root.width >= Style.space(80) && root.height >= height * 2
+    Row {
+      id: identityRow
+      anchors { fill: parent; leftMargin: Style.space(8); rightMargin: Style.space(8) }
+      spacing: Style.space(5)
+      Image {
+        id: identityIcon
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.iconSource !== ""
+        width: visible ? root.pillIconSize : 0
+        height: width
+        source: root.iconSource
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.max(1, parent.width - (identityIcon.visible ? identityIcon.width + parent.spacing : 0))
+        text: root.title
+        textFormat: Text.PlainText
+        color: Commons.Color.menu.text
+        font.family: Style.font.menuFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+        maximumLineCount: 1
+      }
+    }
   }
 
   // ── Group Tab Strip ────────────────────────────────────────────────────────

@@ -513,6 +513,7 @@ Item {
                     groupMembers: (modelData && modelData.members) ? modelData.members : []
                     liveCaptureEnabled: root.livePreviews && root.visible && slotItem.visible && previewItem.visible && previewBox.visible && slotItem.normDist < 1.6
                     showLabel: keyboardSelected
+                    identityEnabled: root.overview && root.overview.preferences.showWindowIdentity
 
                     onActivated: {
                       if (root.overview) root.overview.activateWindow(previewToplevel)
