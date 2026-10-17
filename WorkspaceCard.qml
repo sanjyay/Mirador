@@ -235,15 +235,15 @@ BorderSurface {
       height: cardHeader.height
       width: Math.max(height, badgeLabel.implicitWidth + Style.spacing.md * 2)
       radius: Math.min(Style.cornerRadius, Style.space(6))
-      color: root.isCurrent
+      color: root.focused
         ? Commons.Color.accent
         : (root.overlayBadge ? Commons.Color.menu.background
           : (root.highlighted
             ? Util.alpha(Commons.Color.menu.text, 0.16)
             : Util.alpha(Commons.Color.menu.text, 0.10)))
-      border.width: root.isCurrent ? 0 : 1
-      border.color: root.isCurrent
-        ? "transparent"
+      border.width: root.keyboardSelected ? Math.max(1, Style.focusBorderWidth) : (root.focused ? 0 : 1)
+      border.color: root.keyboardSelected
+        ? Commons.Color.accent
         : (root.highlighted
           ? Util.alpha(Commons.Color.menu.border, 0.60)
           : Util.alpha(Commons.Color.menu.border, 0.38))
@@ -261,7 +261,7 @@ BorderSurface {
         font.family: Style.font.menuFamily
         font.pixelSize: Style.font.body
         font.bold: true
-        color: root.isCurrent ? Commons.Color.menu.scrim : Commons.Color.menu.text
+        color: root.focused ? Commons.Color.menu.scrim : Commons.Color.menu.text
         opacity: root.isCurrent ? 1.0 : (root.highlighted ? 0.95 : 0.85)
 
         Behavior on opacity {
@@ -382,6 +382,9 @@ BorderSurface {
           z: itemIndex + 1
           toplevel: previewToplevel
           workspaceHighlighted: root.isCurrent && root.windowCount > 1
+          keyboardSelected: root.keyboardSelected && root.overview && root.overview.isSelectedWindow(previewToplevel)
+          showSelectionBorder: root.windowCount > 1
+          identityEnabled: root.overview && root.overview.preferences.showWindowIdentity
           isGroup: Boolean(modelData && modelData.isGroup)
           groupMembers: (modelData && modelData.members) ? modelData.members : []
           liveCaptureEnabled: root.livePreviews && root.visible && previewArea.visible

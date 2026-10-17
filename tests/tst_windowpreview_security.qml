@@ -52,6 +52,11 @@ TestCase {
       "Compact window title must use Text.PlainText so page-controlled markup is not parsed")
   }
 
+  function test_optionalIdentityTitleUsesPlainText() {
+    var source = windowPreviewSource()
+    verify(/text:\s*root.title\s*\n\s*textFormat:\s*Text.PlainText/.test(source))
+    verify(/root.identityEnabled/.test(source))
+  }
   function test_hiddenPreviewReleasesCaptureSource() {
     var source = windowPreviewSource()
     verify(/captureSource\s*:\s*root\.liveCaptureEnabled\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(source))

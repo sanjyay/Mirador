@@ -2323,7 +2323,8 @@ Item {
             livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel"
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
-            focused: Hyprland.focusedWorkspace !== null
+            focused: root.currentActiveWorkspace() !== null
+              && Number(root.currentActiveWorkspace().id) === modelData
             onWorkspaceActivated: function(occupied) {
               if (root.overviewMode === "focused" && root.selectedCardIndex !== slotIndex) {
                 root.selectedCardIndex = slotIndex

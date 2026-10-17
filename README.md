@@ -333,3 +333,11 @@ Dimming works without compositor blur rules. Wallpaper blur uses the active
 Omarchy wallpaper and does not change Hyprland configuration; an unavailable
 wallpaper falls back to dimming. Workspace surfaces have solid backing so
 inactive previews fade against their own surface instead of desktop text.
+
+### Window identification and selection
+
+Enable **Window names and icons** in Settings to show a compact, plain-text
+title on hovered or keyboard-selected previews. Labels stay hidden on previews
+too small to fit them. The grid's filled workspace badge marks the active
+desktop; the accent outline marks the keyboard selection. Hover outlines remain
+neutral so they do not compete with the selected window.

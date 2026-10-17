@@ -13,7 +13,8 @@ FocusScope {
     {key:"cycleUI", label:"Cycle presentation", choices:["full","carousel","compact"]},
     {key:"modifier", label:"Cycle modifier", choices:["super","alt","ctrl"]},
     {key:"backdropDim", label:"Backdrop dimming", choices:[0,0.25,0.5,0.75]},
-    {key:"backdropBlur", label:"Blur wallpaper backdrop", choices:[false,true]}
+    {key:"backdropBlur", label:"Blur wallpaper backdrop", choices:[false,true]},
+    {key:"showWindowIdentity", label:"Window names and icons", choices:[false,true]}
   ]
   function displayValue(field) {
     var value = draft[field.key]
