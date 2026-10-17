@@ -24,6 +24,7 @@ Usage:
   mirador --workspace N Navigate to workspace N in Mirador, or switch normally
   mirador --move-window-to-workspace N Move the selected window to workspace N
   mirador --demo       Open Mirador with demo input overlay
+  mirador --doctor     Run read-only setup checks (add --json for structured output)
   mirador --help       Show this help
   mirador --version    Show version information
 HELP
@@ -90,6 +91,10 @@ case "${1:-}" in
       exit 1
     fi
     exec omarchy-shell shell summon mirador "{\"action\":\"moveWindowToWorkspace\",\"workspace\":${workspace}}"
+    ;;
+  --doctor )
+    shift
+    exec python3 "$(dirname -- "$(readlink -f -- "$0")")/mirador-doctor" "$@"
     ;;
   --demo )
     exec omarchy-shell shell summon mirador '{"demo":true}'

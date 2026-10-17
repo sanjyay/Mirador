@@ -396,3 +396,5 @@ Ctrl+Shift+arrow swaps the selected window with a neighboring tiled window in th
 Addressed window swapping requires the compositor's Lua API. Older configurations show an unavailable message and keep the window layout unchanged.
 
 Ctrl+Z or Undo move returns the last window moved through Mirador to its previous workspace. It stores only one move in memory, rechecks the window's current workspace, and skips windows that closed or moved elsewhere afterward. Undo restores workspace membership; it does not reopen closed applications or restore tiling positions. Text search keeps its normal editing keys.
+
+Press F3 or use Checks to inspect setup without changing any files. The same report is available with mirador --doctor and mirador --doctor --json (Python 3 required). It checks command availability, the compositor connection, active displays, settings readability, and discoverable shortcut collisions. Lua callback commands are opaque in compositor IPC, so the report asks you to verify their routing rather than claiming they are correct. Reports omit window titles, addresses, and raw shortcut commands. Errors return exit status 1; warnings return 0.

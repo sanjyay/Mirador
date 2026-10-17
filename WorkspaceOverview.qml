@@ -149,6 +149,14 @@ Item {
   readonly property bool motionEnabled: !root.preferences.reducedMotion
   property bool settingsOpen: false
   property bool helpOpen: false
+  property bool diagnosticsOpen: false
+  function showDiagnostics() {
+    root.keybindMode="normal"
+    root.activeCycleModifier=0
+    holdWatchdog.stop()
+    root.diagnosticsOpen=true
+    diagnosticsPanel.forceActiveFocus()
+  }
   property bool searchOpen: false
   property bool spreadOpen: false
   property string quickLookAddress: ""
@@ -622,7 +630,7 @@ Item {
   property real wheelDeltaAccumulatorY: 0
 
   function handleTouchpadScroll(dx,dy) {
-    if (root.activePresentation !== "carousel" || root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen || root.quickLookAddress) return false
+    if (root.activePresentation !== "carousel" || root.settingsOpen || root.helpOpen || root.diagnosticsOpen || root.searchOpen || root.spreadOpen || root.quickLookAddress) return false
     return continuousScroll.feed(dx,dy)
   }
   ContinuousScroll {
@@ -1837,6 +1845,7 @@ Item {
     root.spreadOpen = false
     root.searchOpen = false
     root.helpOpen = false
+    root.diagnosticsOpen = false
     root.settingsOpen = false
     var restoreWorkspaceTarget = root.keybindMode === "cycle" ? root.initialWorkspaceTarget : null
     var restoreWindowAddress = root.keybindMode === "cycle"
@@ -2323,8 +2332,9 @@ Item {
       z: 200
       anchors { right: parent.right; top: parent.top; margins: Style.space(12) }
       spacing: Style.space(8)
-      visible: root.opened && !root.settingsOpen && !root.helpOpen && !root.searchOpen && root.keybindMode !== "cycle"
+      visible: root.opened && !root.settingsOpen && !root.helpOpen && !root.diagnosticsOpen && !root.searchOpen && root.keybindMode !== "cycle"
       Button { visible:root.canUndoWorkspaceMove; text:"Undo move · Ctrl+Z"; onClicked:root.undoWorkspaceMove() }
+      Button { text:"Checks · F3"; onClicked:root.showDiagnostics() }
       Button { text: "Help · F1"; onClicked: root.showHelp() }
       Button { text: "Settings · F2"; onClicked: root.showSettings() }
     }
@@ -2332,7 +2342,7 @@ Item {
       z: 200
       anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Style.space(5) }
       width: Math.max(1, parent.width - Style.space(24))
-      visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.settingsOpen && !root.searchOpen
+      visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.diagnosticsOpen && !root.settingsOpen && !root.searchOpen
       text: ControlsModel.footer(root.spreadOpen ? "spread" : root.activePresentation, root.overviewMode === "focused", root.draggedToplevel !== null)
       textFormat: Text.PlainText
       color: Commons.Color.foreground
@@ -2344,7 +2354,7 @@ Item {
     Item {
       z: 175
       anchors.fill: parent
-      visible: root.opened && root.activePresentation === "carousel" && !root.settingsOpen && !root.helpOpen && !root.searchOpen && !root.spreadOpen && !root.quickLookAddress
+      visible: root.opened && root.activePresentation === "carousel" && !root.settingsOpen && !root.helpOpen && !root.diagnosticsOpen && !root.searchOpen && !root.spreadOpen && !root.quickLookAddress
       WheelHandler {
         acceptedDevices: PointerDevice.TouchPad
         onWheel: function(event) { event.accepted=root.handleTouchpadScroll(event.pixelDelta.x,event.pixelDelta.y) }
@@ -2407,6 +2417,15 @@ Item {
       }
       onDismissed: { root.searchOpen = false; root.restoreOverviewFocus() }
     }
+    DiagnosticsPanel {
+      id: diagnosticsPanel
+      z:210
+      anchors.centerIn:parent
+      width:Math.min(Style.space(660),parent.width-Style.space(24))
+      height:Math.min(Style.space(620),parent.height-Style.space(24))
+      visible:root.diagnosticsOpen
+      onDismissed:{root.diagnosticsOpen=false;root.restoreOverviewFocus()}
+    }
     OverviewHelp {
       id: helpPanel
       z: 210
@@ -2433,7 +2452,7 @@ Item {
 
     PanelKeyCatcher {
       id: keyCatcher
-      blocked: root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen || Boolean(root.quickLookAddress)
+      blocked: root.settingsOpen || root.helpOpen || root.diagnosticsOpen || root.searchOpen || root.spreadOpen || Boolean(root.quickLookAddress)
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2481,7 +2500,7 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
-        if (root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen) return
+        if (root.settingsOpen || root.helpOpen || root.diagnosticsOpen || root.searchOpen || root.spreadOpen) return
         if (root.handleUndoKey(event)) return
         if (root.handleSwapKey(event,"")) return
         if (event.text === "z" || event.text === "Z") {
@@ -2497,6 +2516,11 @@ Item {
         if (event.text === "/") {
           root.showSearch()
           event.accepted = true
+          return
+        }
+        if (event.key === Qt.Key_F3) {
+          root.showDiagnostics()
+          event.accepted=true
           return
         }
         if (event.key === Qt.Key_F1) {
