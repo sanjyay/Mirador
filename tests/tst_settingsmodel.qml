@@ -17,6 +17,13 @@ TestCase {
     compare(SettingsModel.normalized({cycleUI:"bad", modifier:"bad"}).cycleUI, "full")
     compare(SettingsModel.normalized({}).modifier, "super")
   }
+  function test_backdropValidation() {
+    compare(SettingsModel.normalized({backdropDim:2}).backdropDim, 0.85)
+    compare(SettingsModel.normalized({backdropDim:-1}).backdropDim, 0)
+    compare(SettingsModel.normalized({backdropDim:"bad"}).backdropDim, 0.5)
+    compare(SettingsModel.normalized({backdropBlur:"true"}).backdropBlur, false)
+    compare(SettingsModel.normalized({backdropBlur:true}).backdropBlur, true)
+  }
   function test_cycleChoicesWrap() {
     compare(SettingsModel.next("full", ["full","carousel","compact"], -1), "compact")
     compare(SettingsModel.next("compact", ["full","carousel","compact"], 1), "full")

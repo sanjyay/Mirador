@@ -7,6 +7,8 @@ function normalized(raw) {
   })
   result.cycleUI = ["full", "carousel", "compact"].indexOf(source.cycleUI) >= 0 ? source.cycleUI : "full"
   result.modifier = ["super", "alt", "ctrl"].indexOf(source.modifier) >= 0 ? source.modifier : "super"
+  result.backdropDim = typeof source.backdropDim === "number" && isFinite(source.backdropDim) ? Math.max(0, Math.min(0.85, source.backdropDim)) : 0.5
+  result.backdropBlur = source.backdropBlur === true
   return result
 }
 function parse(text) {

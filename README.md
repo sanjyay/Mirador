@@ -325,3 +325,11 @@ Preferences are saved atomically in the dedicated mirador/settings.json under
 the XDG configuration directory (normally ~/.config/mirador/settings.json).
 Existing plugin-local settings are read as a fallback. Unknown preference keys
 are retained when saving.
+
+### Backdrop appearance
+
+Settings includes backdrop dimming and an optional blurred wallpaper backdrop.
+Dimming works without compositor blur rules. Wallpaper blur uses the active
+Omarchy wallpaper and does not change Hyprland configuration; an unavailable
+wallpaper falls back to dimming. Workspace surfaces have solid backing so
+inactive previews fade against their own surface instead of desktop text.

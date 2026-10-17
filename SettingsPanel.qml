@@ -9,6 +9,18 @@ FocusScope {
   property var preferences: ({})
   property var draft: SettingsModel.normalized(preferences)
   property int selectedRow: 0
+  readonly property var fields: [
+    {key:"cycleUI", label:"Cycle presentation", choices:["full","carousel","compact"]},
+    {key:"modifier", label:"Cycle modifier", choices:["super","alt","ctrl"]},
+    {key:"backdropDim", label:"Backdrop dimming", choices:[0,0.25,0.5,0.75]},
+    {key:"backdropBlur", label:"Blur wallpaper backdrop", choices:[false,true]}
+  ]
+  function displayValue(field) {
+    var value = draft[field.key]
+    if (typeof value === "boolean") return value ? "On" : "Off"
+    if (field.key === "backdropDim") return Math.round(value * 100) + "%"
+    return String(value)
+  }
   property string errorText: ""
   signal applyRequested(var settings)
   signal cancelled()
@@ -19,16 +31,14 @@ FocusScope {
   }
   function change(direction) {
     var updated = SettingsModel.normalized(draft)
-    if (selectedRow === 0)
-      updated.cycleUI = SettingsModel.next(updated.cycleUI, ["full", "carousel", "compact"], direction)
-    else
-      updated.modifier = SettingsModel.next(updated.modifier, ["super", "alt", "ctrl"], direction)
+    var field = fields[selectedRow]
+    updated[field.key] = SettingsModel.next(updated[field.key], field.choices, direction)
     draft = updated
   }
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
     if (event.key === Qt.Key_Escape || event.key === Qt.Key_F2) root.cancelled()
-    else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) selectedRow = 1 - selectedRow
+    else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) selectedRow = (selectedRow + (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) ? fields.length - 1 : 1)) % fields.length
     else if (event.key === Qt.Key_Left) change(-1)
     else if (event.key === Qt.Key_Right || event.key === Qt.Key_Space) change(1)
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.applyRequested(draft)
@@ -63,14 +73,14 @@ FocusScope {
       font.pixelSize: Style.font.body
     }
     Repeater {
-      model: ["Cycle presentation", "Cycle modifier"]
+      model: root.fields
       Button {
-        required property string modelData
+        required property var modelData
         required property int index
         width: content.width
         leftAlign: true
         hasCursor: root.selectedRow === index
-        text: modelData + ": " + (index === 0 ? root.draft.cycleUI : root.draft.modifier)
+        text: modelData.label + ": " + root.displayValue(modelData)
         onClicked: { root.selectedRow = index; root.change(1) }
       }
     }
