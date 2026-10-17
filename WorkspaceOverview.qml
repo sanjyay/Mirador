@@ -76,7 +76,7 @@ Item {
       required property var modelData
       Connections {
         target: modelData
-        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen || root.spreadOpen) root.searchRevision++ }
+        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen || root.spreadOpen || root.quickLookAddress) root.searchRevision++ }
         function onWorkspaceChanged() { jiggle.observe() }
       }
     }
@@ -141,6 +141,20 @@ Item {
   property bool helpOpen: false
   property bool searchOpen: false
   property bool spreadOpen: false
+  property string quickLookAddress: ""
+  readonly property var quickLookTarget: {
+    var revision=root.searchRevision
+    return root.quickLookAddress ? root.toplevelForAddress(root.quickLookAddress) : null
+  }
+  function showQuickLook(address) {
+    var target=address ? root.toplevelForAddress(address) : root.activeToplevelForWorkspace(root.selectedSpreadWorkspace)
+    if (!target) return
+    root.keybindMode="normal"
+    root.activeCycleModifier=0
+    holdWatchdog.stop()
+    root.quickLookAddress=root.normalizedAddress(target)
+    quickLook.forceActiveFocus()
+  }
   readonly property var selectedSpreadWorkspace: {
     var item = root.selectedCardIndex >= 0 ? root.overviewCardModel[root.selectedCardIndex] : null
     return item && !item.isInsertion ? root.workspaceById(item.workspaceId) : null
@@ -158,7 +172,8 @@ Item {
     spreadView.forceActiveFocus()
   }
   function restoreOverviewFocus() {
-    if (root.spreadOpen) spreadView.forceActiveFocus()
+    if (root.quickLookAddress) quickLook.forceActiveFocus()
+    else if (root.spreadOpen) spreadView.forceActiveFocus()
     else keyCatcher.forceActiveFocus()
   }
   property int searchRevision: 0
@@ -1781,6 +1796,7 @@ Item {
   }
 
   function close() {
+    root.quickLookAddress = ""
     root.spreadOpen = false
     root.searchOpen = false
     root.helpOpen = false
@@ -2200,6 +2216,16 @@ Item {
         if (target) root.activateWindow(target)
       }
     }
+    WindowQuickLook {
+      id: quickLook
+      z: 205
+      anchors.fill: parent
+      visible: Boolean(root.quickLookAddress)
+      overview: root
+      toplevel: root.quickLookTarget
+      onDismissed: { root.quickLookAddress=""; root.restoreOverviewFocus() }
+      onActivated: { if (root.quickLookTarget) root.activateWindow(root.quickLookTarget) }
+    }
     WindowSearch {
       id: windowSearch
       z: 210
@@ -2242,7 +2268,7 @@ Item {
 
     PanelKeyCatcher {
       id: keyCatcher
-      blocked: root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen
+      blocked: root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen || Boolean(root.quickLookAddress)
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2291,6 +2317,11 @@ Item {
 
       Keys.onPressed: function(event) {
         if (root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen) return
+        if (event.text === "z" || event.text === "Z") {
+          root.showQuickLook("")
+          event.accepted=true
+          return
+        }
         if (event.text === "v" || event.text === "V") {
           root.showSpread()
           event.accepted=true
@@ -2438,7 +2469,7 @@ Item {
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
             isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
-            livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel" && !root.spreadOpen
+            livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel" && !root.spreadOpen && !root.quickLookAddress
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
             focused: root.currentActiveWorkspace() !== null
@@ -2487,7 +2518,7 @@ Item {
         anchors.centerIn: parent
         visible: root.activePresentation === "compact"
         overview: root
-        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "compact" && !root.spreadOpen
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "compact" && !root.spreadOpen && !root.quickLookAddress
       }
 
       // ── Continuous Carousel Switcher (Active in carousel cycle mode) ──────
@@ -2496,7 +2527,7 @@ Item {
         anchors.fill: parent
         visible: root.activePresentation === "carousel"
         overview: root
-        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "carousel" && !root.spreadOpen
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "carousel" && !root.spreadOpen && !root.quickLookAddress
       }
     }
 
