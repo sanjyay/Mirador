@@ -41,6 +41,7 @@ Rectangle {
     && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
+  property bool dragEnabled: true
   property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
@@ -344,7 +345,7 @@ Rectangle {
   DragHandler {
     id: previewDrag
     acceptedButtons: Qt.LeftButton
-    enabled: root.movable
+    enabled: root.movable && root.dragEnabled
     target: null
     dragThreshold: Style.space(6)
 

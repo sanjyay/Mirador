@@ -76,7 +76,7 @@ Item {
       required property var modelData
       Connections {
         target: modelData
-        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen) root.searchRevision++ }
+        function onLastIpcObjectChanged() { jiggle.observe(); if (root.searchOpen || root.spreadOpen) root.searchRevision++ }
         function onWorkspaceChanged() { jiggle.observe() }
       }
     }
@@ -140,6 +140,27 @@ Item {
   property bool settingsOpen: false
   property bool helpOpen: false
   property bool searchOpen: false
+  property bool spreadOpen: false
+  readonly property var selectedSpreadWorkspace: {
+    var item = root.selectedCardIndex >= 0 ? root.overviewCardModel[root.selectedCardIndex] : null
+    return item && !item.isInsertion ? root.workspaceById(item.workspaceId) : null
+  }
+  readonly property var spreadWindows: {
+    var revision=root.searchRevision
+    var workspace=root.selectedSpreadWorkspace
+    return WindowModel.resolveWorkspacePreviews(workspace && workspace.toplevels ? workspace.toplevels.values : [], root.selectedWindowAddress)
+  }
+  function showSpread() {
+    root.keybindMode="normal"
+    root.activeCycleModifier=0
+    holdWatchdog.stop()
+    root.spreadOpen=true
+    spreadView.forceActiveFocus()
+  }
+  function restoreOverviewFocus() {
+    if (root.spreadOpen) spreadView.forceActiveFocus()
+    else keyCatcher.forceActiveFocus()
+  }
   property int searchRevision: 0
   readonly property var searchEntries: {
     var revision = root.searchRevision
@@ -190,7 +211,7 @@ Item {
       root.savingPreferences = false
       root.settingsOpen = false
       root.settingsError = ""
-      keyCatcher.forceActiveFocus()
+      root.restoreOverviewFocus()
     }
     onSaveFailed: {
       root.savingPreferences = false
@@ -1760,6 +1781,7 @@ Item {
   }
 
   function close() {
+    root.spreadOpen = false
     root.searchOpen = false
     root.helpOpen = false
     root.settingsOpen = false
@@ -2156,13 +2178,27 @@ Item {
       anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Style.space(5) }
       width: Math.max(1, parent.width - Style.space(24))
       visible: root.opened && root.preferences.showShortcutHints && !root.helpOpen && !root.settingsOpen && !root.searchOpen
-      text: ControlsModel.footer(root.activePresentation, root.overviewMode === "focused", root.draggedToplevel !== null)
+      text: ControlsModel.footer(root.spreadOpen ? "spread" : root.activePresentation, root.overviewMode === "focused", root.draggedToplevel !== null)
       textFormat: Text.PlainText
       color: Commons.Color.foreground
       font.family: Style.font.family
       font.pixelSize: Style.font.bodySmall
       horizontalAlignment: Text.AlignHCenter
       wrapMode: Text.WordWrap
+    }
+    WindowSpread {
+      id: spreadView
+      z: 180
+      anchors.fill: parent
+      visible: root.spreadOpen
+      overview: root
+      windows: root.spreadWindows
+      workspaceName: root.selectedSpreadWorkspace ? String(root.selectedSpreadWorkspace.name || root.selectedSpreadWorkspace.id) : ""
+      onDismissed: { root.spreadOpen=false; root.restoreOverviewFocus() }
+      onActivated: function(address) {
+        var target=root.toplevelForAddress(address)
+        if (target) root.activateWindow(target)
+      }
     }
     WindowSearch {
       id: windowSearch
@@ -2178,7 +2214,7 @@ Item {
         root.searchOpen = false
         root.activateWindow(target)
       }
-      onDismissed: { root.searchOpen = false; keyCatcher.forceActiveFocus() }
+      onDismissed: { root.searchOpen = false; root.restoreOverviewFocus() }
     }
     OverviewHelp {
       id: helpPanel
@@ -2187,8 +2223,8 @@ Item {
       width: Math.min(Style.space(520), parent.width - Style.space(24))
       height: Math.min(implicitHeight, parent.height - Style.space(24))
       visible: root.helpOpen
-      shortcuts: ControlsModel.rows(root.activePresentation)
-      onDismissed: { root.helpOpen = false; keyCatcher.forceActiveFocus() }
+      shortcuts: ControlsModel.rows(root.spreadOpen ? "spread" : root.activePresentation)
+      onDismissed: { root.helpOpen = false; root.restoreOverviewFocus() }
     }
     SettingsPanel {
       id: settingsPanel
@@ -2201,12 +2237,12 @@ Item {
       preferences: root.preferences
       errorText: root.settingsError
       onApplyRequested: function(settings) { root.savePreferences(settings) }
-      onCancelled: { root.settingsOpen = false; keyCatcher.forceActiveFocus() }
+      onCancelled: { root.settingsOpen = false; root.restoreOverviewFocus() }
     }
 
     PanelKeyCatcher {
       id: keyCatcher
-      blocked: root.settingsOpen || root.helpOpen || root.searchOpen
+      blocked: root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen
       anchors.fill: parent
       focus: true
       property bool returnHandled: false
@@ -2254,7 +2290,12 @@ Item {
       onCloseRequested: root.dismiss()
 
       Keys.onPressed: function(event) {
-        if (root.settingsOpen || root.helpOpen || root.searchOpen) return
+        if (root.settingsOpen || root.helpOpen || root.searchOpen || root.spreadOpen) return
+        if (event.text === "v" || event.text === "V") {
+          root.showSpread()
+          event.accepted=true
+          return
+        }
         if (event.text === "/") {
           root.showSearch()
           event.accepted = true
@@ -2397,7 +2438,7 @@ Item {
             workspaceId: modelData
             workspace: root.workspaceById(modelData)
             isSpecial: Boolean(overviewItem && overviewItem.isScratchpad)
-            livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel"
+            livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation !== "compact" && root.activePresentation !== "carousel" && !root.spreadOpen
             draggedToplevel: root.draggedToplevel
             keyboardSelected: slotIndex === root.selectedCardIndex
             focused: root.currentActiveWorkspace() !== null
@@ -2446,7 +2487,7 @@ Item {
         anchors.centerIn: parent
         visible: root.activePresentation === "compact"
         overview: root
-        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "compact"
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "compact" && !root.spreadOpen
       }
 
       // ── Continuous Carousel Switcher (Active in carousel cycle mode) ──────
@@ -2455,7 +2496,7 @@ Item {
         anchors.fill: parent
         visible: root.activePresentation === "carousel"
         overview: root
-        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "carousel"
+        livePreviews: root.opened && root.livePreviewsReady && panel.visible && root.activePresentation === "carousel" && !root.spreadOpen
       }
     }
 
