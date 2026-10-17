@@ -24,6 +24,14 @@ TestCase {
     compare(SettingsModel.normalized({backdropBlur:"true"}).backdropBlur, false)
     compare(SettingsModel.normalized({backdropBlur:true}).backdropBlur, true)
   }
+  function test_layoutOptions() {
+    compare(SettingsModel.normalized({layoutDensity:"unknown"}).layoutDensity, "compact")
+    compare(SettingsModel.spacingScale("compact"), 1)
+    compare(SettingsModel.spacingScale("comfortable"), 1.25)
+    compare(SettingsModel.spacingScale("airy"), 1.5)
+    verify(SettingsModel.neighborOpacity("quiet") < SettingsModel.neighborOpacity("normal"))
+    verify(SettingsModel.neighborOpacity("strong") > SettingsModel.neighborOpacity("normal"))
+  }
   function test_cycleChoicesWrap() {
     compare(SettingsModel.next("full", ["full","carousel","compact"], -1), "compact")
     compare(SettingsModel.next("compact", ["full","carousel","compact"], 1), "full")

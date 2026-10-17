@@ -341,3 +341,10 @@ title on hovered or keyboard-selected previews. Labels stay hidden on previews
 too small to fit them. The grid's filled workspace badge marks the active
 desktop; the accent outline marks the keyboard selection. Hover outlines remain
 neutral so they do not compete with the selected window.
+
+### Preview spacing
+
+Settings offers compact, comfortable, and airy spacing without changing desktop
+window geometry. Carousel neighbors can be quiet, normal, or strong. Defaults
+preserve the existing compact spacing and neighbor opacity. Settings scrolls
+when the display cannot fit every control, including during keyboard navigation.
