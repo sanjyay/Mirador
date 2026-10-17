@@ -1,5 +1,5 @@
-import QtQuick
-import QtTest
+import QtQuick 2.15
+import QtTest 1.3
 import "../MonitorModel.js" as MonitorModel
 TestCase {
  name:"MonitorModel"
