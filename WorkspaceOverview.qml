@@ -2157,6 +2157,17 @@ Item {
     return true
   }
 
+  function moveWindowToMonitor(toplevel,name) {
+    var current=root.toplevelForAddress(root.normalizedAddress(toplevel))
+    var monitors=Hyprland.monitors ? Hyprland.monitors.values : []
+    for (var i=0;i<monitors.length;i++) {
+      if (monitors[i].name!==name) continue
+      var destination=MonitorModel.destination(current,monitors[i])
+      return destination!==null && root.moveWindowToWorkspace(current,destination)
+    }
+    return false
+  }
+
   function beginWindowDrag(toplevel) {
     if (root.normalizedAddress(toplevel)) {
       root.draggedToplevel = toplevel
@@ -2243,6 +2254,13 @@ Item {
         acceptedDevices: PointerDevice.TouchPad
         onWheel: function(event) { event.accepted=root.handleTouchpadScroll(event.pixelDelta.x,event.pixelDelta.y) }
       }
+    }
+    MonitorDropTargets {
+      z: 195
+      overview: root
+      x: root.gridViewport.x
+      y: Math.max(root.gridViewport.y,root.gridViewport.y+root.gridViewport.height-height)
+      width: root.gridViewport.width
     }
     WindowSpread {
       id: spreadView

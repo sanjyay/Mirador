@@ -42,6 +42,11 @@ PanelWindow {
     textFormat:Text.PlainText;color:Commons.Color.foreground
     font.family:Style.font.family;font.pixelSize:Style.font.body
   }
+  MonitorDropTargets {
+    z:195
+    overview:root.overview
+    x:root.viewport.x;y:root.viewport.y+root.viewport.height-height;width:root.viewport.width
+  }
   Item {
     x:root.viewport.x;y:root.viewport.y+Style.space(36)
     width:root.viewport.width;height:Math.max(1,root.viewport.height-Style.space(36))
