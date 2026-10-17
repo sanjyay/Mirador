@@ -361,3 +361,11 @@ The help panel scrolls with the mouse or Up/Down on smaller displays.
 Enable Reduced motion in Settings to stop workspace spring effects and make
 Mirador's preview transitions immediate. Navigation, capture updates, and drag
 targets continue to work. Shared shell button hover styling is unchanged.
+
+### Search open windows
+
+Press / in Mirador to search open windows across workspaces by application
+name or title. Words are matched without case sensitivity. Up/Down selects a
+result, Enter activates it, and Escape cancels without switching workspaces.
+H/J/K/L remain navigation keys outside search. Selection follows a window's
+address when the result list updates; closed windows cannot be activated.
