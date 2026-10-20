@@ -24,10 +24,14 @@ Mirador utilizes Qt Quick Test (`qmltestrunner`) for fast, deterministic, and he
 Execute all test files in sequence:
 
 ```bash
+export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software
 for f in tests/*.qml; do
   qmltestrunner -input "$f"
 done
 ```
+
+The software renderer lets the Settings panel's visual interaction tests run on
+headless machines without an OpenGL context, matching the CI environment.
 
 ### Settings regression checks
 
