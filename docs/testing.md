@@ -29,6 +29,25 @@ for f in tests/*.qml; do
 done
 ```
 
+### Settings regression checks
+
+`tests/tst_settingspanel.qml` runs the production dialog with lightweight theme
+and button paint fixtures. It covers forward/reverse navigation through settings
+and actions, field activation, Save/Cancel, held keys, busy/error states,
+mouse-to-keyboard selection, modifier shortcuts, and small-panel scrolling.
+
+Also run the native writer check in a Qt 6 environment:
+
+```bash
+python3 tests/check_settings_writer.py
+```
+
+This launches a temporary headless Quickshell configuration using the production
+write helper. It checks unchanged saves, failed atomic writes preserving the
+old file, and retrying identical content after failure. Quickshell is required
+because its IO plugin is statically linked and cannot load in `qmltestrunner`.
+The check restores temporary directory permissions before cleanup.
+
 ### Run a Specific Test
 Run an individual test suite:
 

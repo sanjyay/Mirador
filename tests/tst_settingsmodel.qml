@@ -18,7 +18,8 @@ TestCase {
     compare(SettingsModel.normalized({}).modifier, "super")
   }
   function test_backdropValidation() {
-    compare(SettingsModel.normalized({backdropDim:2}).backdropDim, 0.85)
+    compare(SettingsModel.normalized({backdropDim:2}).backdropDim, 1)
+    compare(SettingsModel.parse('{"backdropDim":1}').backdropDim, 1)
     compare(SettingsModel.normalized({backdropDim:-1}).backdropDim, 0)
     compare(SettingsModel.normalized({backdropDim:"bad"}).backdropDim, 0.5)
     compare(SettingsModel.normalized({backdropBlur:"true"}).backdropBlur, false)

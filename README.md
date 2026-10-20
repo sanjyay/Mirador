@@ -316,10 +316,12 @@ Mirador is available under the [MIT License](LICENSE).
 
 ## Settings panel
 
-Open Mirador and press **F2**, or click **Settings**. Use Up/Down to select a
-cycle preference, Left/Right to change it, Enter to save, and Escape to cancel.
-The panel supports the cycle presentation and modifier. Shortcut payloads that
-explicitly select a presentation or modifier take precedence.
+Open Mirador and press **F2**, or click **Settings**. Tab/Shift+Tab or Up/Down
+cycles through preferences, Save, and Cancel. Left/Right changes a preference;
+Enter/Space changes a preference or activates the selected action. Escape or F2
+cancels the draft. The panel scrolls on small displays, and blocks overview
+actions while open. Settings contains the backdrop dimming and wallpaper blur
+controls. Workspace cycling continues to use the configured keyboard shortcuts.
 
 Preferences are saved atomically in the dedicated mirador/settings.json under
 the XDG configuration directory (normally ~/.config/mirador/settings.json).

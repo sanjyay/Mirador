@@ -140,6 +140,8 @@ Item {
   property bool savingPreferences: false
   readonly property string preferencesDirectory: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/mirador"
   function showSettings() {
+    if (root.settingsOpen) { settingsPanel.forceActiveFocus(); return }
+    if (root.savingPreferences) return
     // Release-to-commit must not select a workspace behind an open dialog.
     root.keybindMode = "normal"
     root.activeCycleModifier = 0
@@ -149,28 +151,38 @@ Item {
     settingsPanel.forceActiveFocus()
   }
   function savePreferences(value) {
-    if (root.savingPreferences) return
+    if (root.savingPreferences || !root.opened || !root.settingsOpen) return
     root.pendingPreferences = SettingsModel.normalized(value)
     root.savingPreferences = true
     preferencesDirectoryProcess.running = true
   }
+  function writePreferencesDocument(document) {
+    // FileView skips cached identical text without a completion signal, even
+    // after a failed write. Reset the writer cache for each serialized attempt.
+    preferencesFile.path = ""
+    preferencesFile.path = root.preferencesDirectory + "/settings.json"
+    preferencesFile.setText(document)
+  }
   FileView {
     id: preferencesFile
-    path: root.preferencesDirectory + "/settings.json"
+    path: ""
+    preload: false
     atomicWrites: true
     printErrors: false
     onSaved: {
+      var restoreFocus = root.opened && root.settingsOpen
       root.preferences = root.pendingPreferences
       root.cycleUI = root.preferences.cycleUI
       root.configuredModifier = root.preferences.modifier
       root.savingPreferences = false
       root.settingsOpen = false
       root.settingsError = ""
-      keyCatcher.forceActiveFocus()
+      if (restoreFocus) keyCatcher.forceActiveFocus()
     }
     onSaveFailed: {
       root.savingPreferences = false
       root.settingsError = "Could not save settings. Check the configuration directory permissions."
+      if (root.opened && root.settingsOpen) settingsPanel.forceActiveFocus()
     }
   }
   Process {
@@ -182,7 +194,7 @@ Item {
         root.settingsError = "Could not create the settings directory."
         return
       }
-      preferencesFile.setText(JSON.stringify(root.pendingPreferences, null, 2))
+      root.writePreferencesDocument(JSON.stringify(root.pendingPreferences, null, 2))
     }
   }
 
@@ -1543,6 +1555,9 @@ Item {
       payload = null
     }
 
+    // Compositor shortcuts arrive through IPC even while the dialog owns keys.
+    if (root.opened && root.settingsOpen) return
+
     // Global compositor bindings can be consumed before an exclusive
     // layer-shell client receives the matching key event. Route numeric
     // workspace navigation through IPC so carousel selection is deterministic,
@@ -2124,13 +2139,22 @@ Item {
       visible: root.opened && !root.settingsOpen && root.keybindMode !== "cycle"
       onClicked: root.showSettings()
     }
+    MouseArea {
+      z: 205
+      anchors.fill: parent
+      visible: root.settingsOpen
+      acceptedButtons: Qt.AllButtons
+      onPressed: settingsPanel.forceActiveFocus()
+      onWheel: function(event) { event.accepted = true }
+    }
     SettingsPanel {
       id: settingsPanel
       z: 210
       anchors.centerIn: parent
       width: Math.min(Style.space(500), parent.width - Style.space(24))
+      height: Math.max(1, Math.min(implicitHeight, parent.height - Style.space(24)))
       visible: root.settingsOpen
-      enabled: !root.savingPreferences
+      busy: root.savingPreferences
       preferences: root.preferences
       errorText: root.settingsError
       onApplyRequested: function(settings) { root.savePreferences(settings) }
@@ -2251,6 +2275,7 @@ Item {
       // ── Two-finger pinch handler (native QtQuick pointer handler) ───────────
       PinchHandler {
         id: pinchHandler
+        enabled: !root.settingsOpen
         target: null
         grabPermissions: PointerHandler.CanTakeOverFromAnything
         onActiveChanged: {
