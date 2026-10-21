@@ -520,6 +520,53 @@ TestCase {
       "Do not round physically snapped card coordinates back to logical integers")
   }
 
+  function safeAreaFromProduction(root, panel) {
+    var source = workspaceOverviewSource()
+    var match = source.match(/safeArea:\s*(WindowGeometry\.safeAreaGeometry\([\s\S]*?\))/)
+    verify(match !== null)
+    return eval(match[1])
+  }
+
+  function test_firstOpenKeepsLayoutStable_data() {
+    var screens = [
+      {name:"scaled", width:1536, height:864},
+      {name:"portrait", width:1080, height:1920},
+      {name:"ultrawide", width:3440, height:1440},
+      {name:"small", width:320, height:200}
+    ]
+    var rows = []
+    screens.forEach(function(screen) {
+      ["top", "bottom", "left", "right"].forEach(function(bar) {
+        rows.push({tag:screen.name + "-" + bar, screen:screen, bar:bar})
+      })
+    })
+    return rows
+  }
+
+  function test_firstOpenKeepsLayoutStable(data) {
+    var root = {targetScreen:data.screen, barPosition:data.bar, barPixels:35,
+      outerMargin:16, monitorReserved:[0,0,0,0]}
+    var hidden = safeAreaFromProduction(root, {width:100,height:100})
+    var mapped = safeAreaFromProduction(root, data.screen)
+    compare(hidden, mapped, "First configure must not rebuild a provisional miniature layout")
+    verify(hidden.usableWidth > 100)
+    verify(hidden.usableHeight > 100)
+  }
+
+  function test_layoutTracksScreenResizeAndDisconnect() {
+    var root = {targetScreen:{width:1536,height:864}, barPosition:"top", barPixels:35,
+      outerMargin:16, monitorReserved:[0,0,0,0]}
+    var panel = {width:100,height:100}
+    var before = safeAreaFromProduction(root, panel)
+    root.targetScreen = {width:864,height:1536}
+    var after = safeAreaFromProduction(root, panel)
+    verify(after.usableWidth < before.usableWidth)
+    verify(after.usableHeight > before.usableHeight)
+    root.targetScreen = null
+    compare(safeAreaFromProduction(root, panel),
+      WindowGeometry.safeAreaGeometry(100,100,"top",35,16,[0,0,0,0]))
+  }
+
   function test_safeAreaAuthoritativeBarIntegration() {
     var source = workspaceOverviewSource()
 

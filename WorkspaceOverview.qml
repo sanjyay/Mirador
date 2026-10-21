@@ -620,8 +620,12 @@ Item {
   readonly property real gridSpacing: Style.space(24)
 
   // Safe area geometry calculation across any bar position (top/bottom/left/right)
+  // The hidden layer window has a provisional size until its first configure.
+  // Lay out this full-screen overlay for the target screen before showing it.
   readonly property var safeArea: WindowGeometry.safeAreaGeometry(
-    panel.width, panel.height, root.barPosition, root.barPixels, root.outerMargin, root.monitorReserved)
+    root.targetScreen ? root.targetScreen.width : panel.width,
+    root.targetScreen ? root.targetScreen.height : panel.height,
+    root.barPosition, root.barPixels, root.outerMargin, root.monitorReserved)
 
   // Usable panel area strictly bounded inside the safe rectangle
   readonly property var gridViewport: WindowGeometry.snapRectToDevicePixels({
