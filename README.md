@@ -313,18 +313,3 @@ hyprctl configerrors
 ## License
 
 Mirador is available under the [MIT License](LICENSE).
-
-## Settings panel
-
-Open Mirador and press **F2**, or click **Settings**. Tab/Shift+Tab or Up/Down
-cycles through preferences, Save, and Cancel. Left/Right changes a preference;
-Enter/Space changes a preference or activates the selected action. Escape or F2
-cancels the draft. The panel scrolls on small displays, and blocks overview
-actions while open. Settings contains the backdrop dimming and wallpaper blur
-controls. Their visual effect is supplied by the backdrop appearance follow-up.
-Workspace cycling continues to use the configured keyboard shortcuts.
-
-Preferences are saved atomically in the dedicated mirador/settings.json under
-the XDG configuration directory (normally ~/.config/mirador/settings.json).
-Existing plugin-local settings are read as a fallback. Unknown preference keys
-are retained when saving.
