@@ -2118,12 +2118,10 @@ Item {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
 
-    Rectangle {
+    OverviewBackdrop {
       anchors.fill: parent
-      color: root.activePresentation === "compact" ? Util.alpha("#000000", 0.35) : "transparent"
-      Behavior on color {
-        ColorAnimation { duration: 100 }
-      }
+      dimming: root.preferences.backdropDim
+      blurWallpaper: root.preferences.backdropBlur
     }
 
     MouseArea {

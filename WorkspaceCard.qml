@@ -136,11 +136,6 @@ BorderSurface {
   color: "transparent"
   borderSpec: Border.none()
   clip: false
-  opacity: root.cardOpacity
-
-  Behavior on opacity {
-    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
-  }
 
   JiggleSurface {
     id: physics
@@ -151,11 +146,19 @@ BorderSurface {
     dropHovered: root.dropHovered
   }
   Rectangle {
+    anchors.fill: parent
+    color: Commons.Color.menu.background
+    transform: Translate { x: physics.offsetX; y: physics.offsetY }
+  }
+  Rectangle {
     id: cardVisual
     anchors.fill: parent
     radius: root.radius
-    color: (root.isCurrent || root.highlighted) ? Commons.Color.menu.background
-      : (root.occupied ? Util.alpha(Commons.Color.menu.background, 0.96) : Util.alpha(Commons.Color.menu.background, 0.88))
+    color: Commons.Color.menu.background
+    opacity: root.cardOpacity
+    Behavior on opacity {
+      NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+    }
     clip: true
     transform: Translate { x: physics.offsetX; y: physics.offsetY }
   }
