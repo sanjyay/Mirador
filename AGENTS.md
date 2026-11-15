@@ -73,6 +73,7 @@ mirador/
 4. **Preserve Resource Release on Dismiss**:
    * `WindowPreview.qml` must ensure `captureSource` is `null` when `liveCaptureEnabled` is false.
    * Failure to release `captureSource` on hidden views leads to fatal Hyprland SIGSEGV crashes during monitor hotplug and DPMS power-cycling.
+   * Even while visible, `captureSource` stays `null` for a window Hyprland reports as pinned or as having no live monitor, and for a short hold after `monitorremoved`. A monitor unplug leaves pinned windows on the dead monitor, and capturing one crashes Hyprland 0.56 (`CScreenshareSession::init`). Gate on `captureAllowed`, not `liveCaptureEnabled` alone.
 
 5. **Maintain 2D Cyclic Navigation Model**:
    * **Left / Right**: Cycles continuously across the global visual sequence (1 → 2 → ... → N → 1).
