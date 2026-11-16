@@ -56,6 +56,9 @@ Rectangle {
   // stranded window before the hold can start.
   property bool monitorRemovalHold: false
   property bool captureSettled: false
+  // The pin state from the last Hyprland "pin" event for this window, or null when
+  // none has arrived since the preview was pointed at it.
+  property var pinOverride: null
   readonly property bool monitorAlive: {
     if (!toplevel) return false
     var ipc = toplevel.lastIpcObject
@@ -63,8 +66,9 @@ Rectangle {
     // Pinned windows are exactly the ones an unplug strands, and a LIVE view of one
     // re-requests its next frame from C++ the moment its session is stopped, before
     // any QML here can react. So pinned windows are never captured; the card shows
-    // their icon instead.
-    if (ipc && ipc.pinned) return false
+    // their icon instead. lastIpcObject can lag a pin, so a pin event for this
+    // window (pinOverride) decides first.
+    if (WindowModel.previewWindowPinned(ipc, root.pinOverride)) return false
     var mon = toplevel.monitor || (toplevel.workspace ? toplevel.workspace.monitor : null)
     if (!mon) return false
     var mons = Hyprland.monitors.values
@@ -101,6 +105,19 @@ Rectangle {
       if (name === "monitorremoved" || name === "monitorremovedv2") {
         root.monitorRemovalHold = true
         monitorRemovalHoldTimer.restart()
+        return
+      }
+      if (name === "pin") {
+        var pinned = WindowModel.pinEventState(name, event.data, WindowModel.toplevelAddress(root.toplevel))
+        if (pinned === null) return
+        // Pinning drops the capture source at once, through monitorAlive. Unpinning
+        // waits one settle interval before the preview captures again.
+        root.pinOverride = pinned
+        if (!pinned) {
+          root.captureSettled = false
+          captureSettleTimer.restart()
+        }
+        Hyprland.refreshToplevels()
       }
     }
   }
@@ -168,6 +185,7 @@ Rectangle {
 
   onToplevelChanged: {
     root.hasReceivedFrame = false
+    root.pinOverride = null
     root.captureSettled = false
     captureSettleTimer.restart()
   }

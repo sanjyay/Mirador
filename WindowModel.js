@@ -24,6 +24,29 @@ function toplevelAddress(toplevel) {
   return normalizedAddress((toplevel && toplevel.address) || (ipc && ipc.address))
 }
 
+// Pin state of a window from a Hyprland "pin" event (data "ADDRESS,STATE"), when
+// that event is about the given window: true or false, else null. A preview uses
+// it to act on a pin at once, before lastIpcObject has been refreshed.
+function pinEventState(name, data, address) {
+  if (String(name || "") !== "pin") return null
+  var parts = String(data || "").split(",")
+  if (parts.length < 2) return null
+  var target = normalizedAddress(address)
+  if (target === "" || normalizedAddress(parts[0]) !== target) return null
+  var state = parts[1].trim()
+  if (state === "1") return true
+  if (state === "0") return false
+  return null
+}
+
+// Whether a preview should treat its window as pinned. A pin event seen for this
+// window (pinOverride true or false) wins over lastIpcObject, which can stay stale
+// until the next toplevel refresh.
+function previewWindowPinned(ipc, pinOverride) {
+  if (pinOverride === true || pinOverride === false) return pinOverride
+  return !!(ipc && ipc.pinned)
+}
+
 function groupAddresses(toplevel) {
   var ipc = ipcObject(toplevel)
   // QVariantList values from Qt are array-like but are not guaranteed to pass
