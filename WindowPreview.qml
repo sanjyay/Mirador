@@ -110,10 +110,13 @@ Rectangle {
       if (name === "pin") {
         var pinned = WindowModel.pinEventState(name, event.data, WindowModel.toplevelAddress(root.toplevel))
         if (pinned === null) return
-        // Pinning drops the capture source at once, through monitorAlive. Unpinning
-        // waits one settle interval before the preview captures again.
+        // Pinning drops the capture source at once, through monitorAlive, and forgets
+        // the last frame so the card shows the app icon. Unpinning waits one settle
+        // interval before the preview captures again.
         root.pinOverride = pinned
-        if (!pinned) {
+        if (pinned) {
+          root.hasReceivedFrame = false
+        } else {
           root.captureSettled = false
           captureSettleTimer.restart()
         }

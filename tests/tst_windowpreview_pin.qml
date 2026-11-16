@@ -43,6 +43,7 @@ TestCase {
       toplevel: f.toplevel,
       liveCaptureEnabled: true,
       captureSettled: true,
+      hasReceivedFrame: true,
       monitorRemovalHold: false,
       pinOverride: null
     }
@@ -95,6 +96,7 @@ TestCase {
     compare(p.root.pinOverride, true)
     verify(!p.captureAllowed(), "the capture is released on the pin event, not on the next refresh")
     verify(p.refreshes >= 1, "the pin asks Hyprland for fresh toplevel metadata")
+    compare(p.root.hasReceivedFrame, false, "the card drops the last frame and shows the app icon")
 
     // The refresh lands: still released.
     p.ipcRefreshed(true)
