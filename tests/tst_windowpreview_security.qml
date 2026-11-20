@@ -54,7 +54,8 @@ TestCase {
 
   function test_hiddenPreviewReleasesCaptureSource() {
     var source = windowPreviewSource()
-    verify(/captureSource\s*:\s*root\.liveCaptureEnabled\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(source))
+    verify(/captureSource\s*:\s*root\.captureAllowed\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(source)
+      && /captureAllowed\s*:\s*root\.liveCaptureEnabled\s*&&/.test(source))
   }
 
   function test_hostileTitlesRemainPlainText() {

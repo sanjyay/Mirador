@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -41,6 +42,88 @@ Rectangle {
     && height >= naturalPillHeight * 1.8
 
   property bool liveCaptureEnabled: false
+
+  // Hyprland 0.56 segfaults in CScreenshareSession::init() (it reads the scale of a
+  // null monitor) when a toplevel capture starts for a window whose monitor is gone.
+  // An unplugged monitor leaves such windows behind: moveWorkspaceToMonitor skips
+  // pinned windows, so they keep the dead monitor until something moves them.
+  // So: capture only a window that sits on a monitor Hyprland still has, and hold
+  // every capture for a moment after any monitor is removed, until the toplevel
+  // list has been refreshed. A preview that has just been created (or re-pointed at
+  // another window) also waits a moment before its first capture: during an unplug
+  // Hyprland posts the workspace/window events that rebuild the cards BEFORE it posts
+  // monitorremoved, so a delegate born from those events would otherwise capture a
+  // stranded window before the hold can start.
+  property bool monitorRemovalHold: false
+  property bool captureSettled: false
+  // The pin state from the last Hyprland "pin" event for this window, or null when
+  // none has arrived since the preview was pointed at it.
+  property var pinOverride: null
+  readonly property bool monitorAlive: {
+    if (!toplevel) return false
+    var ipc = toplevel.lastIpcObject
+    if (ipc && ipc.monitor !== undefined && Number(ipc.monitor) < 0) return false
+    // Pinned windows are exactly the ones an unplug strands, and a LIVE view of one
+    // re-requests its next frame from C++ the moment its session is stopped, before
+    // any QML here can react. So pinned windows are never captured; the card shows
+    // their icon instead. lastIpcObject can lag a pin, so a pin event for this
+    // window (pinOverride) decides first.
+    if (WindowModel.previewWindowPinned(ipc, root.pinOverride)) return false
+    var mon = toplevel.monitor || (toplevel.workspace ? toplevel.workspace.monitor : null)
+    if (!mon) return false
+    var mons = Hyprland.monitors.values
+    for (var i = 0; i < mons.length; i++) {
+      if (mons[i] === mon) return true
+    }
+    return false
+  }
+  readonly property bool captureAllowed: root.liveCaptureEnabled && root.captureSettled
+    && root.monitorAlive && !root.monitorRemovalHold
+
+  Timer {
+    id: captureSettleTimer
+    interval: 400
+    running: true
+    onTriggered: root.captureSettled = true
+  }
+
+  Timer {
+    id: monitorRemovalHoldTimer
+    interval: 1500
+    onTriggered: {
+      Hyprland.refreshMonitors()
+      Hyprland.refreshToplevels()
+      root.monitorRemovalHold = false
+    }
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (!event || !event.name) return
+      var name = String(event.name)
+      if (name === "monitorremoved" || name === "monitorremovedv2") {
+        root.monitorRemovalHold = true
+        monitorRemovalHoldTimer.restart()
+        return
+      }
+      if (name === "pin") {
+        var pinned = WindowModel.pinEventState(name, event.data, WindowModel.toplevelAddress(root.toplevel))
+        if (pinned === null) return
+        // Pinning drops the capture source at once, through monitorAlive, and forgets
+        // the last frame so the card shows the app icon. Unpinning waits one settle
+        // interval before the preview captures again.
+        root.pinOverride = pinned
+        if (pinned) {
+          root.hasReceivedFrame = false
+        } else {
+          root.captureSettled = false
+          captureSettleTimer.restart()
+        }
+        Hyprland.refreshToplevels()
+      }
+    }
+  }
   property bool animatedAffordances: true
   property bool showLabel: true      // controls interactive grouped-window tabs
   property bool keyboardSelected: false
@@ -105,6 +188,9 @@ Rectangle {
 
   onToplevelChanged: {
     root.hasReceivedFrame = false
+    root.pinOverride = null
+    root.captureSettled = false
+    captureSettleTimer.restart()
   }
 
   onLiveCaptureEnabledChanged: {
@@ -141,7 +227,7 @@ Rectangle {
     ScreencopyView {
       id: preview
       anchors.fill: parent
-      captureSource: root.liveCaptureEnabled ? root.waylandToplevel : null
+      captureSource: root.captureAllowed ? root.waylandToplevel : null
       live: root.liveCaptureEnabled
       paintCursor: false
       visible: hasContent || root.hasReceivedFrame

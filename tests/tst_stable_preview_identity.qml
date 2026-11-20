@@ -234,7 +234,8 @@ TestCase {
     var src = windowPreviewSource()
     // This is the established safety invariant from tst_windowpreview_security.qml.
     // The fix must not break it.
-    verify(/captureSource\s*:\s*root\.liveCaptureEnabled\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(src),
+    verify(/captureSource\s*:\s*root\.captureAllowed\s*\?\s*root\.waylandToplevel\s*:\s*null/.test(src)
+      && /captureAllowed\s*:\s*root\.liveCaptureEnabled\s*&&/.test(src),
       "WindowPreview captureSource must still be released to null when liveCaptureEnabled is false")
   }
 
