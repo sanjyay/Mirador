@@ -2047,7 +2047,10 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: root.activePresentation === "compact" ? Util.alpha("#000000", 0.35) : "transparent"
+      // Not fully transparent: Hyprland blurs a closing layer's fade-out
+      // snapshot only where alpha exceeds ignore_alpha (default 0.01), so a
+      // 0-alpha backdrop loses its background blur on the first frame.
+      color: root.activePresentation === "compact" ? Util.alpha("#000000", 0.35) : Util.alpha("#000000", 0.02)
       Behavior on color {
         ColorAnimation { duration: 100 }
       }
