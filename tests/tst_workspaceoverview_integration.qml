@@ -49,6 +49,26 @@ TestCase {
     verify(/WlrLayershell\.namespace\s*:\s*"omarchy-workspace-overview"/.test(source))
   }
 
+  // Hyprland blurs a closing layer's fade-out snapshot only where its alpha is
+  // above ignore_alpha (default 0.01). A fully transparent backdrop therefore
+  // drops the background blur on the first frame of the fade-out.
+  function test_backdropKeepsBlurThroughLayerFadeOut() {
+    var source = workspaceOverviewSource()
+    var panel = source.slice(source.indexOf("PanelWindow {"))
+    var match = panel.match(/Rectangle \{\s*anchors\.fill: parent\s*(?:\/\/[^\n]*\n\s*)*color: ([^\n]+)/)
+    verify(match !== null, "panel backdrop color not found")
+    var expr = match[1]
+    verify(expr.indexOf('"transparent"') === -1, "backdrop must not be fully transparent")
+    var alphas = []
+    var re = /Util\.alpha\("#000000", ([0-9.]+)\)/g
+    var m
+    while ((m = re.exec(expr)) !== null) alphas.push(parseFloat(m[1]))
+    compare(alphas.length, 2)
+    compare(alphas[0], 0.35)
+    verify(alphas[1] > 0.01, "backdrop alpha must exceed Hyprland's default ignore_alpha")
+    verify(alphas[1] <= 0.05, "backdrop tint must stay visually negligible")
+  }
+
   function test_keyboardFocusRemainsExclusive() {
     var source = workspaceOverviewSource()
     verify(/WlrLayershell\.keyboardFocus\s*:\s*WlrKeyboardFocus\.Exclusive/.test(source))
